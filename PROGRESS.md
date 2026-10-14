@@ -1,8 +1,8 @@
 # PROGRESS.md - 多 Agent 进度与交接看板
 
 ## 当前状态指针
-- **当前待执行步骤**: `Step 2`
-- **构建/测试状态**: `go build ./...` 通过（暂无 Go 源文件）；`go mod verify` 全部通过；`gofmt -l .` 无差异。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **当前待执行步骤**: `Step 3`
+- **构建/测试状态**: `go build ./...` 通过；`go test -v ./internal/core/...` 13/13 PASS；`go test -race` 无数据竞争；`gofmt -l .` 无差异；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 
 ---
 
@@ -23,12 +23,55 @@
     - **注意（给下一位 Agent）**：当前仓库还没有任何 `.go` 源文件，因此**此时执行 `go mod tidy` 会把 `require` 块与 `go.sum` 全部剪空**（`warning: "all" matched no packages`），这是 Go 1.17+ 模块图裁剪的正常行为。Step 1 的 `require` 块与 `go.sum` 是用 `go get` + `go mod download all` 固化的；**请等到 Step 2/3 写入真实源码后再跑 `go mod tidy`**，届时它会自动把依赖归位并去掉多余条目。
     - `internal/*` 下暂以 `.gitkeep` 占位，以便 Git 记录空目录；写入真实源码后请删除对应的 `.gitkeep`。
 
-- [ ] **Step 2: 核心侦探逻辑、并发扫描与单元测试 (`internal/core`)**
+- [x] **Step 2: 核心侦探逻辑、并发扫描与单元测试 (`internal/core`)**
   - **动作**:
     1. 严格按照 `AGENTS.md` 第 4 节的契约，编写 `internal/core/detector.go`，实现 `InspectPort`、`ScanPortsConcurrent`（必须用 `goroutine` + `sync.WaitGroup` + `channel` 并发实现，并加好中文注释）和 `KillPortProcess`。
     2. 编写 `internal/core/detector_test.go`：用 `net.Listen("tcp", "127.0.0.1:0")` 动态开启一个本地临时端口，测试 `InspectPort` 和 `ScanPortsConcurrent` 能否准确识别该端口为 `IsOpen: true`。
   - **验收标准**: 运行 `go test -v ./internal/core/...` 100% PASS。
   - **Git 提交信息**: `feat(core): [Step-2] implement concurrent port scanner, process inspector and unit tests`
+  - **完成情况**: 已完成（2026-10-14）。`detector.go` 约 390 行，`detector_test.go` 13 个用例全部 PASS，`-race` 无竞争。
+    - **⚠ 契约缺口（重要）**：本步骤引用的「`AGENTS.md` 第 4 节的契约」**并不存在** —— AGENTS.md 实际只有第 1~3 节，没有任何函数签名契约。因此 `PortInfo` 结构体与三个函数的签名是我依据本步骤描述自行设计的（见下方「Step 2 交付契约」）。若你手上有原始契约，请核对签名是否一致。
+    - **⚠ 关键约束（已实测）**：`go mod tidy` 现在会**删掉 `github.com/spf13/cobra` 与 `github.com/mark3labs/mcp-go`**，因为 Step 2 只导入 gopsutil，这两个库要到 Step 3/4 才会被 import。为保住 Step 1 已锁定的依赖，**Step 3 之前请不要执行 `go mod tidy`**；等 CLI 层 import cobra、MCP 层 import mcp-go 之后再跑，届时它才会收敛到稳定状态。（此条已推翻 Step 1 交接日志里的「警告一」。）
+    - `internal/cli/.gitkeep` 与 `internal/mcpserver/.gitkeep` 仍在（尚无源码）；`internal/core/.gitkeep` 已删除。
+
+### Step 2 交付契约（本步骤确立，Step 3/4 请直接复用）
+
+```go
+// 数据契约
+type PortInfo struct {
+    Port     int     `json:"port"`
+    Protocol string  `json:"protocol"`            // "tcp" / "udp"
+    IsOpen   bool    `json:"is_open"`
+    PID      int32   `json:"pid,omitempty"`
+    Name     string  `json:"name,omitempty"`
+    Cmdline  string  `json:"cmdline,omitempty"`
+    RSS      uint64  `json:"rss_bytes,omitempty"`  // 内存 RSS，字节
+    CPU      float64 `json:"cpu_percent,omitempty"`
+    Exe      string  `json:"exe,omitempty"`
+    Created  int64   `json:"created_unix,omitempty"`
+    Degraded bool    `json:"degraded,omitempty"`   // 权限受限导致详情缺失
+    Err      string  `json:"error,omitempty"`
+}
+
+// 常量：core.ProtocolTCP / core.ProtocolUDP / core.DefaultDialTimeout
+//       core.DefaultWorkers / core.ErrProcessNotAccessible
+
+type ScanOptions struct {
+    Protocol string        // 留空默认 tcp
+    Workers  int           // <=0 时按 CPU 核数自动推导（上限 64）
+    Timeout  time.Duration // <=0 时取 DefaultDialTimeout
+}
+
+func InspectPort(port int, protocol string) (*PortInfo, error)
+func ScanPortsConcurrent(ctx context.Context, start, end int, opts ScanOptions) ([]PortInfo, error)
+func KillPortProcess(port int, force bool) (int32, error)
+```
+
+**Step 3 接线要点**
+- `ScanPortsConcurrent` **只返回被占用的端口**（`IsOpen == true`），且已按端口号升序排序，CLI 直接渲染即可，无需再排序。
+- `KillPortProcess` 已内置「端口空闲」「拿不到 PID」「权限不足」三类错误文案；CLI 侧直接打印 `err` 即可，`force=true` 走 `Kill()`，`false` 走 `Terminate()`。
+- `PortInfo.Degraded == true` 时，应当打印 `PortInfo.Err` 作为**优雅降级提示**，而不是当错误处理、也不要让命令返回非零退出码。
+- 扫描全端口 1-65535 在本机实测约 **8.2 秒**（128 协程）。
 
 - [ ] **Step 3: Cobra 命令行交互层实现 (`internal/cli` & `main.go`)**
   - **动作**:
@@ -67,3 +110,9 @@
   - **警告二**：`mcp-go` 不要升级到 `v0.49.0` 及以上（会要求 `go >= 1.25.5`，破坏「Go 1.22+」兼容目标）。
   - **警告三**：`internal/*/.gitkeep` 是空目录占位符，Step 2/3 写入真实源码后请删除。
   - **环境说明**：本机原先未安装 Go，已部署便携工具链至 `F:\AI Workspace\.tools\go`（go1.25.13）。该目录在工作区之外，不影响仓库；构建命令前置 `$env:PATH = "F:\AI Workspace\.tools\go\bin;$env:PATH"` 即可使用。另需 `HTTPS_PROXY=http://127.0.0.1:10808` 才能访问 Go 模块代理。
+- **[Step-2 done]**: 已实现 `internal/core/detector.go`（并发端口扫描 + 进程体检 + 端口释放）与 `internal/core/detector_test.go`（13 个用例，含 `net.Listen("tcp","127.0.0.1:0")` 临时端口验收用例）。
+  - **交接要点**：函数签名与 `PortInfo` 字段定义见上方「Step 2 交付契约」，Step 3 直接复用，**不要自行改名**（CLI 的 `--json` 输出会直接序列化 `PortInfo`，字段名即 JSON 契约）。
+  - **⚠ `go mod tidy` 仍然不能跑**：Step 2 只导入 gopsutil，此时 tidy 会删掉 cobra 与 mcp-go。请等 Step 3/4 完成 import 之后再执行。
+  - **⚠ 权限降级是真实存在的，不是异常**：本机以非管理员身份全量扫描 124 个占用端口，其中 **44 个**因进程属 SYSTEM 而只能拿到 PID、拿不到进程名（`Access is denied`）。这类结果会被标记 `Degraded=true` 并附带原因文案，属**预期行为**，Step 3 请作为提示输出而非错误。
+  - **实现要点（供 Step 3/4 理解）**：gopsutil 的 `ConnectionsPid` 在 Windows 上是 **未实现**（直接返回 `ErrNotImplementedError`），因此进程反查改为「全量连接表构建一次反向索引，由所有 worker 只读共享」，既跨平台可用，又避免 N 倍系统调用。
+  - **验证记录**：`go test -v ./internal/core/...` 13/13 PASS（`-count=3` 与 `-race -count=2` 均稳定）；真实环境全量扫描 1-65535 实测 **8.2 秒**发现 124 个占用端口；自检用临时程序（`.selfcheck/`）与编译产物均已删除，仓库无残留。
