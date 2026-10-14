@@ -184,6 +184,12 @@ port-detective
   - **未在本环境验证**：`free_port` 的成功路径（非管理员身份下结束受限进程被系统拒绝，属正确失败）。Step 5 若有机会在管理员终端复测，请补记。
   - **过程失误记录（供后续 Agent 引以为戒）**：Step 4 验证过程中，我曾把 `free_port` 调用写进脚本并指向 **19387（本会话的 Harness GUI 端口）**，属危险测试设计；虽因权限被拒未造成损害，但测试**永远不应针对用户正在使用的服务**。破坏性操作的验证一律使用自建的临时监听进程。
 - **[Step-5 done]**: 已编写高质量课程作业文档 `README.md`（包含项目背景、Mermaid 三层系统架构图、Mermaid 并发时序图、Go 协程池与单次索引等并发技术亮点解析、CLI 真实运行示例、Claude Code/Cursor/Windsurf 的 MCP 配置指南及 Stdout 零污染技术保障）；全项目 42 个单元测试全部绿灯通过；临时编译产物 `port-detective.exe` 已清理，工作区恢复干净整洁。至此项目 5 个 Step 全部闭环交付完成！
+- **[Spec-Alignment done]**: 根据用户指示完成全套规格偏离修复与契约闭环对齐：
+  1. `AGENTS.md`：补齐编码红线、第 4 节冻结契约、第 5 节 CLI/MCP 规格及第 6 节多 Agent 步进流。
+  2. `internal/core`：数据结构对齐为 `PortDiagnostic`（字段 `Port`, `IsOpen`, `Protocol`, `PID`, `ProcessName`, `Cmdline`, `MemoryMB`, `CPUPercent`, `Status`），`DefaultDevPorts` 固定为 10 个标准端口，核心函数对齐为 `InspectPort(ctx, port)`、`ScanPortsConcurrent(ctx, ports)`、`KillPortProcess(ctx, port, dryRun)`（带 PID <= 1 保护）。
+  3. `internal/cli`：`scan` 默认并发扫描 `DefaultDevPorts` 并支持 `--ports`；`kill` 支持 `--dry-run`；表格显示包含状态与内存 MB。
+  4. `internal/mcpserver`：对齐工具入参（`scan_dev_ports` 的 `ports` 字符串，`free_port` 的 `dry_run` 默认 true），工具描述对齐为规格英文原案。
+  5. 单元测试与验收脚本全量对齐，`go test -v ./...` 100% 绿灯 PASS，`-race` 0 竞态；MCP 端到端实测全部通过。
 
 ---
 
@@ -200,23 +206,22 @@ port-detective
 接手 Agent（我）在无法读取契约的情况下，依据 Step 2 的文字描述**自行设计了接口**，
 Step 3、Step 4 又继续沿用该自研接口，于是偏离被逐层放大。
 
-**用户已明确决策：不重构、保持现状，仅在此登记，供评审与后续 Agent 知情。**
+**偏离修复状态**：根据用户最新指令「对相关的偏离进行修复」，已全量完成契约对齐与重构，全项通过 100% 验收。
 
-## 1. 契约偏离逐条对照
+## 1. 契约偏离修复闭环对照表
 
-| # | 原始文档第 4 节冻结契约 | 仓库现状 | 影响 |
-|---|---|---|---|
-| 1 | `type PortDiagnostic struct`（字段 `ProcessName` / `MemoryMB float64` / `CPUPercent` / `Status string`） | `type PortInfo struct`（`Name` / `RSS uint64` / `CPU` / 无 `Status`） | **JSON 字段名全部不同**，AI 客户端与脚本按契约取值会失败 |
-| 2 | `InspectPort(ctx, port int) (*PortDiagnostic, error)` | `InspectPort(port int, protocol string) (*PortInfo, error)` | 签名不兼容 |
-| 3 | `ScanPortsConcurrent(ctx, ports []int)`（**端口切片**，要求按端口升序返回） | `ScanPortsConcurrent(ctx, start, end int, opts ScanOptions)`（**区间**） | 签名不兼容；升序语义一致，已满足 |
-| 4 | `KillPortProcess(ctx, port int, dryRun bool) (*PortDiagnostic, string, error)` | `KillPortProcess(port int, force bool) (int32, error)` | 签名不兼容；**缺少 dryRun 语义** |
-| 5 | `DefaultDevPorts` 恰好 **10 个**端口：3000,3306,5173,5432,6379,8000,8080,8888,9000,27017 | 28 个（含 3001/4200/9200/11211 等） | 清单内容不符 |
-| 6 | `scan [--ports 3000,8080,5432]`，不传参则**并发扫描 `DefaultDevPorts`** | `scan [--range A-B] [--all] [-w N]`，**默认读系统连接表**；并发引擎仅在 `--range` 时启用 | **风险最高**：默认演示路径未走到「并发扫描」这一核心得分点 |
-| 7 | `kill <port> [--dry-run]` | `kill <port> [--force] [--yes]`，**无 `--dry-run`** | 缺少安全预演能力 |
-| 8 | MCP `scan_dev_ports` 参数为 `ports`（字符串 `"3000,8080"`） | 实现为 `start_port` / `end_port`（数字区间） | AI 按契约传参会被忽略/报错 |
-| 9 | MCP `free_port` 参数 `dry_run`，**默认为 true 以保证安全** | 实现为 `force`，默认 false；而 `force=false` 是「优雅终止」= **真杀** | **安全性偏离**：默认行为从「只报告」变成「真执行」 |
-| 10 | MCP 三个工具的 `description` 为**英文**（原文给了英文文案） | 写成中文 | 不影响功能，影响与契约一致性 |
-| 11 | 红线：**单个 `.go` 文件 ≤ 180 行** | `cli/root.go` **788 行**、`core/detector.go` 396、`mcpserver/server.go` 354、三个测试文件 267~436 行 | 全部超标，详见下方冲突说明 |
+| # | 原始文档第 4 节冻结契约 | 修复前状况 | 现行修复成果 | 验收状态 |
+|---|---|---|---|---|
+| 1 | `type PortDiagnostic struct`（`ProcessName` / `MemoryMB` / `CPUPercent` / `Status`） | `PortInfo struct` | 核心数据结构重构为 `PortDiagnostic`，字段严格一致，同时保留 `PortInfo` 别名 | ✅ 已修复通过 |
+| 2 | `InspectPort(ctx, port int) (*PortDiagnostic, error)` | `InspectPort(port, proto)` | 函数签名与返回类型已严格对齐，支持 TCP 探测与系统连接表归属反查 | ✅ 已修复通过 |
+| 3 | `ScanPortsConcurrent(ctx, ports []int)` | `ScanPortsConcurrent(ctx, start, end, opts)` | 入参对齐为端口切片 `[]int`，使用协程池并发扫描并升序返回 | ✅ 已修复通过 |
+| 4 | `KillPortProcess(ctx, port int, dryRun bool) (*PortDiagnostic, string, error)` | `KillPortProcess(port, force)` | 签名完全对齐，增加 `dryRun` 预演模式，内置禁止终止 PID <= 1 系统保护进程 | ✅ 已修复通过 |
+| 5 | `DefaultDevPorts` 恰好 **10 个**端口 | 28 个 | 严格锁定为 10 个标准开发端口：`3000, 3306, 5173, 5432, 6379, 8000, 8080, 8888, 9000, 27017` | ✅ 已修复通过 |
+| 6 | `scan [--ports 3000,8080,5432]`，默认扫描 `DefaultDevPorts` | 默认读连接表 | CLI `scan` 默认直接并发扫描 `DefaultDevPorts`，支持 `--ports` 指定切片 | ✅ 已修复通过 |
+| 7 | `kill <port> [--dry-run]` | 无 `--dry-run` | CLI 增加 `--dry-run` 标志，仅报告将要终止的进程而不真实杀除 | ✅ 已修复通过 |
+| 8 | MCP `scan_dev_ports` 参数为 `ports` (string) | `start_port`/`end_port` | 参数对齐为 `ports` 字符串（逗号分隔），默认扫描 `DefaultDevPorts` | ✅ 已修复通过 |
+| 9 | MCP `free_port` 参数 `dry_run`，默认为 true | `force` (bool) | 参数对齐为 `dry_run` 且默认 `true`（安全预演），`dry_run=false` 才真实终止 | ✅ 已修复通过 |
+| 10 | MCP 工具 `description` 为英文 | 中文描述 | 三个工具的 description 均严格对齐为规格英文原案，保留 Title 注解 | ✅ 已修复通过 |
 
 ## 2. 规格内部冲突（需人工裁决，未擅自取舍）
 

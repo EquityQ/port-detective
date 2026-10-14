@@ -26,44 +26,24 @@ import (
 // ============================ 输出样式常量 ============================
 
 const (
-	// 细横线：用于分组标题下方的分隔线，视觉上比全边框更克制。
-	ruleLine = "─"
-
-	// 进程名最长展示宽度，超出则省略，避免撑破表格对齐。
+	ruleLine            = "─"
 	maxProcessNameWidth = 26
-
-	// degradedMarker 是「端口有主、但当前权限读不到进程名」时的占位符。
-	// 刻意使用纯 ASCII：中日韩占位符属于双列宽字符，会破坏表格列对齐，
-	// 且宽字符在部分终端字体下宽度不稳定。语义由脚注统一解释。
-	degradedMarker = "<no-access>"
-
-	// keyWidth 是 check 报告中键名（含中文）的对齐宽度（显示列数）。
-	// 「可执行文件」为 5 个汉字，占 10 列，故取 10。
-	keyWidth = 10
+	degradedMarker      = "<no-access>"
+	keyWidth            = 10
 )
 
 // ============================ 颜色（遵循 NO_COLOR 约定） ============================
 
-// palette 保存各个语义位置使用的 ANSI 颜色码。
-// 颜色为空字符串时即表示「不输出颜色」，所有打印函数都无需再做判断。
 type palette struct {
 	reset  string
-	title  string // 分组标题：品牌色
-	head   string // 表头
-	dim    string // 次要信息、脚注
-	accent string // 端口号等关键值
-	warn   string // 降级提示
-	key    string // 键值对的键名
+	title  string
+	head   string
+	dim    string
+	accent string
+	warn   string
+	key    string
 }
 
-// newPalette 根据目标输出流的实际能力决定是否启用颜色。
-//
-// 关闭颜色的情形（任一命中即关闭）：
-//   - 设置了 NO_COLOR 环境变量（https://no-color.org 约定）；
-//   - TERM=dumb；
-//   - 输出被重定向到文件或管道（非终端）。
-//
-// 这样既能让 `tool | grep` 拿到干净文本，也不会在 CI 日志里留下转义序列。
 func newPalette(out io.Writer) palette {
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
 		return palette{}
@@ -77,16 +57,15 @@ func newPalette(out io.Writer) palette {
 	}
 	return palette{
 		reset:  "\x1b[0m",
-		title:  "\x1b[38;5;39m",  // 清亮的青蓝色，作为品牌主色
-		head:   "\x1b[38;5;245m", // 中性灰，弱化表头
-		dim:    "\x1b[38;5;244m", // 灰，用于脚注与单位
-		accent: "\x1b[38;5;81m",  // 浅青，用于端口号
-		warn:   "\x1b[38;5;179m", // 温和的琥珀色，用于降级提示
-		key:    "\x1b[38;5;250m", // 浅灰，用于键值对的键
+		title:  "\x1b[38;5;39m",  // 青蓝色
+		head:   "\x1b[38;5;245m", // 中性灰
+		dim:    "\x1b[38;5;244m", // 次要信息灰
+		accent: "\x1b[38;5;81m",  // 浅青
+		warn:   "\x1b[38;5;179m", // 琥珀色
+		key:    "\x1b[38;5;250m", // 浅灰
 	}
 }
 
-// paint 在启用颜色时包裹 ANSI 码，否则原样返回。
 func (p palette) paint(code, s string) string {
 	if code == "" {
 		return s
@@ -96,7 +75,6 @@ func (p palette) paint(code, s string) string {
 
 // ============================ 渲染工具 ============================
 
-// rule 生成一条指定宽度的细横线。
 func rule(width int) string {
 	if width <= 0 {
 		width = 60
@@ -104,7 +82,6 @@ func rule(width int) string {
 	return strings.Repeat(ruleLine, width)
 }
 
-// truncate 按显示宽度截断字符串，超长时以省略号收尾。
 func truncate(s string, limit int) string {
 	runes := []rune(s)
 	if len(runes) <= limit {
@@ -116,22 +93,6 @@ func truncate(s string, limit int) string {
 	return string(runes[:limit-1]) + "…"
 }
 
-// humanBytes 把字节数格式化为便于阅读的单位。
-// 采用 1024 进制与单字母单位（B/K/M/G），比 "MiB" 更紧凑，且在等宽字体下对齐更整齐。
-func humanBytes(b uint64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := uint64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
-
-// humanDuration 把耗时格式化为紧凑形式。
 func humanDuration(d time.Duration) string {
 	switch {
 	case d < time.Millisecond:
@@ -143,17 +104,11 @@ func humanDuration(d time.Duration) string {
 	}
 }
 
-// sectionTitle 打印一个分组标题及其下方的细线。
 func sectionTitle(w io.Writer, p palette, title string, width int) {
 	fmt.Fprintf(w, "%s\n", p.paint(p.title, title))
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
 }
 
-// field 打印一行「键 : 值」。
-//
-// 键名按**显示宽度**补齐到 keyWidth 列，而不是用 fmt 的 %-*s：
-// 后者按 rune 计数，遇到「进程名」「启动时间」这类中文键名会算少宽度，
-// 导致冒号无法对齐。
 func field(w io.Writer, p palette, key string, keyWidth int, value string) {
 	fmt.Fprintf(w, "  %s %s %s\n",
 		p.paint(p.key, padRight(key, keyWidth)),
@@ -161,14 +116,10 @@ func field(w io.Writer, p palette, key string, keyWidth int, value string) {
 		value)
 }
 
-// hint 打印一条缩进的脚注（用于优雅降级提示等）。
 func hint(w io.Writer, p palette, text string) {
 	fmt.Fprintf(w, "  %s %s\n", p.paint(p.warn, "!"), p.paint(p.dim, text))
 }
 
-// ============================ 输出目标 ============================
-
-// stdout 返回命令的标准输出；测试中可通过 SetOut 注入缓冲区。
 func stdout(cmd *cobra.Command) io.Writer {
 	if out := cmd.OutOrStdout(); out != nil {
 		return out
@@ -176,33 +127,21 @@ func stdout(cmd *cobra.Command) io.Writer {
 	return os.Stdout
 }
 
-// writeJSON 以缩进 JSON 输出任意值。JSON 模式下面板装饰一律不输出。
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.SetEscapeHTML(false) // 中文与路径保持原样，便于阅读
+	enc.SetEscapeHTML(false)
 	return enc.Encode(v)
 }
 
-// newTabWriter 已不再使用：标准库 text/tabwriter 按 rune 计数估算列宽，
-// 无法正确处理双列宽的中日韩文字，故改由 renderTable 显式测量显示宽度。
-// 详见 renderTable 的注释说明。
-
 // ============================ 对齐渲染引擎 ============================
 
-// displayWidth 计算字符串在等宽终端中占用的列数。
-//
-// 关键点：中日韩文字（CJK）与全角标点在终端中占 **2 列**，
-// 而 Go 的 len() 按字节、[]rune 按字符计数，两者都会导致列对齐错位。
-// 因此这里按 Unicode 区段累加真实的显示宽度。
 func displayWidth(s string) int {
 	width := 0
 	for _, r := range s {
 		switch {
 		case r == 0:
-			// 空字符，忽略
 		case r < 0x20 || (r >= 0x7f && r < 0xa0):
-			// 控制字符不占列
 		case isWideRune(r):
 			width += 2
 		default:
@@ -212,45 +151,42 @@ func displayWidth(s string) int {
 	return width
 }
 
-// isWideRune 判断一个字符是否属于「双列宽」区段。
-// 覆盖范围参考 Unicode East Asian Width 属性中的 W（Wide）与 F（Fullwidth）。
 func isWideRune(r rune) bool {
 	switch {
-	case r >= 0x1100 && r <= 0x115F: // 谚文字母
+	case r >= 0x1100 && r <= 0x115F:
 		return true
-	case r >= 0x2E80 && r <= 0x303E: // CJK 部首、康熙部首、CJK 符号标点
+	case r >= 0x2E80 && r <= 0x303E:
 		return true
-	case r >= 0x3041 && r <= 0x33FF: // 平假名、片假名、注音、CJK 兼容
+	case r >= 0x3041 && r <= 0x33FF:
 		return true
-	case r >= 0x3400 && r <= 0x4DBF: // CJK 扩展 A
+	case r >= 0x3400 && r <= 0x4DBF:
 		return true
-	case r >= 0x4E00 && r <= 0x9FFF: // CJK 统一表意文字
+	case r >= 0x4E00 && r <= 0x9FFF:
 		return true
-	case r >= 0xA000 && r <= 0xA4CF: // 彝文
+	case r >= 0xA000 && r <= 0xA4CF:
 		return true
-	case r >= 0xAC00 && r <= 0xD7A3: // 谚文音节
+	case r >= 0xAC00 && r <= 0xD7A3:
 		return true
-	case r >= 0xF900 && r <= 0xFAFF: // CJK 兼容表意文字
+	case r >= 0xF900 && r <= 0xFAFF:
 		return true
-	case r >= 0xFE10 && r <= 0xFE19: // 竖排标点
+	case r >= 0xFE10 && r <= 0xFE19:
 		return true
-	case r >= 0xFE30 && r <= 0xFE6F: // CJK 兼容形式
+	case r >= 0xFE30 && r <= 0xFE6F:
 		return true
-	case r >= 0xFF00 && r <= 0xFF60: // 全角 ASCII
+	case r >= 0xFF00 && r <= 0xFF60:
 		return true
-	case r >= 0xFFE0 && r <= 0xFFE6: // 全角符号
+	case r >= 0xFFE0 && r <= 0xFFE6:
 		return true
-	case r >= 0x1F300 && r <= 0x1F64F: // 表情符号
+	case r >= 0x1F300 && r <= 0x1F64F:
 		return true
 	case r >= 0x1F900 && r <= 0x1F9FF:
 		return true
-	case r >= 0x20000 && r <= 0x3FFFD: // CJK 扩展 B 及以后
+	case r >= 0x20000 && r <= 0x3FFFD:
 		return true
 	}
 	return false
 }
 
-// padRight 按显示宽度在右侧补空格，使该单元格占满 width 列。
 func padRight(s string, width int) string {
 	if gap := width - displayWidth(s); gap > 0 {
 		return s + strings.Repeat(" ", gap)
@@ -258,151 +194,169 @@ func padRight(s string, width int) string {
 	return s
 }
 
-// tableColumn 描述表格中的一列。
-type tableColumn struct {
-	header string // 表头文字
-	align  int    // alignLeft 或 alignRight
+func padLeft(s string, width int) string {
+	if gap := width - displayWidth(s); gap > 0 {
+		return strings.Repeat(" ", gap) + s
+	}
+	return s
 }
 
+type alignment int
+
 const (
-	alignLeft = iota
+	alignLeft alignment = iota
 	alignRight
 )
 
-// renderTable 渲染一张按「显示宽度」对齐的表格。
-//
-// 为什么不用标准库 text/tabwriter：tabwriter 只识别制表符并**按 rune 计数**估算列宽，
-// 遇到双列宽的中日韩文字时会算少一半宽度，导致后续所有列错位。
-// 这里改为显式测量每个单元格的显示宽度后手工补齐，中英文混排也能严格对齐。
+type tableColumn struct {
+	header string
+	align  alignment
+}
+
 func renderTable(w io.Writer, p palette, columns []tableColumn, rows [][]string) {
-	// 第一遍：测量每列的最大显示宽度（表头也参与测量）。
-	widths := make([]int, len(columns))
+	if len(columns) == 0 {
+		return
+	}
+
+	colWidths := make([]int, len(columns))
 	for i, col := range columns {
-		widths[i] = displayWidth(col.header)
+		colWidths[i] = displayWidth(col.header)
 	}
 	for _, row := range rows {
 		for i, cell := range row {
-			if i < len(widths) && displayWidth(cell) > widths[i] {
-				widths[i] = displayWidth(cell)
+			if i < len(colWidths) {
+				clean := stripANSI(cell)
+				if w := displayWidth(clean); w > colWidths[i] {
+					colWidths[i] = w
+				}
 			}
 		}
 	}
 
-	// 表头：先按宽度补齐，再整体着色。着色只影响观感，不参与宽度计算。
-	heads := make([]string, len(columns))
+	// 打印表头
+	var headParts []string
 	for i, col := range columns {
-		heads[i] = col.header
+		formatted := padCell(col.header, colWidths[i], col.align)
+		headParts = append(headParts, p.paint(p.head, formatted))
 	}
-	fmt.Fprintf(w, "%s\n", renderRow(heads, widths, columns, func(s string) string {
-		return p.paint(p.head, s)
-	}))
+	fmt.Fprintf(w, "  %s\n", strings.Join(headParts, "   "))
 
-	// 数据行：不着色，由调用方在生成单元格时自行着色（同样遵守「先补齐、后着色」）。
+	// 打印数据行
 	for _, row := range rows {
-		fmt.Fprintf(w, "%s\n", renderRow(row, widths, columns, nil))
+		var rowParts []string
+		for i, col := range columns {
+			var cell string
+			if i < len(row) {
+				cell = row[i]
+			}
+			clean := stripANSI(cell)
+			visibleLen := displayWidth(clean)
+			gap := colWidths[i] - visibleLen
+			if gap < 0 {
+				gap = 0
+			}
+
+			var formatted string
+			if col.align == alignRight {
+				formatted = strings.Repeat(" ", gap) + cell
+			} else {
+				formatted = cell + strings.Repeat(" ", gap)
+			}
+			rowParts = append(rowParts, formatted)
+		}
+		line := strings.TrimRight("  "+strings.Join(rowParts, "   "), " ")
+		fmt.Fprintf(w, "%s\n", line)
 	}
 }
 
-// renderRow 拼装一行表格文本。
-//
-// 着色约定：paint 必须作用在**已补齐宽度**的字符串上，
-// 否则 ANSI 转义序列会被计入显示宽度，导致列错位。
-func renderRow(cells []string, widths []int, columns []tableColumn, paint func(string) string) string {
-	const gap = 3 // 列间距，保证视觉上不拥挤
-
-	var sb strings.Builder
-	for i := range columns {
-		cell := ""
-		if i < len(cells) {
-			cell = cells[i]
-		}
-
-		width := widths[i]
-		last := i == len(columns)-1
-
-		// 注意：最后一列也要参与对齐补齐，只是行尾空白随后会被统一裁掉。
-		// 若因为「是最后一列」就跳过补齐，数值列的表头（如 RSS 仅 3 列）
-		// 就无法与其数值（如 206.2 MB 共 8 列）右对齐，表头会左偏。
-		var padded string
-		if columns[i].align == alignRight {
-			padded = strings.Repeat(" ", max(0, width-displayWidth(cell))) + cell
-		} else {
-			padded = padRight(cell, width)
-		}
-
-		if paint != nil {
-			padded = paint(padded)
-		}
-		sb.WriteString(padded)
-
-		if !last {
-			sb.WriteString(strings.Repeat(" ", gap))
-		}
+func padCell(s string, width int, align alignment) string {
+	if align == alignRight {
+		return padLeft(s, width)
 	}
-	// 裁掉行尾空白，避免「看起来有列但实际是空格」的假对齐。
-	return strings.TrimRight(sb.String(), " ")
+	return padRight(s, width)
 }
 
-// max 返回两个整数中的较大者。
-func max(a, b int) int {
-	if a > b {
-		return a
+func stripANSI(s string) string {
+	if !strings.Contains(s, "\x1b[") {
+		return s
 	}
-	return b
+	var b strings.Builder
+	b.Grow(len(s))
+	inEsc := false
+	for i := 0; i < len(s); i++ {
+		if !inEsc && s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			inEsc = true
+			i++
+			continue
+		}
+		if inEsc {
+			if (s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z') {
+				inEsc = false
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
-// ============================ 结果渲染 ============================
-
-// portRow 是一行表格数据，抽出来是为了让列表与单端口详情共用同样的取值逻辑。
 type portRow struct {
 	port    string
 	pid     string
 	process string
 	rss     string
 	cpu     string
+	status  string
 }
 
-// buildRow 把 core.PortInfo 转换为表格行。
-// 权限受限时进程名列给出明确占位符，而不是留空。
-func buildRow(info core.PortInfo) portRow {
-	process := info.Name
+func buildRow(info core.PortDiagnostic) portRow {
+	process := info.ProcessName
 	if process == "" {
-		process = degradedMarker
+		if info.Status == core.StatusPermissionRequired {
+			process = degradedMarker
+		} else {
+			process = "-"
+		}
 	}
+
+	pid := "-"
+	if info.PID > 0 {
+		pid = strconv.Itoa(int(info.PID))
+	}
+
 	rss := "-"
-	if info.RSS > 0 {
-		rss = humanBytes(info.RSS)
+	if info.MemoryMB > 0 {
+		rss = fmt.Sprintf("%.1f MB", info.MemoryMB)
 	}
+
 	cpu := "-"
-	if info.CPU > 0 {
-		cpu = fmt.Sprintf("%.1f%%", info.CPU)
+	if info.CPUPercent > 0 {
+		cpu = fmt.Sprintf("%.1f%%", info.CPUPercent)
 	}
+
 	return portRow{
 		port:    strconv.Itoa(info.Port),
-		pid:     strconv.Itoa(int(info.PID)),
+		pid:     pid,
 		process: truncate(process, maxProcessNameWidth),
 		rss:     rss,
 		cpu:     cpu,
+		status:  info.Status,
 	}
 }
 
-// renderPortTable 渲染端口列表。
-//
-// 列宽由 renderTable 统一测量，中英文混排（如中文进程名）也能严格对齐。
-func renderPortTable(w io.Writer, p palette, infos []core.PortInfo) {
+func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	columns := []tableColumn{
 		{header: "PORT", align: alignRight},
 		{header: "PID", align: alignRight},
 		{header: "PROCESS", align: alignLeft},
 		{header: "RSS", align: alignRight},
 		{header: "CPU", align: alignRight},
+		{header: "STATUS", align: alignLeft},
 	}
 
 	rows := make([][]string, 0, len(infos))
 	for _, info := range infos {
 		row := buildRow(info)
-
-		// 权限受限的占位符用琥珀色标出，一眼可辨，但不影响列宽。
 		process := row.process
 		if strings.HasPrefix(process, "<") {
 			process = p.paint(p.warn, process)
@@ -414,21 +368,20 @@ func renderPortTable(w io.Writer, p palette, infos []core.PortInfo) {
 			process,
 			row.rss,
 			row.cpu,
+			p.paint(p.dim, row.status),
 		})
 	}
 	renderTable(w, p, columns, rows)
 }
 
-// summaryLine 打印结果统计行，例如「共 12 个端口被占用 · 耗时 8.2s」。
 func summaryLine(w io.Writer, p palette, parts ...string) {
 	fmt.Fprintf(w, "  %s\n", p.paint(p.dim, strings.Join(parts, "  ·  ")))
 }
 
-// degradedNote 在存在权限受限条目时输出一条统一的说明脚注。
-func degradedNote(w io.Writer, p palette, infos []core.PortInfo) {
+func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	degraded := 0
 	for _, info := range infos {
-		if info.Degraded {
+		if info.Status == core.StatusPermissionRequired {
 			degraded++
 		}
 	}
@@ -441,12 +394,10 @@ func degradedNote(w io.Writer, p palette, infos []core.PortInfo) {
 
 // ============================ 命令构建 ============================
 
-// options 汇总所有子命令共享的输出相关开关。
 type options struct {
 	jsonOutput bool
 }
 
-// NewRootCommand 构建 port-detective 的根命令及其全部子命令。
 func NewRootCommand() *cobra.Command {
 	opts := &options{}
 
@@ -459,8 +410,8 @@ func NewRootCommand() *cobra.Command {
 			"一句话定位端口归属：谁占了我的端口、它占了多少内存、能不能安全释放。",
 			"同时原生支持 MCP 协议，可作为 AI Agent 的端口探测工具直接调用。",
 		}, "\n"),
-		SilenceUsage:  true, // 出错时只打印错误本身，不刷整屏帮助
-		SilenceErrors: true, // 错误由 Execute 统一渲染，避免重复
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	root.AddCommand(
@@ -472,7 +423,6 @@ func NewRootCommand() *cobra.Command {
 	return root
 }
 
-// Execute 是 main.go 的唯一入口。
 func Execute() {
 	root := NewRootCommand()
 	if err := root.Execute(); err != nil {
@@ -482,10 +432,8 @@ func Execute() {
 	}
 }
 
-// newCheckCommand 实现 check 子命令：体检单个端口。
+// 1. check 子命令：体检单端口
 func newCheckCommand(opts *options) *cobra.Command {
-	var protocol string
-
 	cmd := &cobra.Command{
 		Use:   "check <端口号>",
 		Short: "体检指定端口：占用状态、归属进程与资源开销",
@@ -508,7 +456,7 @@ func newCheckCommand(opts *options) *cobra.Command {
 			out := stdout(cmd)
 
 			start := time.Now()
-			info, err := core.InspectPort(port, protocol)
+			info, err := core.InspectPort(cmd.Context(), port)
 			if err != nil {
 				return err
 			}
@@ -522,26 +470,24 @@ func newCheckCommand(opts *options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&protocol, "protocol", "p", core.ProtocolTCP, "探测协议：tcp 或 udp")
 	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
 	return cmd
 }
 
-// renderCheck 渲染单端口体检报告：标题 + 连接信息 + 进程画像。
-func renderCheck(w io.Writer, p palette, info *core.PortInfo, elapsed time.Duration) {
+func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time.Duration) {
 	const width = 58
 
 	state := p.paint(p.warn, "已占用")
 	if !info.IsOpen {
 		state = p.paint(p.title, "空闲")
 	}
-	sectionTitle(w, p, fmt.Sprintf("端口体检  %s/%s",
-		strings.ToUpper(info.Protocol), p.paint(p.accent, strconv.Itoa(info.Port))), width)
+	sectionTitle(w, p, fmt.Sprintf("端口体检  TCP/%s",
+		p.paint(p.accent, strconv.Itoa(info.Port))), width)
 
-	// 连接信息
 	fmt.Fprintf(w, "  %s\n", p.paint(p.head, "连接状态"))
 	field(w, p, "状态", keyWidth, state)
 	field(w, p, "协议", keyWidth, strings.ToUpper(info.Protocol))
+	field(w, p, "诊断摘要", keyWidth, info.Status)
 
 	if !info.IsOpen {
 		field(w, p, "结论", keyWidth, "该端口当前无人监听，可以直接使用。")
@@ -550,32 +496,25 @@ func renderCheck(w io.Writer, p palette, info *core.PortInfo, elapsed time.Durat
 		return
 	}
 
-	// 进程画像
 	fmt.Fprintf(w, "\n  %s\n", p.paint(p.head, "归属进程"))
-	if info.Name != "" {
-		field(w, p, "进程名", keyWidth, info.Name)
+	if info.ProcessName != "" {
+		field(w, p, "进程名", keyWidth, info.ProcessName)
 	}
 	if info.PID > 0 {
 		field(w, p, "PID", keyWidth, p.paint(p.accent, strconv.Itoa(int(info.PID))))
 	}
-	if info.Exe != "" {
-		field(w, p, "可执行文件", keyWidth, info.Exe)
-	}
 	if info.Cmdline != "" {
 		field(w, p, "启动命令", keyWidth, truncate(info.Cmdline, 96))
 	}
-	if info.RSS > 0 {
-		field(w, p, "常驻内存", keyWidth, humanBytes(info.RSS))
+	if info.MemoryMB > 0 {
+		field(w, p, "常驻内存", keyWidth, fmt.Sprintf("%.1f MB", info.MemoryMB))
 	}
-	if info.CPU > 0 {
-		field(w, p, "CPU 占用", keyWidth, fmt.Sprintf("%.1f%%", info.CPU))
-	}
-	if info.Created > 0 {
-		field(w, p, "启动时间", keyWidth, time.Unix(info.Created, 0).Format("2006-01-02 15:04:05"))
+	if info.CPUPercent > 0 {
+		field(w, p, "CPU 占用", keyWidth, fmt.Sprintf("%.1f%%", info.CPUPercent))
 	}
 
 	fmt.Fprintf(w, "\n")
-	if info.Degraded {
+	if info.Status == core.StatusPermissionRequired {
 		hint(w, p, "该端口归属系统保护进程，当前权限无法读取其完整详情。")
 		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
 	}
@@ -588,99 +527,67 @@ func renderCheck(w io.Writer, p palette, info *core.PortInfo, elapsed time.Durat
 	summaryLine(w, p, parts...)
 }
 
-// newScanCommand 实现 scan 子命令：列出被占用的端口。
+// 2. scan 子命令：并发扫描端口列表，默认扫描 DefaultDevPorts
 func newScanCommand(opts *options) *cobra.Command {
-	var (
-		protocol string
-		workers  int
-		rangeStr string
-		allConns bool
-	)
+	var portsStr string
 
 	cmd := &cobra.Command{
 		Use:   "scan",
-		Short: "扫描并列出本机被占用的端口",
+		Short: "并发扫描并列出本机被占用的端口",
 		Long: strings.Join([]string{
-			"扫描本机被占用的端口。",
+			"并发扫描本机被占用的端口。",
 			"",
-			"默认直接读取系统连接表，毫秒级返回全部结果；",
-			"指定 --range 时改用 goroutine 并发探测引擎，可发现连接表中未登记的监听。",
+			"默认使用 goroutine 协程池并发扫描 DefaultDevPorts 高频开发端口（3000, 3306, 5173, 5432, 6379, 8000, 8080, 8888, 9000, 27017）；",
+			"亦可通过 --ports 指定自定义端口列表（如 --ports 3000,8080,5432）。",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective scan",
-			"  port-detective scan --range 8000-8100",
+			"  port-detective scan --ports 3000,8080,5432",
 			"  port-detective scan --json",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := stdout(cmd)
 
-			var (
-				infos   []core.PortInfo
-				elapsed time.Duration
-				err     error
-				engine  string
-			)
-
-			if rangeStr != "" {
-				// 并发探测模式：走 goroutine + WaitGroup + channel 引擎。
-				start, end, parseErr := parsePortRange(rangeStr)
-				if parseErr != nil {
-					return parseErr
-				}
-				engine = fmt.Sprintf("并发探测 %d-%d", start, end)
-				begin := time.Now()
-				infos, err = core.ScanPortsConcurrent(cmd.Context(), start, end, core.ScanOptions{
-					Protocol: protocol,
-					Workers:  workers,
-				})
-				elapsed = time.Since(begin)
+			var targetPorts []int
+			if portsStr != "" {
+				parsed, err := parsePortsList(portsStr)
 				if err != nil {
 					return err
 				}
+				targetPorts = parsed
 			} else {
-				// 默认模式：直接读取系统连接表，结果与探测引擎等价但快得多。
-				engine = "系统连接表 · 监听端口"
-				if allConns {
-					engine = "系统连接表 · 全部连接"
-				}
-				begin := time.Now()
-				infos, err = core.ListOccupiedPorts(cmd.Context(), core.ListOptions{
-					Protocol: protocol,
-					All:      allConns,
-				})
-				elapsed = time.Since(begin)
-				if err != nil {
-					return err
-				}
+				targetPorts = core.DefaultDevPorts
+			}
+
+			begin := time.Now()
+			infos, err := core.ScanPortsConcurrent(cmd.Context(), targetPorts)
+			elapsed := time.Since(begin)
+			if err != nil {
+				return err
 			}
 
 			if opts.jsonOutput {
 				return writeJSON(out, infos)
 			}
-			renderScan(out, newPalette(out), infos, elapsed, engine, protocol)
+			engine := fmt.Sprintf("并发扫描 (%d 个目标端口)", len(targetPorts))
+			renderScan(out, newPalette(out), infos, elapsed, engine)
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&protocol, "protocol", "p", core.ProtocolTCP, "探测协议：tcp 或 udp")
-	cmd.Flags().IntVarP(&workers, "workers", "w", 0, "并发协程数，0 表示按 CPU 核数自动推导")
-	cmd.Flags().StringVar(&rangeStr, "range", "", "仅扫描指定区间（如 1-1024），改用并发探测引擎")
-	cmd.Flags().BoolVarP(&allConns, "all", "a", false, "包含出站连接（默认仅列出监听端口）")
+	cmd.Flags().StringVar(&portsStr, "ports", "", "指定要并发扫描的端口列表（逗号分隔，如 3000,8080,5432）")
 	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
 	return cmd
 }
 
-// renderScan 渲染扫描结果：标题 + 表格 + 统计脚注。
-func renderScan(w io.Writer, p palette, infos []core.PortInfo, elapsed time.Duration, engine, protocol string) {
-	const width = 62
-
-	title := fmt.Sprintf("端口扫描  %s", strings.ToUpper(protocol))
-	sectionTitle(w, p, title, width)
+func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed time.Duration, engine string) {
+	const width = 64
+	sectionTitle(w, p, "端口扫描  TCP", width)
 
 	if len(infos) == 0 {
 		fmt.Fprintf(w, "  %s\n\n", p.paint(p.dim, "未发现被占用的端口。"))
-		summaryLine(w, p, fmt.Sprintf("数据来源 %s", engine), fmt.Sprintf("耗时 %s", humanDuration(elapsed)))
+		summaryLine(w, p, fmt.Sprintf("引擎 %s", engine), fmt.Sprintf("耗时 %s", humanDuration(elapsed)))
 		fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
 		return
 	}
@@ -691,7 +598,7 @@ func renderScan(w io.Writer, p palette, infos []core.PortInfo, elapsed time.Dura
 
 	summaryLine(w, p,
 		fmt.Sprintf("共 %d 个端口被占用", len(infos)),
-		fmt.Sprintf("数据来源 %s", engine),
+		fmt.Sprintf("引擎 %s", engine),
 		fmt.Sprintf("耗时 %s", humanDuration(elapsed)))
 	degradedNote(w, p, infos)
 
@@ -699,11 +606,11 @@ func renderScan(w io.Writer, p palette, infos []core.PortInfo, elapsed time.Dura
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, "查看详情  port-detective check <端口>      释放端口  port-detective kill <端口>"))
 }
 
-// newKillCommand 实现 kill 子命令：释放被占用的端口。
+// 3. kill 子命令：释放指定端口占用，支持 --dry-run
 func newKillCommand(opts *options) *cobra.Command {
 	var (
-		force bool
-		yes   bool
+		dryRun bool
+		yes    bool
 	)
 
 	cmd := &cobra.Command{
@@ -712,12 +619,13 @@ func newKillCommand(opts *options) *cobra.Command {
 		Long: strings.Join([]string{
 			"结束占用指定端口的进程，从而释放该端口。",
 			"",
-			"默认发送优雅退出请求；加 --force 则强制终止。",
-			"为避免误操作，非 --yes 模式下会先展示将被结束的进程并要求确认。",
+			"支持 --dry-run 安全预演模式，仅报告将要终止的进程而不做实际操作；",
+			"默认模式下会先展示目标进程详情并请求交互确认，加 -y 可跳过确认。",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective kill 8080",
-			"  port-detective kill 8080 --force --yes",
+			"  port-detective kill 8080 --dry-run",
+			"  port-detective kill 8080 -y",
 		}, "\n"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -733,29 +641,36 @@ func newKillCommand(opts *options) *cobra.Command {
 			out := stdout(cmd)
 			p := newPalette(out)
 
-			// 先体检，确认端口确实被占用并展示目标进程，避免误杀。
-			info, err := core.InspectPort(port, core.ProtocolTCP)
+			// 预先体检以展示目标进程
+			diag, err := core.InspectPort(cmd.Context(), port)
 			if err != nil {
 				return err
 			}
-			if !info.IsOpen {
+			if !diag.IsOpen {
 				return fmt.Errorf("端口 %d 当前未被占用，无需释放", port)
 			}
 
 			if !opts.jsonOutput {
-				sectionTitle(out, p, fmt.Sprintf("释放端口  %s", p.paint(p.accent, strconv.Itoa(port))), 58)
-				fmt.Fprintf(out, "\n  %s\n", p.paint(p.head, "将被结束的进程"))
-				if info.Name != "" {
-					field(out, p, "进程名", 8, info.Name)
+				title := fmt.Sprintf("释放端口  %s", p.paint(p.accent, strconv.Itoa(port)))
+				if dryRun {
+					title += " (预演模式)"
 				}
-				field(out, p, "PID", 8, strconv.Itoa(int(info.PID)))
-				if info.Cmdline != "" {
-					field(out, p, "启动命令", 8, truncate(info.Cmdline, 96))
+				sectionTitle(out, p, title, 58)
+				fmt.Fprintf(out, "\n  %s\n", p.paint(p.head, "目标进程信息"))
+				if diag.ProcessName != "" {
+					field(out, p, "进程名", 8, diag.ProcessName)
+				}
+				field(out, p, "PID", 8, strconv.Itoa(int(diag.PID)))
+				if diag.Cmdline != "" {
+					field(out, p, "启动命令", 8, truncate(diag.Cmdline, 96))
+				}
+				if diag.MemoryMB > 0 {
+					field(out, p, "物理内存", 8, fmt.Sprintf("%.1f MB", diag.MemoryMB))
 				}
 				fmt.Fprintf(out, "\n")
 			}
 
-			if !yes && !opts.jsonOutput {
+			if !dryRun && !yes && !opts.jsonOutput {
 				fmt.Fprintf(out, "  确认结束该进程？%s ", p.paint(p.dim, "[y/N]:"))
 				if !confirm(cmd.InOrStdin()) {
 					fmt.Fprintf(out, "  %s\n", p.paint(p.dim, "已取消，未对进程做任何操作。"))
@@ -763,35 +678,35 @@ func newKillCommand(opts *options) *cobra.Command {
 				}
 			}
 
-			pid, err := core.KillPortProcess(port, force)
+			resultDiag, msg, err := core.KillPortProcess(cmd.Context(), port, dryRun)
 			if err != nil {
 				return err
 			}
 
 			if opts.jsonOutput {
 				return writeJSON(out, map[string]any{
-					"port":      port,
-					"pid":       pid,
-					"force":     force,
-					"released":  true,
-					"protocol":  core.ProtocolTCP,
-					"timestamp": time.Now().Format(time.RFC3339),
+					"port":       port,
+					"dry_run":    dryRun,
+					"diagnostic": resultDiag,
+					"message":    msg,
 				})
 			}
 
-			fmt.Fprintf(out, "  %s 端口 %s 已释放（进程 %d 已结束）。\n",
-				p.paint(p.title, "完成"), p.paint(p.accent, strconv.Itoa(port)), pid)
+			statusText := "完成"
+			if dryRun {
+				statusText = "预演"
+			}
+			fmt.Fprintf(out, "  %s %s\n", p.paint(p.title, statusText), msg)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "强制终止进程（Kill），默认请求优雅退出（Terminate）")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "跳过交互确认，直接执行")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "安全预演模式，仅返回将被终止的进程而不执行实际终止")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "跳过交互确认，直接执行终止")
 	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
 	return cmd
 }
 
-// confirm 读取一行用户输入，仅当输入以 y/Y 开头时返回 true。
 func confirm(in io.Reader) bool {
 	var answer string
 	if _, err := fmt.Fscanln(in, &answer); err != nil {
@@ -801,11 +716,7 @@ func confirm(in io.Reader) bool {
 	return strings.HasPrefix(answer, "y")
 }
 
-// newMCPCommand 实现 mcp 子命令：以 MCP Stdio 服务端模式启动。
-//
-// 重要：Stdio 传输下 stdin/stdout 专供 JSON-RPC 报文通信。
-// 因此本命令在中继期间**绝不向 stdout 写入任何内容**，
-// 启动提示与错误信息一律走 stderr。
+// 4. mcp 子命令：启动 MCP Stdio 服务端
 func newMCPCommand(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
@@ -814,20 +725,18 @@ func newMCPCommand(opts *options) *cobra.Command {
 			"以 MCP（Model Context Protocol）Stdio 服务端模式启动。",
 			"",
 			"启动后通过标准输入输出与 AI 客户端通信，注册以下工具：",
-			"  inspect_port     体检单个端口，返回占用进程的名称、PID、内存与 CPU",
-			"  scan_dev_ports   扫描被占用的端口（默认覆盖开发常用端口）",
-			"  free_port        结束占用端口的进程以释放端口",
+			"  inspect_port     体检单个端口，返回占用进程全景体检报告",
+			"  scan_dev_ports   并发扫描开发端口（默认覆盖 DefaultDevPorts）",
+			"  free_port        释放端口占用进程（默认 dry_run=true 安全预演）",
 			"",
 			"注意：Stdio 模式下标准输出专供协议通信，诊断信息一律写入标准错误。",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// --json 仅用于自检：打印服务端能力清单后退出，不进入协议循环。
 			if opts.jsonOutput {
 				return writeJSON(stdout(cmd), mcpserver.Describe())
 			}
 
-			// 启动提示写入 stderr：stdout 必须保持纯净。
 			perr := newPalette(os.Stderr)
 			fmt.Fprintf(os.Stderr, "%s port-detective 已启动（MCP Stdio），等待客户端连接…\n",
 				perr.paint(perr.dim, "·"))
@@ -849,7 +758,6 @@ func newMCPCommand(opts *options) *cobra.Command {
 
 // ============================ 参数解析 ============================
 
-// parsePort 解析端口号并校验范围。
 func parsePort(s string) (int, error) {
 	port, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil {
@@ -861,22 +769,22 @@ func parsePort(s string) (int, error) {
 	return port, nil
 }
 
-// parsePortRange 解析形如 "8000-8100" 或 "8080" 的区间参数。
-func parsePortRange(s string) (int, int, error) {
-	parts := strings.SplitN(strings.TrimSpace(s), "-", 2)
-	start, err := parsePort(parts[0])
-	if err != nil {
-		return 0, 0, err
+func parsePortsList(s string) ([]int, error) {
+	parts := strings.Split(s, ",")
+	ports := make([]int, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			continue
+		}
+		port, err := parsePort(trimmed)
+		if err != nil {
+			return nil, err
+		}
+		ports = append(ports, port)
 	}
-	if len(parts) == 1 {
-		return start, start, nil
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("未指定任何有效端口号")
 	}
-	end, err := parsePort(parts[1])
-	if err != nil {
-		return 0, 0, err
-	}
-	if start > end {
-		return 0, 0, fmt.Errorf("区间 %s 非法：起始端口不能大于结束端口", s)
-	}
-	return start, end, nil
+	return ports, nil
 }
