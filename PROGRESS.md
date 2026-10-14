@@ -8,7 +8,7 @@
 > 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
 
 ## 当前状态指针
-- **当前待执行步骤**: `Step 5`
+- **当前待执行步骤**: 全部完成（Step 1 ~ Step 5 全部交付验收通过）
 - **构建/测试状态**: `go build ./...` 通过；`go test ./...` 全绿（**42 个用例**：core 16 + cli 14 + mcpserver 12）；`go test -race ./...` 无数据竞争；`gofmt -l .` 无差异；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 已幂等稳定（三依赖锁定：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`），重复执行无变更。
 - **MCP 验收**: Stdio 协议端到端通过（initialize / tools/list / tools/call 均已验证）；**stdout 纯净性已由脚本证明**：恰好 1 行合法 JSON-RPC，无任何人类可读文案或 ANSI 转义。
@@ -127,7 +127,7 @@ port-detective
     - **验证记录**：真实 Stdio 管道端到端测验（`scripts/mcp/` 下三个脚本，均 PASS）：initialize 握手、tools/list 返回三工具、tools/call 实际调用（含越界端口报错、空闲端口判定、权限拒绝分支）。
     - **一处未能在此环境验证**：`free_port` 的**成功**路径。本机以非管理员身份运行，被测试的监听进程属受限令牌，结束它会返回 `OpenProcess: Access is denied`（这是正确且安全的失败，进程未被伤害、端口未被释放）。该分支的错误处理已被单测覆盖；成功路径的 JSON 响应体结构未被实测。
 
-- [ ] **Step 5: 课程作业文档、架构图与验收报告 (`README.md`)**
+- [x] **Step 5: 课程作业文档、架构图与验收报告 (`README.md`)**
   - **动作**:
     1. 编写高质量中文 `README.md`，必须包含：
        - 项目背景与痛点介绍
@@ -137,6 +137,10 @@ port-detective
        - AI 客户端（Claude Code / Cursor 等）连接本项目的 MCP JSON 配置示例
   - **验收标准**: 文档排版清晰，全项目 `go test -v ./...` 绿灯通过，删除临时编译二进制文件保持仓库整洁。
   - **Git 提交信息**: `docs: [Step-5] add comprehensive assignment README with Mermaid architecture and MCP config`
+  - **完成情况**: 已完成（2026-10-14）。
+    - 编写了高质量中文 `README.md`（共 380+ 行），严格遵循仓库真实实现，包含：项目背景与三大开发痛点对比、Mermaid 三层系统架构图、Mermaid 并发扫描时序图、Go 语言 Worker Pool 并发模型与 4 大设计亮点深度解析（单次反向索引消除系统调用风暴、标准协程池与双 WaitGroup 汇聚通道、Context 级联取消与防泄漏、结果排序与幂等确定性）、CLI 真实终端运行文本示例（check / scan / kill / --json）、Claude Code / Cursor / Windsurf 等主流 AI 客户端 MCP Stdio 配置示例与 3 个核心工具契约表、MCP Stdout 零污染技术保障机制、快速构建测试指南与课程设计自检清单。
+    - 全项目构建 `go build ./...` 与单元测试 `go test -v ./...` 42/42 全部 100% 绿灯 PASS，`-race` 竞态检测 0 竞争。
+    - MCP 验收脚本（`verify_handshake.py`、`verify_stdout_purity.py`、`verify_tools.py`）复测全绿；临时编译生成的二进制文件 `port-detective.exe` 已清理，工作区保持绝对干净。
   - **⚠ 执行前必读（2026-10-14 补充）**：
     1. 本步骤要求用 Mermaid 绘制「三层架构图」，并解析 `ScanPortsConcurrent` 的协程池设计 —— 这部分**当前实现仍然成立**（并发模型没有变），可放心写。
     2. 但 **CLI / MCP 的实际参数与字段名与原始冻结契约不一致**（详见文末「已知偏离与冲突登记」）。写 README 时的铁律是：
@@ -179,6 +183,7 @@ port-detective
   - **验证记录**：`go build ./...` 通过；`go test ./...` 全绿（**42 个用例**）；`-race` 无竞争；`gofmt`/`vet` 干净；`go mod tidy` 幂等。MCP 端到端实测：握手成功、tools/list 返回 3 个工具、tools/call 实际调用正确、**stdout 纯净性 170 字节 1 行通过**。
   - **未在本环境验证**：`free_port` 的成功路径（非管理员身份下结束受限进程被系统拒绝，属正确失败）。Step 5 若有机会在管理员终端复测，请补记。
   - **过程失误记录（供后续 Agent 引以为戒）**：Step 4 验证过程中，我曾把 `free_port` 调用写进脚本并指向 **19387（本会话的 Harness GUI 端口）**，属危险测试设计；虽因权限被拒未造成损害，但测试**永远不应针对用户正在使用的服务**。破坏性操作的验证一律使用自建的临时监听进程。
+- **[Step-5 done]**: 已编写高质量课程作业文档 `README.md`（包含项目背景、Mermaid 三层系统架构图、Mermaid 并发时序图、Go 协程池与单次索引等并发技术亮点解析、CLI 真实运行示例、Claude Code/Cursor/Windsurf 的 MCP 配置指南及 Stdout 零污染技术保障）；全项目 42 个单元测试全部绿灯通过；临时编译产物 `port-detective.exe` 已清理，工作区恢复干净整洁。至此项目 5 个 Step 全部闭环交付完成！
 
 ---
 
