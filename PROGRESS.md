@@ -190,6 +190,7 @@ port-detective
   3. `internal/cli`：`scan` 默认并发扫描 `DefaultDevPorts` 并支持 `--ports`；`kill` 支持 `--dry-run`；表格显示包含状态与内存 MB。
   4. `internal/mcpserver`：对齐工具入参（`scan_dev_ports` 的 `ports` 字符串，`free_port` 的 `dry_run` 默认 true），工具描述对齐为规格英文原案。
   5. 单元测试与验收脚本全量对齐，`go test -v ./...` 100% 绿灯 PASS，`-race` 0 竞态；MCP 端到端实测全部通过。
+- **[Step-6 OpenSource]**: Added MIT License, GitHub Actions CI/Release, GoReleaser config, and modernized AI-Native README.
 
 ---
 
