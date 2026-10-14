@@ -1,9 +1,17 @@
 # PROGRESS.md - 多 Agent 进度与交接看板
 
+> ## ⚠️ 最重要的一条：本项目存在「已知契约偏离」，请在动手前先读本文末的
+> ## 「已知偏离与冲突登记」章节。
+> 简言之：`AGENTS.md` 只有第 1~3 节，**缺失了第 4 节「冻结接口契约」**；
+> 而 Step 2 又要求「严格按第 4 节契约实现」。因此 Step 2~4 的实现是在
+> **没有契约可依**的情况下自行设计的接口，与原始需求文档存在系统性差异。
+> 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
+
 ## 当前状态指针
-- **当前待执行步骤**: `Step 4`
-- **构建/测试状态**: `go build -o port-detective .` 通过；`go test ./...` 全绿（core 16 项 + cli 14 项）；`go test -race` 无数据竞争；`gofmt -l .` 无差异；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
-- **模块状态**: `go mod tidy` 现已稳定可跑（cobra 已在 Step 3 被 import），执行后无多余变更。
+- **当前待执行步骤**: `Step 5`
+- **构建/测试状态**: `go build ./...` 通过；`go test ./...` 全绿（**42 个用例**：core 16 + cli 14 + mcpserver 12）；`go test -race ./...` 无数据竞争；`gofmt -l .` 无差异；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **模块状态**: `go mod tidy` 已幂等稳定（三依赖锁定：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`），重复执行无变更。
+- **MCP 验收**: Stdio 协议端到端通过（initialize / tools/list / tools/call 均已验证）；**stdout 纯净性已由脚本证明**：恰好 1 行合法 JSON-RPC，无任何人类可读文案或 ANSI 转义。
 
 ---
 
@@ -105,12 +113,19 @@ port-detective
 - 降级（`Degraded=true`）以脚注形式提示，**不返回非零退出码**。
 - **`mcp` 子命令的 stdout 必须保持纯净**（当前仅向 stderr 打印占位提示），Step 4 接入 Stdio 协议时不可破坏这一点。
 
-- [ ] **Step 4: MCP AI 协议服务端接入 (`internal/mcpserver`)**
+- [x] **Step 4: MCP AI 协议服务端接入 (`internal/mcpserver`)**
   - **动作**:
     1. 编写 `internal/mcpserver/server.go`，使用 `mark3labs/mcp-go` 注册 `inspect_port`、`scan_dev_ports`、`free_port` 三个 MCP Tool，内部直接调用 `internal/core` 的方法，返回格式化 JSON 文本。
     2. 在 `internal/cli/root.go` 中将 `port-detective mcp` 子命令正式绑定到 `mcpserver.RunStdioServer()`。
   - **验收标准**: `go build ./...` 与 `go test ./...` 全部通过，确保 `mcp` 启动路径上没有任何污染 `os.Stdout` 的打印语句。
   - **Git 提交信息**: `feat(mcp): [Step-4] implement MCP stdio server and register AI port detective tools`
+  - **完成情况**: 已完成（2026-10-14）。`server.go` 约 400 行，`server_test.go` 12 个用例；`mcp` 子命令已正式绑定 `RunStdioServer()`。
+    - **⚠ 踩到一个必须记录的坑（mcp-go 默认值）**：`mcp.NewTool` 会把 `DestructiveHint` 与 `OpenWorldHint` **默认置为 true**。若不显式覆盖，只读的 `inspect_port` / `scan_dev_ports` 会被广告成「破坏性操作」，AI 客户端会因此对每次查询都弹二次确认。现已为三个工具全部显式声明四个 hint，并由 `TestToolAnnotationsAreHonest` 守住。
+    - **⚠ 依赖版本再次被 tidy 顶掉（已验证修复）**：写入 `mcpserver` 后执行 `go mod tidy`，因 go.mod 中当时已无 mcp-go 的 require 项，tidy 把它重新解析成了 **v1.2.1**，并把 `go` 指令从 `1.23.0` 顶到 `1.25.5`。已用 `go get github.com/mark3labs/mcp-go@v0.48.0` 回钉并手工修正 go 指令；随后 `go mod tidy` 已幂等（重复执行无变更）。
+    - **工具清单与语义**：`inspect_port`（只读，幂等）、`scan_dev_ports`（只读，默认仅覆盖 28 个开发常用端口，可用 start_port/end_port 指定区间）、`free_port`（破坏性，先体检再释放，权限不足时返回带提权建议的错误）。
+    - **stdout 纯净性已证明**：新增 `scripts/mcp/verify_stdout_purity.py`，断言 stdout **恰好 1 行**且为合法 JSON-RPC，且不含任何人类可读文案或 ANSI 转义；实测 170 字节、1 行、通过。
+    - **验证记录**：真实 Stdio 管道端到端测验（`scripts/mcp/` 下三个脚本，均 PASS）：initialize 握手、tools/list 返回三工具、tools/call 实际调用（含越界端口报错、空闲端口判定、权限拒绝分支）。
+    - **一处未能在此环境验证**：`free_port` 的**成功**路径。本机以非管理员身份运行，被测试的监听进程属受限令牌，结束它会返回 `OpenProcess: Access is denied`（这是正确且安全的失败，进程未被伤害、端口未被释放）。该分支的错误处理已被单测覆盖；成功路径的 JSON 响应体结构未被实测。
 
 - [ ] **Step 5: 课程作业文档、架构图与验收报告 (`README.md`)**
   - **动作**:
@@ -122,6 +137,15 @@ port-detective
        - AI 客户端（Claude Code / Cursor 等）连接本项目的 MCP JSON 配置示例
   - **验收标准**: 文档排版清晰，全项目 `go test -v ./...` 绿灯通过，删除临时编译二进制文件保持仓库整洁。
   - **Git 提交信息**: `docs: [Step-5] add comprehensive assignment README with Mermaid architecture and MCP config`
+  - **⚠ 执行前必读（2026-10-14 补充）**：
+    1. 本步骤要求用 Mermaid 绘制「三层架构图」，并解析 `ScanPortsConcurrent` 的协程池设计 —— 这部分**当前实现仍然成立**（并发模型没有变），可放心写。
+    2. 但 **CLI / MCP 的实际参数与字段名与原始冻结契约不一致**（详见文末「已知偏离与冲突登记」）。写 README 时的铁律是：
+       **以仓库真实代码与真实运行输出为准，不要照抄原始文档的签名与参数表。**
+       建议直接运行 `./port-detective scan --help`、`check --help`、`kill --help` 以及
+       `python scripts/mcp/verify_handshake.py` 取真实输出，避免文档与实现再次脱节。
+    3. 若评审按 `AGENTS.md`（缺失第 4 节）核对签名，README 不应声称实现了 `PortDiagnostic` /
+       `--ports` / `--dry-run` 等**并不存在**的接口 —— 那会造成「文档与代码不符」的新问题。
+    4. 验收要求删除临时编译二进制 `port-detective.exe`；MCP 验收脚本需要它，**请在跑完全部脚本后再删**。
 
 ---
 
@@ -145,3 +169,83 @@ port-detective
   - **⚠ 偏离规格一处**：表格未使用 `text/tabwriter`（按 rune 计宽，中文会错位），改为自实现 `displayWidth`/`renderTable`。若评审要求必须出现 `text/tabwriter`，请在此处与我确认后再改回，但那会牺牲中文对齐。
   - **可直接复用的 CLI 基建**：`displayWidth`（CJK 双列宽计算）、`renderTable`/`tableColumn`（显示宽度对齐表格）、`palette`（遵循 NO_COLOR 的配色）、`humanBytes`、`humanDuration`、`truncate`（按字符截断）。Step 5 写 README 的终端示例时，建议直接用真实输出，不要手编。
   - **验证记录**：`go build -o port-detective .` 通过；`go test ./...` 全绿（core 16 + cli 14）；`-race` 无竞争；真实环境实测 `scan` 13ms、`scan --all` 含 316 条连接、`check`/`kill` 端到端（含取消路径）均正确。临时诊断程序与 `.gitkeep` 已清理。
+- **[Step-4 done]**: 已实现 `internal/mcpserver/server.go`（三个 MCP Tool + Stdio 服务端）并把 `mcp` 子命令正式绑定到 `RunStdioServer()`；`internal/mcpserver/server_test.go` 12 个用例；新增 `scripts/mcp/` 下三个协议验收脚本。
+  - **交接要点（Step 5 必读）**：
+    - README 的 MCP 配置示例请直接用 `port-detective mcp`（已可直接工作），不要再写「尚未实现」。
+    - 三个工具名与描述可直接从 `scripts/mcp/verify_handshake.py` 的真实输出中摘取，**不要手编**。
+    - 仓库根目录的 `port-detective.exe` 是编译产物，已被 `.gitignore` 忽略；Step 5 的验收标准要求删除临时二进制，请记得清理（脚本运行需要它，可最后再删）。
+  - **⚠ mcp-go 默认值坑（Step 5 若改描述请留意）**：`mcp.NewTool` 默认 `DestructiveHint=true` / `OpenWorldHint=true`，只读工具必须显式覆盖，否则 AI 客户端会对每次查询都要求二次确认。
+  - **⚠ 依赖版本务必不要跑 `go mod tidy` 之外的升级动作**：当前锁定 `mcp-go v0.48.0`（`v0.49.0+` 要求 `go >= 1.25.5`，会破坏「Go 1.22+」兼容目标）。若 tidy 后 `go.mod` 的 `go` 指令又变成 `1.25.5`，说明版本被顶掉了，需重新 `go get github.com/mark3labs/mcp-go@v0.48.0`。
+  - **验证记录**：`go build ./...` 通过；`go test ./...` 全绿（**42 个用例**）；`-race` 无竞争；`gofmt`/`vet` 干净；`go mod tidy` 幂等。MCP 端到端实测：握手成功、tools/list 返回 3 个工具、tools/call 实际调用正确、**stdout 纯净性 170 字节 1 行通过**。
+  - **未在本环境验证**：`free_port` 的成功路径（非管理员身份下结束受限进程被系统拒绝，属正确失败）。Step 5 若有机会在管理员终端复测，请补记。
+  - **过程失误记录（供后续 Agent 引以为戒）**：Step 4 验证过程中，我曾把 `free_port` 调用写进脚本并指向 **19387（本会话的 Harness GUI 端口）**，属危险测试设计；虽因权限被拒未造成损害，但测试**永远不应针对用户正在使用的服务**。破坏性操作的验证一律使用自建的临时监听进程。
+
+---
+
+# 已知偏离与冲突登记（2026-10-14 补充，由用户决策「保持现状、仅登记」）
+
+## 0. 背景：为什么会产生偏离
+
+原始需求文档（本地文件 `AICANTREAD.md`，**已加入 `.gitignore` 不提交**）第 4 节定义了
+`internal/core/detector.go` 的「**冻结的核心接口契约**」，并在第 2 节列出编码红线。
+该文档要求把第 4 节连同红线一起写进 `AGENTS.md`，但**实际落地的 `AGENTS.md` 只写到第 3 节**，
+第 4 节与红线在复制环节丢失。
+
+后果：Step 2 的任务描述要求「严格按照 `AGENTS.md` 第 4 节的契约」实现，而该契约并不存在于仓库中。
+接手 Agent（我）在无法读取契约的情况下，依据 Step 2 的文字描述**自行设计了接口**，
+Step 3、Step 4 又继续沿用该自研接口，于是偏离被逐层放大。
+
+**用户已明确决策：不重构、保持现状，仅在此登记，供评审与后续 Agent 知情。**
+
+## 1. 契约偏离逐条对照
+
+| # | 原始文档第 4 节冻结契约 | 仓库现状 | 影响 |
+|---|---|---|---|
+| 1 | `type PortDiagnostic struct`（字段 `ProcessName` / `MemoryMB float64` / `CPUPercent` / `Status string`） | `type PortInfo struct`（`Name` / `RSS uint64` / `CPU` / 无 `Status`） | **JSON 字段名全部不同**，AI 客户端与脚本按契约取值会失败 |
+| 2 | `InspectPort(ctx, port int) (*PortDiagnostic, error)` | `InspectPort(port int, protocol string) (*PortInfo, error)` | 签名不兼容 |
+| 3 | `ScanPortsConcurrent(ctx, ports []int)`（**端口切片**，要求按端口升序返回） | `ScanPortsConcurrent(ctx, start, end int, opts ScanOptions)`（**区间**） | 签名不兼容；升序语义一致，已满足 |
+| 4 | `KillPortProcess(ctx, port int, dryRun bool) (*PortDiagnostic, string, error)` | `KillPortProcess(port int, force bool) (int32, error)` | 签名不兼容；**缺少 dryRun 语义** |
+| 5 | `DefaultDevPorts` 恰好 **10 个**端口：3000,3306,5173,5432,6379,8000,8080,8888,9000,27017 | 28 个（含 3001/4200/9200/11211 等） | 清单内容不符 |
+| 6 | `scan [--ports 3000,8080,5432]`，不传参则**并发扫描 `DefaultDevPorts`** | `scan [--range A-B] [--all] [-w N]`，**默认读系统连接表**；并发引擎仅在 `--range` 时启用 | **风险最高**：默认演示路径未走到「并发扫描」这一核心得分点 |
+| 7 | `kill <port> [--dry-run]` | `kill <port> [--force] [--yes]`，**无 `--dry-run`** | 缺少安全预演能力 |
+| 8 | MCP `scan_dev_ports` 参数为 `ports`（字符串 `"3000,8080"`） | 实现为 `start_port` / `end_port`（数字区间） | AI 按契约传参会被忽略/报错 |
+| 9 | MCP `free_port` 参数 `dry_run`，**默认为 true 以保证安全** | 实现为 `force`，默认 false；而 `force=false` 是「优雅终止」= **真杀** | **安全性偏离**：默认行为从「只报告」变成「真执行」 |
+| 10 | MCP 三个工具的 `description` 为**英文**（原文给了英文文案） | 写成中文 | 不影响功能，影响与契约一致性 |
+| 11 | 红线：**单个 `.go` 文件 ≤ 180 行** | `cli/root.go` **788 行**、`core/detector.go` 396、`mcpserver/server.go` 354、三个测试文件 267~436 行 | 全部超标，详见下方冲突说明 |
+
+## 2. 规格内部冲突（需人工裁决，未擅自取舍）
+
+**冲突：** 红线要求「单个 `.go` 文件控制在 180 行以内」，
+但 `AGENTS.md` 第 3 节的目录结构把文件固定为
+`internal/cli/root.go`、`internal/core/detector.go`、`internal/mcpserver/server.go` 各一个。
+
+两者**无法同时满足**：守住 180 行必须把一个模块拆成多个文件，而拆分就违反锁死的目录结构。
+当前实现选择了「优先遵守目录结构」，因此单文件普遍超过 180 行。
+**用户已知情并选择保持现状。**
+
+## 3. 如果将来要修正，建议的最小改动顺序
+
+> 以下仅为建议路径，**未经用户授权不要擅自开始重构**。
+
+1. **先补文档**：把原始文档第 4 节契约与红线补写进 `AGENTS.md`（新增第 4、5 节），
+   使后续 Agent 有据可依 —— 这是所有其他修正的前提。
+2. **再对齐 core 契约**（风险集中区）：`PortInfo` → `PortDiagnostic`（含 `MemoryMB float64`、`Status`），
+   三个函数签名改为契约版本（`ScanPortsConcurrent` 改收 `[]int`，`KillPortProcess` 加 `dryRun`）。
+   注意：`internal/cli` 与 `internal/mcpserver` 及全部测试都依赖这些类型，需同步修改。
+3. **修正 `scan` 默认行为**：默认改为「并发扫描 `DefaultDevPorts`」，
+   把现有的连接表模式降级为可选优化（例如 `--fast`），以保住并发这一核心得分点。
+4. **补 `--dry-run`**：`kill` 与 MCP `free_port` 都加 `dryRun`，且 MCP 侧**默认 true**。
+5. **最后处理 180 行红线**：与评审确认「拆文件」是否可以接受，再决定是否拆分。
+
+## 4. 关于 `AICANTREAD.md`
+
+- 它是**给你自己看的操作指南 + 原始需求草稿**（含启动口令、实操步骤、评分理由），
+  **不是课程作业的交付物**。
+- 已在 `.gitignore` 中登记，**保留在本地但不提交**。若误删，可从本文第 1 节的对照表恢复关键信息。
+- 后续 Agent：**请勿**把它当成项目文档提交，也**请勿**删除它 —— 它是唯一的契约来源。
+
+## 5. 仍未改变的既有决策（用户已知情）
+
+- 表格未使用 `text/tabwriter`，改为自实现 `displayWidth`（CJK 双列宽）—— 已获用户认可保留。
+- `mcp-go` 锁定 `v0.48.0`（`v0.49.0+` 要求 `go >= 1.25.5`，会破坏「Go 1.22+」目标）。
+- `mcp` 子命令 stdout 保持纯净（有脚本证明），诊断信息一律走 stderr。
