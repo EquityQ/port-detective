@@ -340,6 +340,95 @@ func TestPortInfoDegradedContract(t *testing.T) {
 	t.Skipf("已检查 %d 个被占用端口，均无权限受限情况（通常是管理员身份运行），跳过降级路径验证", checked)
 }
 
+// TestListOccupiedPortsFindsOwnListener 验证连接表模式能发现本进程的监听端口，
+// 且结果按端口号升序、字段完整。
+func TestListOccupiedPortsFindsOwnListener(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	infos, err := ListOccupiedPorts(context.Background(), ListOptions{Protocol: ProtocolTCP})
+	if err != nil {
+		t.Fatalf("ListOccupiedPorts 返回错误：%v", err)
+	}
+	if len(infos) == 0 {
+		t.Fatal("未发现任何监听端口，本机至少应有测试进程自己监听的端口")
+	}
+
+	// 结果必须按端口号升序，保证输出稳定。
+	if !sort.SliceIsSorted(infos, func(i, j int) bool { return infos[i].Port < infos[j].Port }) {
+		t.Error("结果未按端口号升序排序")
+	}
+
+	var found *PortInfo
+	for i := range infos {
+		if infos[i].Port == port {
+			found = &infos[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("本进程正在监听端口 %d，但连接表模式未列出它", port)
+	}
+	if !found.IsOpen {
+		t.Errorf("端口 %d 的 IsOpen 应为 true", port)
+	}
+	if found.PID != testHelperPID {
+		t.Errorf("端口 %d 的 PID = %d，期望 %d", port, found.PID, testHelperPID)
+	}
+	if found.Protocol != ProtocolTCP {
+		t.Errorf("端口 %d 的 Protocol = %q，期望 %q", port, found.Protocol, ProtocolTCP)
+	}
+}
+
+// TestListOccupiedPortsDefaultIsListenersOnly 验证默认只返回监听端口，
+// 而 All=true 会返回不少于默认模式的结果。
+//
+// 依据：连接表同时包含大量出站连接（ESTABLISHED / TIME_WAIT），
+// 它们占用客户端临时端口，不属于「谁占了我的端口」这一语义。
+func TestListOccupiedPortsDefaultIsListenersOnly(t *testing.T) {
+	ctx := context.Background()
+
+	listeners, err := ListOccupiedPorts(ctx, ListOptions{Protocol: ProtocolTCP})
+	if err != nil {
+		t.Fatalf("默认模式返回错误：%v", err)
+	}
+	all, err := ListOccupiedPorts(ctx, ListOptions{Protocol: ProtocolTCP, All: true})
+	if err != nil {
+		t.Fatalf("All 模式返回错误：%v", err)
+	}
+
+	if len(all) < len(listeners) {
+		t.Errorf("All 模式结果数 %d 不应少于默认模式 %d", len(all), len(listeners))
+	}
+
+	// 默认模式的每个端口都必须存在于 All 模式中。
+	allPorts := make(map[int]bool, len(all))
+	for _, info := range all {
+		allPorts[info.Port] = true
+	}
+	for _, info := range listeners {
+		if !allPorts[info.Port] {
+			t.Errorf("默认模式列出了端口 %d，但 All 模式却没有", info.Port)
+		}
+	}
+
+	t.Logf("默认(仅监听) %d 个端口，All(含出站) %d 个端口", len(listeners), len(all))
+}
+
+// TestListOccupiedPortsUDP 验证 UDP 模式可正常返回且协议字段正确。
+func TestListOccupiedPortsUDP(t *testing.T) {
+	infos, err := ListOccupiedPorts(context.Background(), ListOptions{Protocol: ProtocolUDP})
+	if err != nil {
+		t.Fatalf("UDP 模式返回错误：%v", err)
+	}
+	for _, info := range infos {
+		if info.Protocol != ProtocolUDP {
+			t.Fatalf("UDP 模式返回了协议为 %q 的条目（端口 %d）", info.Protocol, info.Port)
+		}
+	}
+	t.Logf("UDP 监听端口 %d 个", len(infos))
+}
+
 // TestKillPortProcessOnIdlePort 验证对空闲端口调用释放会得到明确错误而非 panic。
 func TestKillPortProcessOnIdlePort(t *testing.T) {
 	port := freeLoopbackPort(t)

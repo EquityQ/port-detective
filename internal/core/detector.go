@@ -372,6 +372,91 @@ func ScanPortsConcurrent(ctx context.Context, start, end int, opts ScanOptions) 
 	return occupied, nil
 }
 
+// ListOptions 控制「读取系统连接表」模式的行为。零值即为一套可直接使用的默认配置。
+type ListOptions struct {
+	Protocol string // 协议，默认 tcp
+	All      bool   // false（默认）仅列出监听端口；true 则包含全部连接（含出站连接）
+}
+
+// ListOccupiedPorts 直接读取一次系统连接表，列出端口占用情况。
+//
+// 与 ScanPortsConcurrent 的关系：
+//   - 前者读一次系统连接表即可拿到全部结果，耗时通常在毫秒级；
+//   - 后者逐个端口做真实探测，用于覆盖连接表未登记的监听或收敛到指定区间。
+//
+// 两者返回的 *PortInfo 结构完全一致，上层可无差别渲染。
+//
+// 关于「只保留监听」：系统连接表同时包含大量**出站连接**（ESTABLISHED /
+// TIME_WAIT / CLOSE_WAIT），它们占用的是客户端随机临时端口，并非「谁占了我的端口」。
+// 默认只保留监听项（TCP 状态为 LISTEN；UDP 无连接状态，Status 为空），
+// 以与 ScanPortsConcurrent（天然只能发现监听端口）保持语义一致；
+// 传入 All=true 可拿到全部连接，用于排查出站连接归属。
+func ListOccupiedPorts(ctx context.Context, opts ListOptions) ([]PortInfo, error) {
+	proto := normalizeProtocol(opts.Protocol)
+	wantSockType := sockTypeOf(proto)
+
+	conns, err := gnet.ConnectionsWithContext(ctx, "inet")
+	if err != nil {
+		return nil, fmt.Errorf("读取系统连接表失败：%w", err)
+	}
+
+	// 边扫描边去重：同一端口可能有多条记录（如同时存在 IPv4/IPv6），
+	// 已记录为「监听」的端口不再被出站连接覆盖。
+	seen := make(map[uint32]int32, len(conns))
+	listening := make(map[uint32]bool, len(conns))
+	for _, c := range conns {
+		if c.Laddr.Port == 0 || c.Type != wantSockType {
+			continue
+		}
+		isListen := isListening(c)
+		if !opts.All && !isListen {
+			continue
+		}
+		if listening[c.Laddr.Port] && !isListen {
+			continue // 已记录为监听，无需被出站连接覆盖
+		}
+		seen[c.Laddr.Port] = c.Pid
+		listening[c.Laddr.Port] = isListen
+	}
+
+	infos := make([]PortInfo, 0, len(seen))
+	for port, pid := range seen {
+		info := PortInfo{
+			Port:     int(port),
+			Protocol: proto,
+			IsOpen:   true,
+			PID:      pid,
+		}
+		if pid > 0 {
+			fillProcessDetail(ctx, &info)
+		} else {
+			info.Degraded = true
+			info.Err = ErrProcessNotAccessible.Error()
+		}
+		infos = append(infos, info)
+	}
+
+	// 与并发扫描保持一致的排序，保证输出稳定可测。
+	sort.Slice(infos, func(i, j int) bool { return infos[i].Port < infos[j].Port })
+	return infos, nil
+}
+
+// isListening 判断一条连接记录是否代表「本机正在监听该端口」。
+//
+// TCP 会给出明确状态（LISTEN）；UDP 无连接语义，gopsutil 返回空状态，
+// 因此空状态在 UDP 场景下即视为监听。
+func isListening(c gnet.ConnectionStat) bool {
+	switch c.Status {
+	case "LISTEN":
+		return true
+	case "":
+		// 仅 UDP 允许空状态，避免把异常记录误判为监听。
+		return c.Type == sockDgram
+	default:
+		return false
+	}
+}
+
 // KillPortProcess 结束占用指定端口的进程。
 //
 // force 为 true 时使用 Kill（强制终止），否则使用 Terminate（请求优雅退出）。
