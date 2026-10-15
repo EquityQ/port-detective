@@ -249,6 +249,11 @@ async def main():
 asyncio.run(main())
 ```
 
+The Python SDK is a subprocess wrapper and does not include the Go executable. Install
+the same CLI release separately (`go install github.com/EquityQ/port-detective@v1.1.0`)
+or download the matching archive from [GitHub Releases](https://github.com/EquityQ/port-detective/releases/tag/v1.1.0).
+Use `PORT_DETECTIVE_BIN` or the SDK's `binary_path` argument when the executable is not on `PATH`.
+
 ---
 
 ## 🏗️ System Architecture

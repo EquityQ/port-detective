@@ -22,7 +22,20 @@ Uses a zero-CGo **Subprocess Wrapper** architecture, ensuring 100% cross-platfor
 pip install port-detective
 ```
 
-> **Prerequisite**: Ensure `port-detective` executable is installed and available in your system `PATH`, or specify its path via the `PORT_DETECTIVE_BIN` environment variable or the `binary_path` argument.
+The Python package is a thin client and does not bundle the Go executable. Install the
+matching CLI release separately, then make it available on `PATH`:
+
+```bash
+# Option A: install the pinned CLI version from source
+go install github.com/EquityQ/port-detective@v1.1.0
+
+# Option B: download the matching OS/architecture archive from GitHub Releases
+# https://github.com/EquityQ/port-detective/releases/tag/v1.1.0
+```
+
+For a custom location, set `PORT_DETECTIVE_BIN` or pass `binary_path` to each API call.
+Keep the Python SDK and CLI on the same release version because the SDK consumes the
+CLI's JSON output contract.
 
 ---
 

@@ -1,0 +1,56 @@
+name: Python SDK
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "python/**"
+      - ".github/workflows/python.yml"
+  pull_request:
+    paths:
+      - "python/**"
+      - ".github/workflows/python.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13"]
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+
+      - name: Install test tools
+        run: python -m pip install --upgrade pip pytest pytest-asyncio build
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Install wheel smoke test
+        shell: bash
+        run: |
+          python -m venv .smoke-venv
+          . .smoke-venv/bin/activate
+          python -m pip install dist/*.whl
+          python -c "import port_detective; print(port_detective.__version__)"

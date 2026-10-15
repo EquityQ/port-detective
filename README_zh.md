@@ -246,6 +246,14 @@ async def main():
 asyncio.run(main())
 ```
 
+Python SDK 采用子进程包装方式，不会内置 Go 可执行文件。请单独安装相同版本的 CLI：
+```bash
+go install github.com/EquityQ/port-detective@v1.1.0
+```
+也可以从 [GitHub Releases](https://github.com/EquityQ/port-detective/releases/tag/v1.1.0)
+下载对应平台的压缩包。SDK 与 CLI 应保持相同版本，因为 SDK 依赖 CLI 的 JSON 输出契约；
+如果可执行文件不在 `PATH` 中，请设置 `PORT_DETECTIVE_BIN` 或传入 `binary_path`。
+
 ---
 
 ## 🏗️ 系统三层架构
