@@ -20,11 +20,12 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 
 	"port-detective/internal/core"
+	_ "port-detective/internal/fingerprint"
 )
 
 const (
 	serverName    = "port-detective"
-	serverVersion = "0.1.0"
+	serverVersion = "1.1.0"
 )
 
 // NewServer 构建并返回已注册全部工具的 MCP Server。
@@ -36,9 +37,10 @@ func NewServer() *server.MCPServer {
 	)
 
 	handlers := map[string]server.ToolHandlerFunc{
-		"inspect_port":   handleInspectPort,
-		"scan_dev_ports": handleScanDevPorts,
-		"free_port":      handleFreePort,
+		"inspect_port":          handleInspectPort,
+		"scan_dev_ports":        handleScanDevPorts,
+		"free_port":             handleFreePort,
+		"clean_current_project": handleCleanCurrentProject,
 	}
 	for _, tool := range serverTools() {
 		handler, ok := handlers[tool.Name]
@@ -99,6 +101,7 @@ func serverTools() []mcp.Tool {
 		inspectPortTool(),
 		scanDevPortsTool(),
 		freePortTool(),
+		cleanCurrentProjectTool(),
 	}
 }
 
@@ -160,6 +163,24 @@ func freePortTool() mcp.Tool {
 		),
 		mcp.WithBoolean("dry_run",
 			mcp.Description("Whether to run in dry-run mode without actually terminating the process. Defaults to true for safety."),
+			mcp.DefaultBool(true),
+		),
+	)
+}
+
+// 4. clean_current_project
+func cleanCurrentProjectTool() mcp.Tool {
+	return mcp.NewTool("clean_current_project",
+		mcp.WithDescription(
+			"Concurrently scan development ports and terminate orphan processes belonging to the current working directory project. Set dry_run=false to actually kill processes.",
+		),
+		mcp.WithTitleAnnotation("清理当前项目孤儿端口"),
+		mcp.WithDestructiveHintAnnotation(true),
+		mcp.WithReadOnlyHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(false),
+		mcp.WithOpenWorldHintAnnotation(false),
+		mcp.WithBoolean("dry_run",
+			mcp.Description("Whether to run in dry-run mode without actually terminating the processes. Defaults to true for safety."),
 			mcp.DefaultBool(true),
 		),
 	)
@@ -234,6 +255,28 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 		"dry_run":    dryRun,
 		"diagnostic": diag,
 		"message":    msg,
+	}
+	return jsonResult(result)
+}
+
+func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	dryRun := request.GetBool("dry_run", true)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return mcp.NewToolResultErrorf("无法获取当前工作目录：%v", err), nil
+	}
+
+	cleaned, err := core.CleanCurrentProjectPorts(ctx, cwd, dryRun)
+	if err != nil {
+		return mcp.NewToolResultErrorf("清理当前项目端口失败：%v", err), nil
+	}
+
+	result := map[string]any{
+		"cwd":     cwd,
+		"dry_run": dryRun,
+		"count":   len(cleaned),
+		"cleaned": cleaned,
 	}
 	return jsonResult(result)
 }

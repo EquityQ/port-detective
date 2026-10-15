@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -38,17 +41,52 @@ const (
 // DefaultDevPorts 默认高频开发端口列表（用于并发扫描演示，严格满足规格 10 个端口）
 var DefaultDevPorts = []int{3000, 3306, 5173, 5432, 6379, 8000, 8080, 8888, 9000, 27017}
 
+// ProjectInfo 描述端口所属进程的项目指纹元数据
+type ProjectInfo struct {
+	Name      string `json:"name,omitempty"`
+	Framework string `json:"framework,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Version   string `json:"version,omitempty"`
+}
+
 // PortDiagnostic 单个端口与所属进程的体检报告（冻结核心契约）
 type PortDiagnostic struct {
-	Port        int     `json:"port"`
-	IsOpen      bool    `json:"is_open"`
-	Protocol    string  `json:"protocol"`     // "tcp"
-	PID         int32   `json:"pid"`          // 占用进程 PID（未查到则为 0）
-	ProcessName string  `json:"process_name"` // 进程名称，如 "node", "python", "go"
-	Cmdline     string  `json:"cmdline"`      // 启动命令行参数
-	MemoryMB    float64 `json:"memory_mb"`    // 进程物理内存占用 (MB)
-	CPUPercent  float64 `json:"cpu_percent"`  // 进程 CPU 占用率 (%)
-	Status      string  `json:"status"`       // 诊断摘要: "occupied", "free", "permission_required"
+	Port        int          `json:"port"`
+	IsOpen      bool         `json:"is_open"`
+	Protocol    string       `json:"protocol"`          // "tcp"
+	PID         int32        `json:"pid"`               // 占用进程 PID（未查到则为 0）
+	ProcessName string       `json:"process_name"`      // 进程名称，如 "node", "python", "go"
+	Cmdline     string       `json:"cmdline"`           // 启动命令行参数
+	MemoryMB    float64      `json:"memory_mb"`         // 进程物理内存占用 (MB)
+	CPUPercent  float64      `json:"cpu_percent"`       // 进程 CPU 占用率 (%)
+	Status      string       `json:"status"`            // 诊断摘要: "occupied", "free", "permission_required"
+	Project     *ProjectInfo `json:"project,omitempty"` // 所属项目指纹信息
+}
+
+// ProjectDetectorFunc 定义进程指纹探测函数签名。
+type ProjectDetectorFunc func(ctx context.Context, pid int32) *ProjectInfo
+
+var (
+	projectDetectorMu sync.RWMutex
+	projectDetector   ProjectDetectorFunc
+)
+
+// RegisterProjectDetector 注册外部项目指纹探测器（由 fingerprint 包注入）。
+func RegisterProjectDetector(fn ProjectDetectorFunc) {
+	projectDetectorMu.Lock()
+	defer projectDetectorMu.Unlock()
+	projectDetector = fn
+}
+
+// detectProjectSafe 安全调用已注册的项目指纹探测器。
+func detectProjectSafe(ctx context.Context, pid int32) *ProjectInfo {
+	projectDetectorMu.RLock()
+	fn := projectDetector
+	projectDetectorMu.RUnlock()
+	if fn == nil || pid <= 1 {
+		return nil
+	}
+	return fn(ctx, pid)
 }
 
 // PortInfo 是向后兼容类型别名
@@ -118,6 +156,9 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 	}
 	if cpu, err := proc.CPUPercentWithContext(ctx); err == nil {
 		diag.CPUPercent = cpu
+	}
+	if diag.PID > 1 {
+		diag.Project = detectProjectSafe(ctx, diag.PID)
 	}
 }
 
@@ -303,4 +344,63 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 
 	msg := fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)", port, diag.ProcessName, diag.PID)
 	return diag, msg, nil
+}
+
+// 4. CleanCurrentProjectPorts 项目级一键清理能力：
+// 并发扫描常用开发端口，仅筛选并释放 Project.Path == cwd 的孤儿进程。
+func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]PortDiagnostic, error) {
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("无法获取当前工作目录：%w", err)
+		}
+	}
+
+	cleanCwd := filepath.Clean(cwd)
+	// 并发扫描高频开发端口
+	occupied, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
+	if err != nil {
+		return nil, fmt.Errorf("扫描开发端口失败：%w", err)
+	}
+
+	var targets []PortDiagnostic
+	for _, diag := range occupied {
+		if diag.Project != nil && diag.Project.Path != "" {
+			targetPath := filepath.Clean(diag.Project.Path)
+			matched := false
+			if strings.EqualFold(targetPath, cleanCwd) {
+				matched = true
+			} else if fi1, err1 := os.Stat(targetPath); err1 == nil {
+				if fi2, err2 := os.Stat(cleanCwd); err2 == nil && os.SameFile(fi1, fi2) {
+					matched = true
+				}
+			}
+
+			if matched {
+				targets = append(targets, diag)
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		return []PortDiagnostic{}, nil
+	}
+
+	var cleaned []PortDiagnostic
+	for _, target := range targets {
+		diag, _, err := KillPortProcess(ctx, target.Port, dryRun)
+		if err != nil {
+			target.Status = fmt.Sprintf("kill_failed: %v", err)
+			cleaned = append(cleaned, target)
+			continue
+		}
+		if diag != nil {
+			cleaned = append(cleaned, *diag)
+		} else {
+			cleaned = append(cleaned, target)
+		}
+	}
+
+	return cleaned, nil
 }

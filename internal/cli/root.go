@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"port-detective/internal/core"
+	_ "port-detective/internal/fingerprint"
 	"port-detective/internal/mcpserver"
 )
 
@@ -301,12 +303,14 @@ func stripANSI(s string) string {
 }
 
 type portRow struct {
-	port    string
-	pid     string
-	process string
-	rss     string
-	cpu     string
-	status  string
+	port      string
+	pid       string
+	process   string
+	framework string
+	project   string
+	rss       string
+	cpu       string
+	status    string
 }
 
 func buildRow(info core.PortDiagnostic) portRow {
@@ -324,6 +328,19 @@ func buildRow(info core.PortDiagnostic) portRow {
 		pid = strconv.Itoa(int(info.PID))
 	}
 
+	framework := "-"
+	project := "-"
+	if info.Project != nil {
+		if info.Project.Framework != "" {
+			framework = info.Project.Framework
+		}
+		if info.Project.Name != "" {
+			project = info.Project.Name
+		} else if info.Project.Path != "" {
+			project = filepath.Base(info.Project.Path)
+		}
+	}
+
 	rss := "-"
 	if info.MemoryMB > 0 {
 		rss = fmt.Sprintf("%.1f MB", info.MemoryMB)
@@ -335,23 +352,32 @@ func buildRow(info core.PortDiagnostic) portRow {
 	}
 
 	return portRow{
-		port:    strconv.Itoa(info.Port),
-		pid:     pid,
-		process: truncate(process, maxProcessNameWidth),
-		rss:     rss,
-		cpu:     cpu,
-		status:  info.Status,
+		port:      strconv.Itoa(info.Port),
+		pid:       pid,
+		process:   truncate(process, maxProcessNameWidth),
+		framework: truncate(framework, 14),
+		project:   truncate(project, 18),
+		rss:       rss,
+		cpu:       cpu,
+		status:    info.Status,
 	}
 }
 
-func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic) {
+func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic, lang string) {
+	headers := []string{"PORT", "PID", "PROCESS", "FRAMEWORK", "PROJECT", "RSS", "CPU", "STATUS"}
+	if isZh(lang) {
+		headers = []string{"端口", "PID", "进程", "开发框架", "所属项目", "内存", "CPU", "状态"}
+	}
+
 	columns := []tableColumn{
-		{header: "PORT", align: alignRight},
-		{header: "PID", align: alignRight},
-		{header: "PROCESS", align: alignLeft},
-		{header: "RSS", align: alignRight},
-		{header: "CPU", align: alignRight},
-		{header: "STATUS", align: alignLeft},
+		{header: headers[0], align: alignRight},
+		{header: headers[1], align: alignRight},
+		{header: headers[2], align: alignLeft},
+		{header: headers[3], align: alignLeft},
+		{header: headers[4], align: alignLeft},
+		{header: headers[5], align: alignRight},
+		{header: headers[6], align: alignRight},
+		{header: headers[7], align: alignLeft},
 	}
 
 	rows := make([][]string, 0, len(infos))
@@ -366,6 +392,8 @@ func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic) {
 			p.paint(p.accent, row.port),
 			row.pid,
 			process,
+			row.framework,
+			row.project,
 			row.rss,
 			row.cpu,
 			p.paint(p.dim, row.status),
@@ -378,7 +406,7 @@ func summaryLine(w io.Writer, p palette, parts ...string) {
 	fmt.Fprintf(w, "  %s\n", p.paint(p.dim, strings.Join(parts, "  ·  ")))
 }
 
-func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic) {
+func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic, lang string) {
 	degraded := 0
 	for _, info := range infos {
 		if info.Status == core.StatusPermissionRequired {
@@ -388,14 +416,33 @@ func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	if degraded == 0 {
 		return
 	}
-	hint(w, p, fmt.Sprintf("其中 %d 个端口的归属进程属系统保护进程，当前权限无法读取详情。", degraded))
-	fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
+	if isZh(lang) {
+		hint(w, p, fmt.Sprintf("其中 %d 个端口的归属进程属系统保护进程，当前权限无法读取详情。", degraded))
+		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
+	} else {
+		hint(w, p, fmt.Sprintf("%d port(s) belong to protected processes inaccessible with current privileges.", degraded))
+		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
+	}
 }
 
 // ============================ 命令构建 ============================
 
 type options struct {
 	jsonOutput bool
+	lang       string
+}
+
+func defaultLanguage() string {
+	env := strings.ToLower(os.Getenv("LANG") + " " + os.Getenv("LC_ALL") + " " + os.Getenv("LANGUAGE"))
+	if strings.Contains(env, "zh") {
+		return "zh"
+	}
+	return "en"
+}
+
+func isZh(lang string) bool {
+	l := strings.ToLower(strings.TrimSpace(lang))
+	return strings.HasPrefix(l, "zh")
 }
 
 func NewRootCommand() *cobra.Command {
@@ -403,21 +450,26 @@ func NewRootCommand() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "port-detective",
-		Short: "本地端口占用侦探与进程体检工具",
+		Short: "本地端口占用侦探与进程体检工具 / Local Port Detective & Process Diagnostic Tool",
 		Long: strings.Join([]string{
-			"port-detective —— 本地端口占用侦探与进程体检 CLI",
+			"port-detective —— Local Port Detective & Process Diagnostic CLI",
 			"",
-			"一句话定位端口归属：谁占了我的端口、它占了多少内存、能不能安全释放。",
-			"同时原生支持 MCP 协议，可作为 AI Agent 的端口探测工具直接调用。",
+			"Instantly inspect ports, detect owning processes, identify project frameworks,",
+			"and safely clean orphan dev processes.",
+			"Native MCP server support for AI Agents (Claude Code / Cursor / Windsurf).",
 		}, "\n"),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 
+	root.PersistentFlags().StringVar(&opts.lang, "lang", defaultLanguage(), "interface language / 界面语言 (en/zh)")
+	root.PersistentFlags().BoolVar(&opts.jsonOutput, "json", false, "output in pure JSON format / 以 JSON 格式输出")
+
 	root.AddCommand(
 		newCheckCommand(opts),
 		newScanCommand(opts),
 		newKillCommand(opts),
+		newCleanCommand(opts),
 		newMCPCommand(opts),
 	)
 	return root
@@ -436,11 +488,12 @@ func Execute() {
 func newCheckCommand(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <端口号>",
-		Short: "体检指定端口：占用状态、归属进程与资源开销",
-		Long:  "体检单个端口。除占用状态外，还会给出归属进程的名称、PID、常驻内存与 CPU 占用。",
+		Short: "体检指定端口：占用状态、归属进程、框架指纹与资源开销 / Inspect specified port",
+		Long:  "体检单个端口。除占用状态外，还会给出归属进程的名称、PID、框架指纹、常驻内存与 CPU 占用。",
 		Example: strings.Join([]string{
 			"  port-detective check 8080",
 			"  port-detective check 5432 --json",
+			"  port-detective check 3000 --lang en",
 		}, "\n"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -465,64 +518,134 @@ func newCheckCommand(opts *options) *cobra.Command {
 			if opts.jsonOutput {
 				return writeJSON(out, info)
 			}
-			renderCheck(out, newPalette(out), info, elapsed)
+			renderCheck(out, newPalette(out), info, elapsed, opts.lang)
 			return nil
 		},
 	}
-
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
 	return cmd
 }
 
-func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time.Duration) {
-	const width = 58
+func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time.Duration, lang string) {
+	const width = 64
+	zh := isZh(lang)
 
 	state := p.paint(p.warn, "已占用")
+	if !zh {
+		state = p.paint(p.warn, "Occupied")
+	}
 	if !info.IsOpen {
 		state = p.paint(p.title, "空闲")
+		if !zh {
+			state = p.paint(p.title, "Free")
+		}
 	}
-	sectionTitle(w, p, fmt.Sprintf("端口体检  TCP/%s",
-		p.paint(p.accent, strconv.Itoa(info.Port))), width)
 
-	fmt.Fprintf(w, "  %s\n", p.paint(p.head, "连接状态"))
-	field(w, p, "状态", keyWidth, state)
-	field(w, p, "协议", keyWidth, strings.ToUpper(info.Protocol))
-	field(w, p, "诊断摘要", keyWidth, info.Status)
+	titleText := fmt.Sprintf("端口体检  TCP/%s", p.paint(p.accent, strconv.Itoa(info.Port)))
+	if !zh {
+		titleText = fmt.Sprintf("Port Diagnostic  TCP/%s", p.paint(p.accent, strconv.Itoa(info.Port)))
+	}
+	sectionTitle(w, p, titleText, width)
+
+	connHead := "连接状态"
+	statusKey := "状态"
+	protoKey := "协议"
+	diagKey := "诊断摘要"
+	if !zh {
+		connHead = "Connection State"
+		statusKey = "Status"
+		protoKey = "Protocol"
+		diagKey = "Summary"
+	}
+	fmt.Fprintf(w, "  %s\n", p.paint(p.head, connHead))
+	field(w, p, statusKey, keyWidth, state)
+	field(w, p, protoKey, keyWidth, strings.ToUpper(info.Protocol))
+	field(w, p, diagKey, keyWidth, info.Status)
 
 	if !info.IsOpen {
-		field(w, p, "结论", keyWidth, "该端口当前无人监听，可以直接使用。")
+		conclusionKey := "结论"
+		conclusionVal := "该端口当前无人监听，可以直接使用。"
+		if !zh {
+			conclusionKey = "Conclusion"
+			conclusionVal = "Port is free and ready for use."
+		}
+		field(w, p, conclusionKey, keyWidth, conclusionVal)
 		fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
-		summaryLine(w, p, fmt.Sprintf("探测耗时 %s", humanDuration(elapsed)))
+		timeSummary := fmt.Sprintf("探测耗时 %s", humanDuration(elapsed))
+		if !zh {
+			timeSummary = fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
+		}
+		summaryLine(w, p, timeSummary)
 		return
 	}
 
-	fmt.Fprintf(w, "\n  %s\n", p.paint(p.head, "归属进程"))
+	procHead := "归属进程"
+	procNameKey := "进程名"
+	cmdKey := "启动命令"
+	rssKey := "常驻内存"
+	cpuKey := "CPU 占用"
+	frameworkKey := "开发框架"
+	projectKey := "所属项目"
+	pathKey := "项目路径"
+	if !zh {
+		procHead = "Owning Process"
+		procNameKey = "Process"
+		cmdKey = "Command"
+		rssKey = "Memory"
+		cpuKey = "CPU"
+		frameworkKey = "Framework"
+		projectKey = "Project"
+		pathKey = "Path"
+	}
+
+	fmt.Fprintf(w, "\n  %s\n", p.paint(p.head, procHead))
 	if info.ProcessName != "" {
-		field(w, p, "进程名", keyWidth, info.ProcessName)
+		field(w, p, procNameKey, keyWidth, info.ProcessName)
 	}
 	if info.PID > 0 {
 		field(w, p, "PID", keyWidth, p.paint(p.accent, strconv.Itoa(int(info.PID))))
 	}
+	if info.Project != nil {
+		if info.Project.Framework != "" {
+			field(w, p, frameworkKey, keyWidth, info.Project.Framework)
+		}
+		if info.Project.Name != "" {
+			field(w, p, projectKey, keyWidth, info.Project.Name)
+		}
+		if info.Project.Path != "" {
+			field(w, p, pathKey, keyWidth, truncate(info.Project.Path, 50))
+		}
+	}
 	if info.Cmdline != "" {
-		field(w, p, "启动命令", keyWidth, truncate(info.Cmdline, 96))
+		field(w, p, cmdKey, keyWidth, truncate(info.Cmdline, 96))
 	}
 	if info.MemoryMB > 0 {
-		field(w, p, "常驻内存", keyWidth, fmt.Sprintf("%.1f MB", info.MemoryMB))
+		field(w, p, rssKey, keyWidth, fmt.Sprintf("%.1f MB", info.MemoryMB))
 	}
 	if info.CPUPercent > 0 {
-		field(w, p, "CPU 占用", keyWidth, fmt.Sprintf("%.1f%%", info.CPUPercent))
+		field(w, p, cpuKey, keyWidth, fmt.Sprintf("%.1f%%", info.CPUPercent))
 	}
 
 	fmt.Fprintf(w, "\n")
 	if info.Status == core.StatusPermissionRequired {
-		hint(w, p, "该端口归属系统保护进程，当前权限无法读取其完整详情。")
-		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
+		if zh {
+			hint(w, p, "该端口归属系统保护进程，当前权限无法读取其完整详情。")
+			fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
+		} else {
+			hint(w, p, "Target process is system-protected. Current permissions insufficient to read details.")
+			fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
+		}
 	}
 
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
-	parts := []string{fmt.Sprintf("探测耗时 %s", humanDuration(elapsed))}
+	timeSummary := fmt.Sprintf("探测耗时 %s", humanDuration(elapsed))
+	releaseCmd := fmt.Sprintf("释放命令  port-detective kill %d", info.Port)
+	if !zh {
+		timeSummary = fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
+		releaseCmd = fmt.Sprintf("Release: port-detective kill %d", info.Port)
+	}
+	parts := []string{timeSummary}
 	if info.PID > 0 {
-		parts = append(parts, fmt.Sprintf("释放命令  port-detective kill %d", info.Port))
+		parts = append(parts, releaseCmd)
 	}
 	summaryLine(w, p, parts...)
 }
@@ -533,7 +656,7 @@ func newScanCommand(opts *options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "scan",
-		Short: "并发扫描并列出本机被占用的端口",
+		Short: "并发扫描并列出本机被占用的端口 / Concurrently scan occupied ports",
 		Long: strings.Join([]string{
 			"并发扫描本机被占用的端口。",
 			"",
@@ -544,6 +667,7 @@ func newScanCommand(opts *options) *cobra.Command {
 			"  port-detective scan",
 			"  port-detective scan --ports 3000,8080,5432",
 			"  port-detective scan --json",
+			"  port-detective scan --lang en",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -571,39 +695,63 @@ func newScanCommand(opts *options) *cobra.Command {
 				return writeJSON(out, infos)
 			}
 			engine := fmt.Sprintf("并发扫描 (%d 个目标端口)", len(targetPorts))
-			renderScan(out, newPalette(out), infos, elapsed, engine)
+			if !isZh(opts.lang) {
+				engine = fmt.Sprintf("Concurrent (%d target ports)", len(targetPorts))
+			}
+			renderScan(out, newPalette(out), infos, elapsed, engine, opts.lang)
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&portsStr, "ports", "", "指定要并发扫描的端口列表（逗号分隔，如 3000,8080,5432）")
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
+	cmd.Flags().StringVar(&portsStr, "ports", "", "指定要并发扫描的端口列表（逗号分隔，如 3000,8080,5432）/ Ports to scan")
 	return cmd
 }
 
-func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed time.Duration, engine string) {
-	const width = 64
-	sectionTitle(w, p, "端口扫描  TCP", width)
+func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed time.Duration, engine string, lang string) {
+	const width = 80
+	zh := isZh(lang)
+
+	title := "端口扫描  TCP"
+	if !zh {
+		title = "Port Scanner  TCP"
+	}
+	sectionTitle(w, p, title, width)
 
 	if len(infos) == 0 {
-		fmt.Fprintf(w, "  %s\n\n", p.paint(p.dim, "未发现被占用的端口。"))
-		summaryLine(w, p, fmt.Sprintf("引擎 %s", engine), fmt.Sprintf("耗时 %s", humanDuration(elapsed)))
+		emptyMsg := "未发现被占用的端口。"
+		engineMsg := fmt.Sprintf("引擎 %s", engine)
+		timeMsg := fmt.Sprintf("耗时 %s", humanDuration(elapsed))
+		if !zh {
+			emptyMsg = "No occupied ports found."
+			engineMsg = fmt.Sprintf("Engine: %s", engine)
+			timeMsg = fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
+		}
+		fmt.Fprintf(w, "  %s\n\n", p.paint(p.dim, emptyMsg))
+		summaryLine(w, p, engineMsg, timeMsg)
 		fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
 		return
 	}
 
 	fmt.Fprintf(w, "\n")
-	renderPortTable(w, p, infos)
+	renderPortTable(w, p, infos, lang)
 	fmt.Fprintf(w, "\n")
 
-	summaryLine(w, p,
-		fmt.Sprintf("共 %d 个端口被占用", len(infos)),
-		fmt.Sprintf("引擎 %s", engine),
-		fmt.Sprintf("耗时 %s", humanDuration(elapsed)))
-	degradedNote(w, p, infos)
+	occupiedMsg := fmt.Sprintf("共 %d 个端口被占用", len(infos))
+	engineMsg := fmt.Sprintf("引擎 %s", engine)
+	timeMsg := fmt.Sprintf("耗时 %s", humanDuration(elapsed))
+	footer := "查看详情  port-detective check <端口>      释放端口  port-detective kill <端口>"
+	if !zh {
+		occupiedMsg = fmt.Sprintf("%d port(s) occupied", len(infos))
+		engineMsg = fmt.Sprintf("Engine: %s", engine)
+		timeMsg = fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
+		footer = "Details: port-detective check <port>      Release: port-detective kill <port>"
+	}
+
+	summaryLine(w, p, occupiedMsg, engineMsg, timeMsg)
+	degradedNote(w, p, infos, lang)
 
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
-	fmt.Fprintf(w, "%s\n", p.paint(p.dim, "查看详情  port-detective check <端口>      释放端口  port-detective kill <端口>"))
+	fmt.Fprintf(w, "%s\n", p.paint(p.dim, footer))
 }
 
 // 3. kill 子命令：释放指定端口占用，支持 --dry-run
@@ -615,7 +763,7 @@ func newKillCommand(opts *options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "kill <端口号>",
-		Short: "释放被指定端口占用的进程",
+		Short: "释放被指定端口占用的进程 / Terminate process occupying port",
 		Long: strings.Join([]string{
 			"结束占用指定端口的进程，从而释放该端口。",
 			"",
@@ -640,6 +788,7 @@ func newKillCommand(opts *options) *cobra.Command {
 			port, _ := parsePort(args[0])
 			out := stdout(cmd)
 			p := newPalette(out)
+			zh := isZh(opts.lang)
 
 			// 预先体检以展示目标进程
 			diag, err := core.InspectPort(cmd.Context(), port)
@@ -647,33 +796,74 @@ func newKillCommand(opts *options) *cobra.Command {
 				return err
 			}
 			if !diag.IsOpen {
-				return fmt.Errorf("端口 %d 当前未被占用，无需释放", port)
+				errMsg := fmt.Sprintf("端口 %d 当前未被占用，无需释放", port)
+				if !zh {
+					errMsg = fmt.Sprintf("Port %d is currently free, no process to terminate", port)
+				}
+				return fmt.Errorf("%s", errMsg)
 			}
 
 			if !opts.jsonOutput {
 				title := fmt.Sprintf("释放端口  %s", p.paint(p.accent, strconv.Itoa(port)))
+				if !zh {
+					title = fmt.Sprintf("Release Port  %s", p.paint(p.accent, strconv.Itoa(port)))
+				}
 				if dryRun {
-					title += " (预演模式)"
+					if zh {
+						title += " (预演模式)"
+					} else {
+						title += " (Dry Run)"
+					}
 				}
 				sectionTitle(out, p, title, 58)
-				fmt.Fprintf(out, "\n  %s\n", p.paint(p.head, "目标进程信息"))
+				headTitle := "目标进程信息"
+				procKey := "进程名"
+				cmdKey := "启动命令"
+				rssKey := "物理内存"
+				frameworkKey := "开发框架"
+				projectKey := "所属项目"
+				if !zh {
+					headTitle = "Target Process"
+					procKey = "Process"
+					cmdKey = "Command"
+					rssKey = "Memory"
+					frameworkKey = "Framework"
+					projectKey = "Project"
+				}
+				fmt.Fprintf(out, "\n  %s\n", p.paint(p.head, headTitle))
 				if diag.ProcessName != "" {
-					field(out, p, "进程名", 8, diag.ProcessName)
+					field(out, p, procKey, 8, diag.ProcessName)
 				}
 				field(out, p, "PID", 8, strconv.Itoa(int(diag.PID)))
+				if diag.Project != nil {
+					if diag.Project.Framework != "" {
+						field(out, p, frameworkKey, 8, diag.Project.Framework)
+					}
+					if diag.Project.Name != "" {
+						field(out, p, projectKey, 8, diag.Project.Name)
+					}
+				}
 				if diag.Cmdline != "" {
-					field(out, p, "启动命令", 8, truncate(diag.Cmdline, 96))
+					field(out, p, cmdKey, 8, truncate(diag.Cmdline, 96))
 				}
 				if diag.MemoryMB > 0 {
-					field(out, p, "物理内存", 8, fmt.Sprintf("%.1f MB", diag.MemoryMB))
+					field(out, p, rssKey, 8, fmt.Sprintf("%.1f MB", diag.MemoryMB))
 				}
 				fmt.Fprintf(out, "\n")
 			}
 
 			if !dryRun && !yes && !opts.jsonOutput {
-				fmt.Fprintf(out, "  确认结束该进程？%s ", p.paint(p.dim, "[y/N]:"))
+				confirmPrompt := fmt.Sprintf("确认结束该进程？%s ", p.paint(p.dim, "[y/N]:"))
+				if !zh {
+					confirmPrompt = fmt.Sprintf("Terminate this process? %s ", p.paint(p.dim, "[y/N]:"))
+				}
+				fmt.Fprintf(out, "  %s", confirmPrompt)
 				if !confirm(cmd.InOrStdin()) {
-					fmt.Fprintf(out, "  %s\n", p.paint(p.dim, "已取消，未对进程做任何操作。"))
+					abortMsg := "已取消，未对进程做任何操作。"
+					if !zh {
+						abortMsg = "Cancelled. Process was not modified."
+					}
+					fmt.Fprintf(out, "  %s\n", p.paint(p.dim, abortMsg))
 					return nil
 				}
 			}
@@ -696,14 +886,116 @@ func newKillCommand(opts *options) *cobra.Command {
 			if dryRun {
 				statusText = "预演"
 			}
+			if !zh {
+				statusText = "Done"
+				if dryRun {
+					statusText = "DryRun"
+				}
+			}
 			fmt.Fprintf(out, "  %s %s\n", p.paint(p.title, statusText), msg)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "安全预演模式，仅返回将被终止的进程而不执行实际终止")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "跳过交互确认，直接执行终止")
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "以 JSON 格式输出，便于脚本消费")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "安全预演模式，仅返回将被终止的进程而不执行实际终止 / Preview without killing")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "跳过交互确认，直接执行终止 / Skip confirmation")
+	return cmd
+}
+
+// 4. clean 子命令：一键清理当前项目占用的开发端口孤儿进程
+func newCleanCommand(opts *options) *cobra.Command {
+	var (
+		dryRun bool
+		yes    bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "clean",
+		Short: "一键清理当前项目占用的开发端口孤儿进程 / Clean orphan processes for the current project",
+		Long: strings.Join([]string{
+			"并发扫描高频开发端口，仅释放属于当前工作目录项目的孤儿进程。",
+			"Concurrently scan development ports and clean up orphan processes belonging to current working directory.",
+		}, "\n"),
+		Example: strings.Join([]string{
+			"  port-detective clean",
+			"  port-detective clean --dry-run",
+			"  port-detective clean -y",
+			"  port-detective clean --json",
+		}, "\n"),
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := stdout(cmd)
+			p := newPalette(out)
+			zh := isZh(opts.lang)
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("无法获取当前工作目录: %w", err)
+			}
+
+			if !dryRun && !yes && !opts.jsonOutput {
+				promptMsg := fmt.Sprintf("确认清理当前项目目录 %s 下占用的孤儿进程？", cwd)
+				if !zh {
+					promptMsg = fmt.Sprintf("Clean orphan processes occupying ports for project in %s?", cwd)
+				}
+				fmt.Fprintf(out, "  %s %s ", promptMsg, p.paint(p.dim, "[y/N]:"))
+				if !confirm(cmd.InOrStdin()) {
+					abortMsg := "已取消，未对进程做任何操作。"
+					if !zh {
+						abortMsg = "Cancelled. No processes were touched."
+					}
+					fmt.Fprintf(out, "  %s\n", p.paint(p.dim, abortMsg))
+					return nil
+				}
+			}
+
+			cleaned, err := core.CleanCurrentProjectPorts(cmd.Context(), cwd, dryRun)
+			if err != nil {
+				return err
+			}
+
+			if opts.jsonOutput {
+				return writeJSON(out, cleaned)
+			}
+
+			title := "项目端口清理"
+			if !zh {
+				title = "Project Ports Clean"
+			}
+			if dryRun {
+				if zh {
+					title += " (预演模式)"
+				} else {
+					title += " (Dry Run)"
+				}
+			}
+			sectionTitle(out, p, title, 80)
+
+			if len(cleaned) == 0 {
+				emptyMsg := "当前工作目录项目未发现占用端口的孤儿进程。"
+				if !zh {
+					emptyMsg = "No orphan processes found for current project."
+				}
+				fmt.Fprintf(out, "  %s\n\n", p.paint(p.dim, emptyMsg))
+				fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
+				return nil
+			}
+
+			fmt.Fprintf(out, "\n")
+			renderPortTable(out, p, cleaned, opts.lang)
+			fmt.Fprintf(out, "\n")
+
+			summaryMsg := fmt.Sprintf("共处理 %d 个当前项目端口 (预演: %v)", len(cleaned), dryRun)
+			if !zh {
+				summaryMsg = fmt.Sprintf("Processed %d port(s) for current project (dry-run: %v)", len(cleaned), dryRun)
+			}
+			summaryLine(out, p, summaryMsg)
+			fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "安全预演模式，仅返回将被清理的进程而不实际杀除 / Preview without killing")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "跳过交互确认直接清理 / Skip confirmation")
 	return cmd
 }
 
@@ -716,18 +1008,19 @@ func confirm(in io.Reader) bool {
 	return strings.HasPrefix(answer, "y")
 }
 
-// 4. mcp 子命令：启动 MCP Stdio 服务端
+// 5. mcp 子命令：启动 MCP Stdio 服务端
 func newMCPCommand(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
-		Short: "以 MCP 协议 Stdio 服务端模式启动，供 AI Agent 调用",
+		Short: "以 MCP 协议 Stdio 服务端模式启动，供 AI Agent 调用 / Start MCP Stdio server",
 		Long: strings.Join([]string{
 			"以 MCP（Model Context Protocol）Stdio 服务端模式启动。",
 			"",
 			"启动后通过标准输入输出与 AI 客户端通信，注册以下工具：",
-			"  inspect_port     体检单个端口，返回占用进程全景体检报告",
-			"  scan_dev_ports   并发扫描开发端口（默认覆盖 DefaultDevPorts）",
-			"  free_port        释放端口占用进程（默认 dry_run=true 安全预演）",
+			"  inspect_port           体检单个端口，返回占用进程全景体检报告与框架指纹",
+			"  scan_dev_ports         并发扫描开发端口（默认覆盖 DefaultDevPorts）",
+			"  free_port              释放端口占用进程（默认 dry_run=true 安全预演）",
+			"  clean_current_project  一键清理当前项目占用的开发端口孤儿进程",
 			"",
 			"注意：Stdio 模式下标准输出专供协议通信，诊断信息一律写入标准错误。",
 		}, "\n"),
@@ -740,7 +1033,7 @@ func newMCPCommand(opts *options) *cobra.Command {
 			perr := newPalette(os.Stderr)
 			fmt.Fprintf(os.Stderr, "%s port-detective 已启动（MCP Stdio），等待客户端连接…\n",
 				perr.paint(perr.dim, "·"))
-			fmt.Fprintf(os.Stderr, "  已注册工具：inspect_port / scan_dev_ports / free_port\n")
+			fmt.Fprintf(os.Stderr, "  已注册工具：inspect_port / scan_dev_ports / free_port / clean_current_project\n")
 
 			ctx, cancel := mcpserver.WaitForSignal(cmd.Context())
 			defer cancel()
@@ -751,8 +1044,6 @@ func newMCPCommand(opts *options) *cobra.Command {
 			return nil
 		},
 	}
-
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "仅打印服务端能力清单后退出（自检用）")
 	return cmd
 }
 

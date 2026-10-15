@@ -1,0 +1,210 @@
+package fingerprint
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+// TestDetectNodeProject 验证 Node.js 生态指纹识别（Next.js / Vite / Express / NestJS）
+func TestDetectNodeProject(t *testing.T) {
+	tempDir := t.TempDir()
+
+	pkgJSON := `{
+		"name": "my-next-app",
+		"version": "14.2.3",
+		"dependencies": {
+			"next": "^14.2.0",
+			"react": "^18.2.0"
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatalf("写入 package.json 失败: %v", err)
+	}
+
+	info := DetectFromDirAndCmdline(tempDir, "node server.js")
+	if info == nil {
+		t.Fatal("期望识别出项目信息，实际返回 nil")
+	}
+	if info.Name != "my-next-app" {
+		t.Errorf("项目名称 = %q, 期望 %q", info.Name, "my-next-app")
+	}
+	if info.Framework != "Next.js" {
+		t.Errorf("框架 = %q, 期望 %q", info.Framework, "Next.js")
+	}
+	if info.Version != "14.2.3" {
+		t.Errorf("版本 = %q, 期望 %q", info.Version, "14.2.3")
+	}
+	if info.Path != filepath.Clean(tempDir) {
+		t.Errorf("Path = %q, 期望 %q", info.Path, filepath.Clean(tempDir))
+	}
+}
+
+// TestDetectGoProject 验证 Go 生态指纹识别（Gin / Fiber）
+func TestDetectGoProject(t *testing.T) {
+	tempDir := t.TempDir()
+
+	goMod := `module github.com/user/demo-service
+
+go 1.22
+
+require (
+	github.com/gin-gonic/gin v1.9.1
+)
+`
+	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("写入 go.mod 失败: %v", err)
+	}
+
+	info := DetectFromDirAndCmdline(tempDir, "./demo-service")
+	if info == nil {
+		t.Fatal("期望识别出 Go 项目，实际返回 nil")
+	}
+	if info.Name != "github.com/user/demo-service" {
+		t.Errorf("Module Name = %q, 期望 %q", info.Name, "github.com/user/demo-service")
+	}
+	if info.Framework != "Gin" {
+		t.Errorf("框架 = %q, 期望 %q", info.Framework, "Gin")
+	}
+}
+
+// TestDetectPythonProject 验证 Python 生态指纹识别（命令行与 pyproject.toml / requirements.txt）
+func TestDetectPythonProject(t *testing.T) {
+	t.Run("FastAPI from uvicorn cmdline", func(t *testing.T) {
+		tempDir := t.TempDir()
+		reqTxt := "fastapi>=0.100.0\nuvicorn\n"
+		_ = os.WriteFile(filepath.Join(tempDir, "requirements.txt"), []byte(reqTxt), 0644)
+
+		info := DetectFromDirAndCmdline(tempDir, "python -m uvicorn main:app --port 8000")
+		if info == nil {
+			t.Fatal("期望识别出 FastAPI 项目")
+		}
+		if info.Framework != "FastAPI" {
+			t.Errorf("Framework = %q, 期望 %q", info.Framework, "FastAPI")
+		}
+	})
+
+	t.Run("Django from manage.py", func(t *testing.T) {
+		tempDir := t.TempDir()
+		info := DetectFromDirAndCmdline(tempDir, "python manage.py runserver 0.0.0.0:8000")
+		if info == nil {
+			t.Fatal("期望识别出 Django 项目")
+		}
+		if info.Framework != "Django" {
+			t.Errorf("Framework = %q, 期望 %q", info.Framework, "Django")
+		}
+	})
+
+	t.Run("Streamlit cmdline", func(t *testing.T) {
+		tempDir := t.TempDir()
+		info := DetectFromDirAndCmdline(tempDir, "streamlit run app.py")
+		if info == nil {
+			t.Fatal("期望识别出 Streamlit 项目")
+		}
+		if info.Framework != "Streamlit" {
+			t.Errorf("Framework = %q, 期望 %q", info.Framework, "Streamlit")
+		}
+	})
+
+	t.Run("pyproject.toml parsing", func(t *testing.T) {
+		tempDir := t.TempDir()
+		tomlContent := `[project]
+name = "ai-portal"
+version = "0.2.1"
+dependencies = [
+    "fastapi",
+    "pydantic"
+]
+`
+		_ = os.WriteFile(filepath.Join(tempDir, "pyproject.toml"), []byte(tomlContent), 0644)
+
+		info := DetectFromDirAndCmdline(tempDir, "python main.py")
+		if info == nil {
+			t.Fatal("期望识别出 pyproject.toml 项目")
+		}
+		if info.Name != "ai-portal" {
+			t.Errorf("Name = %q, 期望 %q", info.Name, "ai-portal")
+		}
+		if info.Version != "0.2.1" {
+			t.Errorf("Version = %q, 期望 %q", info.Version, "0.2.1")
+		}
+		if info.Framework != "FastAPI" {
+			t.Errorf("Framework = %q, 期望 %q", info.Framework, "FastAPI")
+		}
+	})
+}
+
+// TestDirectoryUpwardTraversal 验证最多向上查 3 层的查找逻辑
+func TestDirectoryUpwardTraversal(t *testing.T) {
+	rootDir := t.TempDir()
+	pkgJSON := `{"name": "root-app", "dependencies": {"vite": "^5.0.0"}}`
+	_ = os.WriteFile(filepath.Join(rootDir, "package.json"), []byte(pkgJSON), 0644)
+
+	// 创建深层子目录: root/a/b
+	deepDir := filepath.Join(rootDir, "sub1", "sub2")
+	if err := os.MkdirAll(deepDir, 0755); err != nil {
+		t.Fatalf("创建子目录失败: %v", err)
+	}
+
+	info := DetectFromDirAndCmdline(deepDir, "node deep.js")
+	if info == nil {
+		t.Fatal("向上回溯 2 层应成功命中 rootDir 的 package.json")
+	}
+	if info.Name != "root-app" {
+		t.Errorf("Name = %q, 期望 %q", info.Name, "root-app")
+	}
+	if info.Framework != "Vite" {
+		t.Errorf("Framework = %q, 期望 %q", info.Framework, "Vite")
+	}
+	if info.Path != filepath.Clean(rootDir) {
+		t.Errorf("Path = %q, 期望 %q", info.Path, filepath.Clean(rootDir))
+	}
+
+	// 超过 3 层（4层）不应被查到
+	tooDeepDir := filepath.Join(rootDir, "l1", "l2", "l3", "l4")
+	_ = os.MkdirAll(tooDeepDir, 0755)
+	infoOver := DetectFromDirAndCmdline(tooDeepDir, "node deep.js")
+	if infoOver != nil && infoOver.Path == filepath.Clean(rootDir) {
+		t.Errorf("超过 3 层回溯上限不应命中 rootDir, 实际命中: %+v", infoOver)
+	}
+}
+
+// TestDetectProjectSafetyAndTimeout 验证超时与防御性安全设计
+func TestDetectProjectSafetyAndTimeout(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. PID <= 1 必须直接返回 nil
+	if res := DetectProject(ctx, 0); res != nil {
+		t.Errorf("PID 0 期望返回 nil，实际返回 %+v", res)
+	}
+	if res := DetectProject(ctx, 1); res != nil {
+		t.Errorf("PID 1 期望返回 nil，实际返回 %+v", res)
+	}
+	if res := DetectProject(ctx, -100); res != nil {
+		t.Errorf("负数 PID 期望返回 nil，实际返回 %+v", res)
+	}
+
+	// 2. 超时上下文传递
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel() // 立刻取消
+	if res := DetectProject(cancelCtx, int32(os.Getpid())); res != nil {
+		t.Logf("取消上下文中返回: %+v", res)
+	}
+
+	// 3. 当前测试进程自身指纹探测（自身运行在 port-detective 根目录，拥有 go.mod）
+	selfInfo := DetectProject(ctx, int32(os.Getpid()))
+	if selfInfo != nil {
+		t.Logf("当前测试进程指纹: Name=%s, Framework=%s, Path=%s",
+			selfInfo.Name, selfInfo.Framework, selfInfo.Path)
+	}
+
+	// 4. 单测执行时间确保严格小于 100ms
+	start := time.Now()
+	_ = DetectProject(ctx, 999999999) // 不存在的 PID
+	elapsed := time.Since(start)
+	if elapsed > 100*time.Millisecond {
+		t.Errorf("探测耗时 %.2fms 超过 100ms", float64(elapsed.Microseconds())/1000)
+	}
+}

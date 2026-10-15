@@ -68,17 +68,18 @@ func resultText(t *testing.T, res *mcp.CallToolResult) string {
 	return text.Text
 }
 
-// TestDescribeListsAllThreeTools 验证服务端注册了全部三个约定工具。
-func TestDescribeListsAllThreeTools(t *testing.T) {
+// TestDescribeListsAllTools 验证服务端注册了全部约定工具。
+func TestDescribeListsAllTools(t *testing.T) {
 	info := Describe()
 	if info.Name != "port-detective" {
 		t.Errorf("服务端名称 = %q，期望 %q", info.Name, "port-detective")
 	}
 
 	want := map[string]bool{
-		"inspect_port":   false,
-		"scan_dev_ports": false,
-		"free_port":      false,
+		"inspect_port":          false,
+		"scan_dev_ports":        false,
+		"free_port":             false,
+		"clean_current_project": false,
 	}
 	for _, tool := range info.Tools {
 		if _, ok := want[tool.Name]; !ok {
@@ -118,15 +119,17 @@ func TestToolAnnotationsAreHonest(t *testing.T) {
 		}
 	}
 
-	free, ok := lookup["free_port"]
-	if !ok {
-		t.Fatal("未找到工具 free_port")
-	}
-	if free.ReadOnly {
-		t.Errorf("free_port 会终止进程，不应标为只读（期望 ReadOnly=false）")
-	}
-	if !free.Destructive {
-		t.Errorf("free_port 会终止进程，必须如实标为破坏性操作（期望 Destructive=true）")
+	for _, name := range []string{"free_port", "clean_current_project"} {
+		tool, ok := lookup[name]
+		if !ok {
+			t.Fatalf("未找到工具 %q", name)
+		}
+		if tool.ReadOnly {
+			t.Errorf("%s 会终止进程，不应标为只读（期望 ReadOnly=false）", name)
+		}
+		if !tool.Destructive {
+			t.Errorf("%s 会终止进程，必须如实标为破坏性操作（期望 Destructive=true）", name)
+		}
 	}
 }
 
@@ -310,5 +313,29 @@ func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 			t.Errorf("开发端口清单含重复端口 %d", p)
 		}
 		seen[p] = true
+	}
+}
+
+// TestCleanCurrentProjectTool 验证 clean_current_project 工具的 dry_run 执行。
+func TestCleanCurrentProjectTool(t *testing.T) {
+	res := callTool(t, handleCleanCurrentProject, map[string]any{"dry_run": true})
+	if res.IsError {
+		t.Fatalf("clean_current_project 工具返回错误: %s", resultText(t, res))
+	}
+
+	var resp struct {
+		Cwd     string                `json:"cwd"`
+		DryRun  bool                  `json:"dry_run"`
+		Count   int                   `json:"count"`
+		Cleaned []core.PortDiagnostic `json:"cleaned"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &resp); err != nil {
+		t.Fatalf("解析响应 JSON 失败: %v", err)
+	}
+	if !resp.DryRun {
+		t.Errorf("响应中的 dry_run 应为 true")
+	}
+	if resp.Cwd == "" {
+		t.Errorf("响应中的 cwd 不应为空")
 	}
 }

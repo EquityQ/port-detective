@@ -227,3 +227,81 @@ func TestScanPortsConcurrentIsRaceFree(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestRegisterProjectDetectorHook 验证指纹探测器 hook 注入与诊断报告集成
+func TestRegisterProjectDetectorHook(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	dummyInfo := &ProjectInfo{
+		Name:      "test-app",
+		Framework: "Gin",
+		Path:      "/tmp/test-app",
+		Version:   "1.0.0",
+	}
+
+	RegisterProjectDetector(func(ctx context.Context, pid int32) *ProjectInfo {
+		if pid == testHelperPID {
+			return dummyInfo
+		}
+		return nil
+	})
+	defer RegisterProjectDetector(nil)
+
+	diag, err := InspectPort(context.Background(), port)
+	if err != nil {
+		t.Fatalf("InspectPort 失败: %v", err)
+	}
+	if diag.Project == nil {
+		t.Fatal("期望 diag.Project 不为空")
+	}
+	if diag.Project.Framework != "Gin" || diag.Project.Name != "test-app" {
+		t.Errorf("Project 信息不符合预期: %+v", diag.Project)
+	}
+}
+
+// TestCleanCurrentProjectPorts 验证项目级一键清理能力
+func TestCleanCurrentProjectPorts(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	testDir := t.TempDir()
+
+	// 保存原本的 DefaultDevPorts 并在测试结束后恢复
+	origPorts := DefaultDevPorts
+	DefaultDevPorts = []int{port}
+	defer func() { DefaultDevPorts = origPorts }()
+
+	RegisterProjectDetector(func(ctx context.Context, pid int32) *ProjectInfo {
+		if pid == testHelperPID {
+			return &ProjectInfo{
+				Name:      "clean-demo",
+				Framework: "Next.js",
+				Path:      testDir,
+			}
+		}
+		return nil
+	})
+	defer RegisterProjectDetector(nil)
+
+	// 1. 匹配的目录，dry-run 预演
+	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
+	if err != nil {
+		t.Fatalf("CleanCurrentProjectPorts dry-run 失败: %v", err)
+	}
+	if len(cleaned) != 1 {
+		t.Fatalf("期望预演清理 1 个端口，实际清理 %d 个", len(cleaned))
+	}
+	if cleaned[0].Port != port {
+		t.Errorf("清理端口为 %d，期望 %d", cleaned[0].Port, port)
+	}
+
+	// 2. 不匹配的目录，应返回空列表
+	cleanedEmpty, err := CleanCurrentProjectPorts(context.Background(), "/non-existent-dir-12345", true)
+	if err != nil {
+		t.Fatalf("CleanCurrentProjectPorts 失败: %v", err)
+	}
+	if len(cleanedEmpty) != 0 {
+		t.Errorf("非匹配目录期望返回 0 个端口，实际为 %d", len(cleanedEmpty))
+	}
+}

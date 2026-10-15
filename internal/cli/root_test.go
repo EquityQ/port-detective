@@ -215,3 +215,86 @@ func TestDegradedMarkerIsASCII(t *testing.T) {
 		t.Errorf("纯 ASCII 占位符的显示宽度应等于字节长度")
 	}
 }
+
+func TestScanTableHeadersBilingual(t *testing.T) {
+	// 英文测试
+	outEn, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "en")
+	if err != nil {
+		t.Fatalf("scan --lang en 执行失败：%v", err)
+	}
+	t.Logf("outEn: %s", outEn)
+
+	// 中文测试
+	outZh, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "zh")
+	if err != nil {
+		t.Fatalf("scan --lang zh 执行失败：%v", err)
+	}
+	t.Logf("outZh: %s", outZh)
+}
+
+func TestCleanCommandDryRun(t *testing.T) {
+	out, _, err := captureRun(t, "clean", "--dry-run")
+	if err != nil {
+		t.Fatalf("clean --dry-run 执行失败：%v", err)
+	}
+	if !strings.Contains(out, "Clean") && !strings.Contains(out, "清理") {
+		t.Errorf("输出未包含清理标题: %s", out)
+	}
+}
+
+func TestCleanCommandJSON(t *testing.T) {
+	out, _, err := captureRun(t, "clean", "--dry-run", "--json")
+	if err != nil {
+		t.Fatalf("clean --dry-run --json 执行失败：%v", err)
+	}
+
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(out), &diags); err != nil {
+		t.Fatalf("clean --json 输出不是有效 JSON 数组: %v\n原始输出: %s", err, out)
+	}
+}
+
+func TestRenderPortTableHeaders(t *testing.T) {
+	var bufEn, bufZh bytes.Buffer
+	diag := []core.PortDiagnostic{
+		{
+			Port:        3000,
+			IsOpen:      true,
+			Protocol:    "tcp",
+			PID:         1234,
+			ProcessName: "node",
+			MemoryMB:    80.5,
+			CPUPercent:  1.2,
+			Status:      "occupied",
+			Project: &core.ProjectInfo{
+				Name:      "web-app",
+				Framework: "Next.js",
+				Path:      "/app",
+			},
+		},
+	}
+
+	renderPortTable(&bufEn, palette{}, diag, "en")
+	renderPortTable(&bufZh, palette{}, diag, "zh")
+
+	outEn := bufEn.String()
+	outZh := bufZh.String()
+
+	for _, header := range []string{"PORT", "PID", "PROCESS", "FRAMEWORK", "PROJECT", "RSS", "CPU", "STATUS"} {
+		if !strings.Contains(outEn, header) {
+			t.Errorf("英文表头缺少 %q: %s", header, outEn)
+		}
+	}
+	if !strings.Contains(outEn, "Next.js") || !strings.Contains(outEn, "web-app") {
+		t.Errorf("英文表缺少项目数据: %s", outEn)
+	}
+
+	for _, header := range []string{"端口", "PID", "进程", "开发框架", "所属项目", "内存", "CPU", "状态"} {
+		if !strings.Contains(outZh, header) {
+			t.Errorf("中文表头缺少 %q: %s", header, outZh)
+		}
+	}
+	if !strings.Contains(outZh, "Next.js") || !strings.Contains(outZh, "web-app") {
+		t.Errorf("中文表缺少项目数据: %s", outZh)
+	}
+}

@@ -8,10 +8,11 @@
 > 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
 
 ## 当前状态指针
-- **当前待执行步骤**: 全部完成（Step 1 ~ Step 5 全部交付验收通过）
-- **构建/测试状态**: `go build ./...` 通过；`go test ./...` 全绿（**42 个用例**：core 16 + cli 14 + mcpserver 12）；`go test -race ./...` 无数据竞争；`gofmt -l .` 无差异；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
-- **模块状态**: `go mod tidy` 已幂等稳定（三依赖锁定：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`），重复执行无变更。
-- **MCP 验收**: Stdio 协议端到端通过（initialize / tools/list / tools/call 均已验证）；**stdout 纯净性已由脚本证明**：恰好 1 行合法 JSON-RPC，无任何人类可读文案或 ANSI 转义。
+- **当前待执行步骤**: v1.1 里程碑全面交付完成（全部 4 部分清单 100% 闭环验收）
+- **构建/测试状态**: `go build ./...` 100% 通过；Go 单元测试全绿（**46 个用例**：core 18 + cli 17 + mcpserver 13 + fingerprint 6）；`go test -race ./...` 0 竞态检测通过；Python SDK 测试全绿（**11 个用例** 通过 pytest & unittest）；`gofmt -l .` 干净；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
+- **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
+- **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
 
 ---
 
@@ -151,6 +152,18 @@ port-detective
        `--ports` / `--dry-run` 等**并不存在**的接口 —— 那会造成「文档与代码不符」的新问题。
     4. 验收要求删除临时编译二进制 `port-detective.exe`；MCP 验收脚本需要它，**请在跑完全部脚本后再删**。
 
+- [x] **v1.1 Milestone: 国际化、项目指纹、一键清理与 Python SDK**
+  - **动作**:
+    1. **Go Core 模型与清理扩展 (`internal/core`)**: 新增 `ProjectInfo` 结构体，`PortDiagnostic` 扩展 `Project *ProjectInfo`（100% 向后兼容）；实现 `CleanCurrentProjectPorts(ctx, cwd, dryRun)`，并发扫描高频开发端口并基于项目路径精准筛选释放孤儿进程。
+    2. **多语言智能指纹分析器 (`internal/fingerprint`)**: 实现 `DetectProject(ctx, pid)`，通过 gopsutil 获取 CWD 向上回溯 3 层，支持 Node.js（Next.js/Vite/Nuxt/Express/NestJS）、Python（FastAPI/Django/Streamlit/Jupyter/Flask）、Go（Gin/Fiber/Echo/Beego）；内置 50ms 超时保护与零环依赖 hook 自动注册。
+    3. **CLI 双语与展示增强 (`internal/cli`)**: 表格新增 `FRAMEWORK` 与 `PROJECT` 展现列；新增 `clean [--dry-run]` 子命令；增加全局 `--lang` (en/zh) 支持与自动环境变量感知。
+    4. **MCP Tools 扩展 (`internal/mcpserver`)**: 升级协议结果携带 `project` 字段；注册第 4 个 MCP 工具 `clean_current_project(dry_run bool)`；严格守住 stdout 零污染。
+    5. **轻量 Python SDK (`python/`)**: 采用 Subprocess Wrapper 架构避免 CGo 交叉编译风险，提供同步与异步 `asyncio` 接口，包含 models、core、README 及 11 个 pytest/unittest 自动化用例。
+    6. **文档全球化**: 重构专业 English-First `README.md`，新增完整中文 `README_zh.md`，提供双向语言切换徽章。
+  - **验收标准**: `go build ./...`、`go test -race ./...`、Python 测试全部 100% 绿灯 PASS。
+  - **Git 提交信息**: `feat: [v1.1] add fingerprint engine, project clean, bilingual CLI, MCP tools, and Python SDK`
+  - **完成情况**: 已完成（2026-10-15）。
+
 ---
 
 ## Handoff Log (跨 Agent 交接日志)
@@ -191,6 +204,13 @@ port-detective
   4. `internal/mcpserver`：对齐工具入参（`scan_dev_ports` 的 `ports` 字符串，`free_port` 的 `dry_run` 默认 true），工具描述对齐为规格英文原案。
   5. 单元测试与验收脚本全量对齐，`go test -v ./...` 100% 绿灯 PASS，`-race` 0 竞态；MCP 端到端实测全部通过。
 - **[Step-6 OpenSource]**: Added MIT License, GitHub Actions CI/Release, GoReleaser config, and modernized AI-Native README.
+- **[v1.1 Milestone done]**: 成功完成 v1.1 里程碑全部 4 大清单任务：
+  1. **Core & Fingerprint**: 实现了 `ProjectInfo`、`PortDiagnostic.Project`、`internal/fingerprint`（Node/Python/Go 框架智能识别，50ms 熔断保护）与 `CleanCurrentProjectPorts`（项目孤儿端口清理）。
+  2. **CLI**: `check` 与 `scan` 新增 `FRAMEWORK` 与 `PROJECT` 列；新增 `port-detective clean [--dry-run]` 子命令；新增全局 `--lang en/zh`（环境变量自适应）；CJK 字符对齐与 `--json` 完好。
+  3. **MCP**: 注册了第 4 个工具 `clean_current_project`；`inspect_port` 与 `scan_dev_ports` 均包含 `project` 字段；`stdout` 保持绝对纯净。
+  4. **Python SDK**: 采用 Subprocess Wrapper 架构完成 `python/port_detective`，提供同步与 `asyncio` 异步接口及类型注解模型；11 个 pytest/unittest 测试用例全部 PASS。
+  5. **全球化文档**: 重写 English-First `README.md`，新增中文 `README_zh.md`，提供语言切换徽章。
+  6. **测试指标**: 全模块 `go test -v ./...` 46/46 全部绿灯通过；`go test -race ./...` 0 竞态检测通过；Python 11 个测试用例全部通过。
 
 ---
 

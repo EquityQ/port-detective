@@ -83,7 +83,7 @@ else:
 # ---- 断言 3：tools/list 返回三个约定工具 ----
 tools_resp = next((r for r in responses if r.get("id") == 2), None)
 print("\n--- tools/list ---")
-expected = {"inspect_port", "scan_dev_ports", "free_port"}
+expected = {"inspect_port", "scan_dev_ports", "free_port", "clean_current_project"}
 if tools_resp and "result" in tools_resp:
     tools = tools_resp["result"].get("tools", [])
     names = {t["name"] for t in tools}

@@ -4,7 +4,10 @@
 // 本文件是唯一入口，只负责把控制权交给 internal/cli。
 package main
 
-import "port-detective/internal/cli"
+import (
+	"port-detective/internal/cli"
+	_ "port-detective/internal/fingerprint"
+)
 
 func main() {
 	cli.Execute()

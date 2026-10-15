@@ -27,3 +27,16 @@ vendor/
 # 它包含生成 AGENTS.md / PROGRESS.md 的模板正文，属于本地参考资料，
 # 不属于课程作业的交付内容，因此保留在本地但不提交。
 AICANTREAD.md
+
+# ===== Python 产物与缓存 =====
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+env/
+venv/
+dist/
+build/
+*.egg-info/
+
