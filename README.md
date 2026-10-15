@@ -155,6 +155,10 @@ Scans common dev ports (`3000, 3306, 5173, 5432, 6379, 8000, 8080, 8888, 9000, 2
 ```bash
 port-detective scan
 ```
+Use `--ports` to scan a specific comma-separated list:
+```bash
+port-detective scan --ports 3000,8080,5432
+```
 ```text
 Port Scanner  TCP
 ────────────────────────────────────────────────────────────────────────────────
@@ -198,7 +202,7 @@ metadata cannot be read are not selected. Always review the dry-run output befor
 `-y` or `--dry-run=false`, especially when running with elevated privileges.
 
 ### 5. Machine-Readable JSON Pipeline (`--json`)
-Every subcommand supports `--json` for direct pipelines with `jq`:
+The operational commands (`check`, `scan`, `kill`, and `clean`) support `--json` for direct pipelines with `jq`:
 ```bash
 port-detective scan --json | jq '.[].project.framework'
 # Output: "Next.js", "FastAPI"

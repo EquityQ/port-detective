@@ -1,14 +1,10 @@
 # PROGRESS.md - 多 Agent 进度与交接看板
 
-> ## ⚠️ 最重要的一条：本项目存在「已知契约偏离」，请在动手前先读本文末的
-> ## 「已知偏离与冲突登记」章节。
-> 简言之：`AGENTS.md` 只有第 1~3 节，**缺失了第 4 节「冻结接口契约」**；
-> 而 Step 2 又要求「严格按第 4 节契约实现」。因此 Step 2~4 的实现是在
-> **没有契约可依**的情况下自行设计的接口，与原始需求文档存在系统性差异。
-> 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
+> 当前接口契约、编码边界与协作规则以 `AGENTS.md` 第 1~6 节为准。
+> 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前待执行步骤**: OSS Quality Step 5（文档收敛与命令核验）
+- **当前待执行步骤**: OSS Quality roadmap complete（Steps 1-5）
 - **构建/测试状态**: `go build ./...` 100% 通过；Go 单元测试全绿（**46 个用例**：core 18 + cli 17 + mcpserver 13 + fingerprint 6）；`go test -race ./...` 0 竞态检测通过；Python SDK 测试全绿（**11 个用例** 通过 pytest & unittest）；`gofmt -l .` 干净；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -31,8 +27,9 @@
   - Validation: GoReleaser `v2.6.1` is checked before release, archives include both README languages and LICENSE, and the Python workflow tests Python 3.9/3.13, builds distributions, and installs a wheel smoke test.
 - [x] **Step 4: Add community maintenance entry points**
   - Add security reporting guidance, issue/PR templates, platform support policy, and a concise current project status.
-- [ ] **Step 5: Reconcile and simplify project documentation**
+- [x] **Step 5: Reconcile and simplify project documentation**
   - Remove obsolete handoff claims from the active project instructions, retain relevant history, and verify all README commands against actual CLI/MCP behavior.
+  - Validation: refreshed the active progress guidance, corrected the Python 3.9+ prerequisite and JSON flag scope, documented custom scan ports, and smoke-tested CLI, MCP, and Python examples against the current implementation.
 
 ---
 
@@ -188,6 +185,7 @@ port-detective
 
 ## Handoff Log (跨 Agent 交接日志)
 > 规则：每位完成当前 Step 的 Agent 必须在此处留下一行交接记录（说明已完成内容及下一任 Agent 注意事项）。
+> 早期 Step 记录中的临时警告和待办仅是历史上下文；当前 Agent 只执行上方状态指针指定的步骤。
 
 - **[Init]**: 项目规范 `AGENTS.md` 与进度表 `PROGRESS.md` 已就绪，等待第一位 Agent 执行 `Step 1`。
 - **[Step-1 done]**: 已初始化 Go module `port-detective`（`go.mod` 声明 `go 1.23.0`），锁定三大依赖 `gopsutil/v3 v3.24.5` / `cobra v1.10.2` / `mcp-go v0.48.0`，生成 `.gitignore` 与 `internal/core|cli|mcpserver` 目录，`go mod verify` 全部通过。
@@ -216,7 +214,7 @@ port-detective
   - **验证记录**：`go build ./...` 通过；`go test ./...` 全绿（**42 个用例**）；`-race` 无竞争；`gofmt`/`vet` 干净；`go mod tidy` 幂等。MCP 端到端实测：握手成功、tools/list 返回 3 个工具、tools/call 实际调用正确、**stdout 纯净性 170 字节 1 行通过**。
   - **未在本环境验证**：`free_port` 的成功路径（非管理员身份下结束受限进程被系统拒绝，属正确失败）。Step 5 若有机会在管理员终端复测，请补记。
   - **过程失误记录（供后续 Agent 引以为戒）**：Step 4 验证过程中，我曾把 `free_port` 调用写进脚本并指向 **19387（本会话的 Harness GUI 端口）**，属危险测试设计；虽因权限被拒未造成损害，但测试**永远不应针对用户正在使用的服务**。破坏性操作的验证一律使用自建的临时监听进程。
-- **[Step-5 done]**: 已编写高质量课程作业文档 `README.md`（包含项目背景、Mermaid 三层系统架构图、Mermaid 并发时序图、Go 协程池与单次索引等并发技术亮点解析、CLI 真实运行示例、Claude Code/Cursor/Windsurf 的 MCP 配置指南及 Stdout 零污染技术保障）；全项目 42 个单元测试全部绿灯通过；临时编译产物 `port-detective.exe` 已清理，工作区恢复干净整洁。至此项目 5 个 Step 全部闭环交付完成！
+- **[Historical Step-5 done]**: 早期课程作业文档阶段已完成；该记录已被后续 v1.1 与 OSS Quality roadmap 取代，不代表当时的看板已全部结束。
 - **[Spec-Alignment done]**: 根据用户指示完成全套规格偏离修复与契约闭环对齐：
   1. `AGENTS.md`：补齐编码红线、第 4 节冻结契约、第 5 节 CLI/MCP 规格及第 6 节多 Agent 步进流。
   2. `internal/core`：数据结构对齐为 `PortDiagnostic`（字段 `Port`, `IsOpen`, `Protocol`, `PID`, `ProcessName`, `Cmdline`, `MemoryMB`, `CPUPercent`, `Status`），`DefaultDevPorts` 固定为 10 个标准端口，核心函数对齐为 `InspectPort(ctx, port)`、`ScanPortsConcurrent(ctx, ports)`、`KillPortProcess(ctx, port, dryRun)`（带 PID <= 1 保护）。
@@ -235,10 +233,14 @@ port-detective
 - **[OSS Quality Step 2 done]**: Added creation-time process identity checks and an immediate pre-termination port/PID revalidation to reduce PID reuse and race-window risks. Added canceled-context coverage using a temporary test listener and documented project cleanup limitations and dry-run review guidance in both README files. All Go validation checks pass.
 - **[OSS Quality Step 3 done]**: Pinned GoReleaser to `v2.6.1` and added a configuration check before publishing. Release archives now include both README languages and the license. Added a Python 3.9/3.13 workflow covering tests, wheel/sdist builds, and wheel installation smoke tests. Documented the external CLI prerequisite and matching-version policy in both SDK and root READMEs.
 - **[OSS Quality Step 4 done]**: Added private vulnerability reporting guidance, GitHub issue forms for bugs and feature requests, a pull request checklist, a platform support policy, and a concise v1.1 project status page. Linked the new maintenance entry points from both READMEs and the contributor guide. Go build/tests/race/vet/gofmt, Python tests, and local Markdown link checks pass.
+- **[OSS Quality Step 5 done]**: Marked the old contract-divergence and handoff notes as historical after the contract alignment was completed. Updated documentation to match the Python 3.9+ floor, operational `--json` scope, and `scan --ports` behavior. Verified CLI JSON commands with a disposable listener, all MCP acceptance scripts, Python tests, Go build/tests/race/vet, formatting, and local Markdown links.
 
 ---
 
-# 已知偏离与冲突登记（2026-10-14 补充，由用户决策「保持现状、仅登记」）
+# 历史契约偏离与冲突登记（2026-10-14，已修复，保留供追溯）
+
+> 本节记录早期 AGENTS.md 缺失契约时产生的偏离。契约已在后续工作中补齐并完成对齐；
+> 以下内容用于解释历史提交，不应作为当前实现或操作指南。
 
 ## 0. 背景：为什么会产生偏离
 
@@ -278,9 +280,9 @@ Step 3、Step 4 又继续沿用该自研接口，于是偏离被逐层放大。
 当前实现选择了「优先遵守目录结构」，因此单文件普遍超过 180 行。
 **用户已知情并选择保持现状。**
 
-## 3. 如果将来要修正，建议的最小改动顺序
+## 3. 历史修复建议（已完成）
 
-> 以下仅为建议路径，**未经用户授权不要擅自开始重构**。
+> 以下建议已在后续 Spec-Alignment 工作中完成，仅保留为变更记录。
 
 1. **先补文档**：把原始文档第 4 节契约与红线补写进 `AGENTS.md`（新增第 4、5 节），
    使后续 Agent 有据可依 —— 这是所有其他修正的前提。
@@ -292,12 +294,12 @@ Step 3、Step 4 又继续沿用该自研接口，于是偏离被逐层放大。
 4. **补 `--dry-run`**：`kill` 与 MCP `free_port` 都加 `dryRun`，且 MCP 侧**默认 true**。
 5. **最后处理 180 行红线**：与评审确认「拆文件」是否可以接受，再决定是否拆分。
 
-## 4. 关于 `AICANTREAD.md`
+## 4. 关于历史参考文件 `AICANTREAD.md`
 
 - 它是**给你自己看的操作指南 + 原始需求草稿**（含启动口令、实操步骤、评分理由），
   **不是课程作业的交付物**。
 - 已在 `.gitignore` 中登记，**保留在本地但不提交**。若误删，可从本文第 1 节的对照表恢复关键信息。
-- 后续 Agent：**请勿**把它当成项目文档提交，也**请勿**删除它 —— 它是唯一的契约来源。
+- 当前契约来源是 `AGENTS.md`；`AICANTREAD.md` 仅是被 `.gitignore` 忽略的历史本地参考文件，不应提交。
 
 ## 5. 仍未改变的既有决策（用户已知情）
 

@@ -154,6 +154,10 @@ port-detective check 3000
 ```bash
 port-detective scan
 ```
+也可以通过 `--ports` 指定逗号分隔的端口列表：
+```bash
+port-detective scan --ports 3000,8080,5432
+```
 ```text
 端口扫描  TCP
 ────────────────────────────────────────────────────────────────────────────────
@@ -196,7 +200,7 @@ port-detective kill 3000 -y
 尤其是在管理员/root 权限下运行时。
 
 ### 5. 纯净机器可读管道 (`--json`)
-所有命令均支持 `--json`，可直接无缝接入 `jq` 等工具流：
+`check`、`scan`、`kill` 与 `clean` 支持 `--json`，可直接无缝接入 `jq` 等工具流：
 ```bash
 port-detective scan --json | jq '.[].project.framework'
 # 输出: "Next.js", "FastAPI"
