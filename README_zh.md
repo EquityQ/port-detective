@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
   </a>
   <a href="https://golang.org/">
-    <img src="https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go" alt="Go 1.22+" />
+    <img src="https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go" alt="Go 1.23+" />
   </a>
   <a href="https://modelcontextprotocol.io/">
     <img src="https://img.shields.io/badge/MCP-Compatible-9cf?logo=openai" alt="MCP Compatible" />

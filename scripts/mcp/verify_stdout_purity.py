@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Step 4 关键验收：证明 mcp 启动路径上没有任何污染 os.Stdout 的输出。
+"""Verify that the MCP startup path does not write non-protocol output to os.Stdout.
 
-做法：
-  1. 只发送一个 initialize 请求，然后关闭 stdin，让服务端自然退出；
-  2. 断言 stdout 上**恰好只有 1 行**，且该行是合法 JSON-RPC 响应；
-  3. 同时统计 stderr —— 诊断信息只允许出现在这里。
+Procedure:
+  1. Send one initialize request and close stdin so the server exits naturally.
+  2. Assert stdout contains exactly one line with a valid JSON-RPC response;
+  3. Count stderr output; diagnostics are allowed only there.
 """
 import json
 import os
 import subprocess
 import sys
 
-# 二进制路径解析优先级：环境变量 PORT_DETECTIVE_BIN > 仓库根目录下的默认产物
-# （Windows 为 port-detective.exe，其余平台为 port-detective）。
+# Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
+# On Windows, the binary is port-detective.exe; on other platforms it is port-detective.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
@@ -43,7 +43,7 @@ out.append(f"stderr 行数       : {len([l for l in raw_stderr.splitlines() if l
 
 ok = True
 
-# 断言 1：stdout 恰好一行（多出的任何一行都是污染）
+# Assertion 1: stdout contains exactly one line.
 if len(lines) != 1:
     ok = False
     out.append(f"\n[失败] stdout 行数应为 1，实际 {len(lines)}：")
@@ -52,7 +52,7 @@ if len(lines) != 1:
 else:
     out.append("\n[通过] stdout 恰好 1 行")
 
-# 断言 2：该行必须是合法 JSON-RPC 且 id 匹配
+# Assertion 2: the line is valid JSON-RPC and has the expected ID.
 if lines:
     try:
         obj = json.loads(lines[0])
@@ -66,7 +66,7 @@ if lines:
         ok = False
         out.append(f"[失败] 该行不是合法 JSON：{e}")
 
-# 断言 3：stdout 中不得出现任何人类可读文案（颜色转义亦不允许）
+# Assertion 3: stdout contains no human-readable text or ANSI escapes.
 for marker in ["已启动", "已注册工具", "\x1b[", "等待客户端", "port-detective 已"]:
     if marker in raw_stdout:
         ok = False

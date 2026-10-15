@@ -68,7 +68,7 @@ func resultText(t *testing.T, res *mcp.CallToolResult) string {
 	return text.Text
 }
 
-// TestDescribeListsAllTools 验证服务端注册了全部约定工具。
+// TestDescribeListsAllTools verifies that all expected tools are registered.
 func TestDescribeListsAllTools(t *testing.T) {
 	info := Describe()
 	if info.Name != "port-detective" {
@@ -98,7 +98,7 @@ func TestDescribeListsAllTools(t *testing.T) {
 	}
 }
 
-// TestToolAnnotationsAreHonest 确保只读工具不被误报为破坏性。
+// TestToolAnnotationsAreHonest ensures read-only tools are not marked destructive.
 func TestToolAnnotationsAreHonest(t *testing.T) {
 	info := Describe()
 	lookup := make(map[string]ToolSummary, len(info.Tools))
@@ -133,7 +133,7 @@ func TestToolAnnotationsAreHonest(t *testing.T) {
 	}
 }
 
-// TestNewServerRegistersWithoutPanic 验证构建 MCPServer 实例不发生 panic。
+// TestNewServerRegistersWithoutPanic verifies that server construction does not panic.
 func TestNewServerRegistersWithoutPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -146,7 +146,7 @@ func TestNewServerRegistersWithoutPanic(t *testing.T) {
 	}
 }
 
-// TestInspectPortToolFindsOwnListener 验证 inspect_port 工具能识别本机监听。
+// TestInspectPortToolFindsOwnListener verifies that inspect_port detects a local listener.
 func TestInspectPortToolFindsOwnListener(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -168,7 +168,7 @@ func TestInspectPortToolFindsOwnListener(t *testing.T) {
 	}
 }
 
-// TestInspectPortToolValidatesInput 验证参数校验。
+// TestInspectPortToolValidatesInput verifies input validation.
 func TestInspectPortToolValidatesInput(t *testing.T) {
 	res := callTool(t, handleInspectPort, map[string]any{})
 	if !res.IsError {
@@ -181,7 +181,7 @@ func TestInspectPortToolValidatesInput(t *testing.T) {
 	}
 }
 
-// TestScanDevPortsToolDefaultScope 验证默认扫描只覆盖 DefaultDevPorts。
+// TestScanDevPortsToolDefaultScope verifies the default scan uses DefaultDevPorts only.
 func TestScanDevPortsToolDefaultScope(t *testing.T) {
 	res := callTool(t, handleScanDevPorts, map[string]any{})
 	if res.IsError {
@@ -211,7 +211,7 @@ func TestScanDevPortsToolDefaultScope(t *testing.T) {
 	t.Logf("开发常用端口命中 %d 个", len(diags))
 }
 
-// TestScanDevPortsToolExplicitPorts 验证指定端口列表参数 ports。
+// TestScanDevPortsToolExplicitPorts verifies the explicit ports argument.
 func TestScanDevPortsToolExplicitPorts(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -232,7 +232,7 @@ func TestScanDevPortsToolExplicitPorts(t *testing.T) {
 	}
 }
 
-// TestScanDevPortsToolRejectsInvalidPort 验证非法端口参数拦截。
+// TestScanDevPortsToolRejectsInvalidPort verifies invalid port arguments are rejected.
 func TestScanDevPortsToolRejectsInvalidPort(t *testing.T) {
 	res := callTool(t, handleScanDevPorts, map[string]any{"ports": "abc"})
 	if !res.IsError {
@@ -245,7 +245,7 @@ func TestScanDevPortsToolRejectsInvalidPort(t *testing.T) {
 	}
 }
 
-// TestFreePortToolOnIdlePort 验证对空闲端口调用 free_port 会报错。
+// TestFreePortToolOnIdlePort verifies free_port returns an error for an idle port.
 func TestFreePortToolOnIdlePort(t *testing.T) {
 	port := freeLoopbackPort(t)
 
@@ -258,7 +258,7 @@ func TestFreePortToolOnIdlePort(t *testing.T) {
 	}
 }
 
-// TestFreePortToolRequiresPort 验证必填参数缺失。
+// TestFreePortToolRequiresPort verifies the required port argument.
 func TestFreePortToolRequiresPort(t *testing.T) {
 	res := callTool(t, handleFreePort, map[string]any{})
 	if !res.IsError {
@@ -266,7 +266,7 @@ func TestFreePortToolRequiresPort(t *testing.T) {
 	}
 }
 
-// TestFreePortToolDryRun 验证 free_port 默认 dry_run=true 安全预演。
+// TestFreePortToolDryRun verifies free_port defaults to a safe dry run.
 func TestFreePortToolDryRun(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -299,7 +299,7 @@ func TestFreePortToolDryRun(t *testing.T) {
 	}
 }
 
-// TestDevPortsAreUniqueAndSorted 保证开发端口清单是 10 个有效唯一端口。
+// TestDevPortsAreUniqueAndSorted ensures the development port list has ten valid unique ports.
 func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 	if len(core.DefaultDevPorts) != 10 {
 		t.Errorf("DefaultDevPorts 长度应为 10，实际为 %d", len(core.DefaultDevPorts))
@@ -316,7 +316,7 @@ func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 	}
 }
 
-// TestCleanCurrentProjectTool 验证 clean_current_project 工具的 dry_run 执行。
+// TestCleanCurrentProjectTool verifies dry-run behavior for clean_current_project.
 func TestCleanCurrentProjectTool(t *testing.T) {
 	res := callTool(t, handleCleanCurrentProject, map[string]any{"dry_run": true})
 	if res.IsError {

@@ -1,11 +1,11 @@
-// Package cli 实现 port-detective 的终端交互层（Cobra）。
+// Package cli implements the terminal interface for port-detective with Cobra.
 //
-// 设计原则：
-//   - 视觉克制：只使用分组标题、对齐表格与细线分隔，不引入边框艺术字或动画；
-//   - 尊重环境：遵循 NO_COLOR 约定，输出重定向或非 TTY 时自动关闭颜色；
-//   - 机器友好：所有子命令均支持 --json，输出为纯净 JSON，不含任何装饰。
+// Design principles:
+//   - Keep output restrained with section titles, aligned tables, and simple separators.
+//   - Honor NO_COLOR and disable colors when output is redirected or not a TTY.
+//   - Support clean, undecorated JSON output for every subcommand.
 //
-// 本包只做「取数 + 呈现」，全部探测能力来自 internal/core。
+// This package handles data retrieval and presentation; probes live in internal/core.
 package cli
 
 import (
@@ -25,7 +25,7 @@ import (
 	"port-detective/internal/mcpserver"
 )
 
-// ============================ 输出样式常量 ============================
+// ============================ Output Style Constants ============================
 
 const (
 	ruleLine            = "─"
@@ -34,7 +34,7 @@ const (
 	keyWidth            = 10
 )
 
-// ============================ 颜色（遵循 NO_COLOR 约定） ============================
+// ============================ Color (NO_COLOR Convention) ============================
 
 type palette struct {
 	reset  string
@@ -59,12 +59,12 @@ func newPalette(out io.Writer) palette {
 	}
 	return palette{
 		reset:  "\x1b[0m",
-		title:  "\x1b[38;5;39m",  // 青蓝色
-		head:   "\x1b[38;5;245m", // 中性灰
-		dim:    "\x1b[38;5;244m", // 次要信息灰
-		accent: "\x1b[38;5;81m",  // 浅青
-		warn:   "\x1b[38;5;179m", // 琥珀色
-		key:    "\x1b[38;5;250m", // 浅灰
+		title:  "\x1b[38;5;39m",  // Cyan-blue.
+		head:   "\x1b[38;5;245m", // Neutral gray.
+		dim:    "\x1b[38;5;244m", // Secondary gray.
+		accent: "\x1b[38;5;81m",  // Light cyan.
+		warn:   "\x1b[38;5;179m", // Amber.
+		key:    "\x1b[38;5;250m", // Light gray.
 	}
 }
 
@@ -75,7 +75,7 @@ func (p palette) paint(code, s string) string {
 	return code + s + p.reset
 }
 
-// ============================ 渲染工具 ============================
+// ============================ Rendering Helpers ============================
 
 func rule(width int) string {
 	if width <= 0 {
@@ -136,7 +136,7 @@ func writeJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// ============================ 对齐渲染引擎 ============================
+// ============================ Aligned Table Renderer ============================
 
 func displayWidth(s string) int {
 	width := 0
@@ -235,7 +235,7 @@ func renderTable(w io.Writer, p palette, columns []tableColumn, rows [][]string)
 		}
 	}
 
-	// 打印表头
+	// Print the table header.
 	var headParts []string
 	for i, col := range columns {
 		formatted := padCell(col.header, colWidths[i], col.align)
@@ -243,7 +243,7 @@ func renderTable(w io.Writer, p palette, columns []tableColumn, rows [][]string)
 	}
 	fmt.Fprintf(w, "  %s\n", strings.Join(headParts, "   "))
 
-	// 打印数据行
+	// Print data rows.
 	for _, row := range rows {
 		var rowParts []string
 		for i, col := range columns {
@@ -425,7 +425,7 @@ func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic, lang stri
 	}
 }
 
-// ============================ 命令构建 ============================
+// ============================ Command Construction ============================
 
 type options struct {
 	jsonOutput bool
@@ -484,7 +484,7 @@ func Execute() {
 	}
 }
 
-// 1. check 子命令：体检单端口
+// check inspects a single port.
 func newCheckCommand(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <端口号>",
@@ -650,7 +650,7 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 	summaryLine(w, p, parts...)
 }
 
-// 2. scan 子命令：并发扫描端口列表，默认扫描 DefaultDevPorts
+// scan concurrently scans ports, defaulting to DefaultDevPorts.
 func newScanCommand(opts *options) *cobra.Command {
 	var portsStr string
 
@@ -754,7 +754,7 @@ func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed tim
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, footer))
 }
 
-// 3. kill 子命令：释放指定端口占用，支持 --dry-run
+// kill releases a port and supports --dry-run.
 func newKillCommand(opts *options) *cobra.Command {
 	var (
 		dryRun bool
@@ -790,7 +790,7 @@ func newKillCommand(opts *options) *cobra.Command {
 			p := newPalette(out)
 			zh := isZh(opts.lang)
 
-			// 预先体检以展示目标进程
+			// Inspect the target process before displaying the action.
 			diag, err := core.InspectPort(cmd.Context(), port)
 			if err != nil {
 				return err
@@ -902,7 +902,7 @@ func newKillCommand(opts *options) *cobra.Command {
 	return cmd
 }
 
-// 4. clean 子命令：一键清理当前项目占用的开发端口孤儿进程
+// clean releases orphan processes associated with the current project.
 func newCleanCommand(opts *options) *cobra.Command {
 	var (
 		dryRun bool
@@ -1008,7 +1008,7 @@ func confirm(in io.Reader) bool {
 	return strings.HasPrefix(answer, "y")
 }
 
-// 5. mcp 子命令：启动 MCP Stdio 服务端
+// mcp starts the MCP Stdio server.
 func newMCPCommand(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
@@ -1047,7 +1047,7 @@ func newMCPCommand(opts *options) *cobra.Command {
 	return cmd
 }
 
-// ============================ 参数解析 ============================
+// ============================ Argument Parsing ============================
 
 func parsePort(s string) (int, error) {
 	port, err := strconv.Atoi(strings.TrimSpace(s))

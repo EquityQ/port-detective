@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// TestDetectNodeProject 验证 Node.js 生态指纹识别（Next.js / Vite / Express / NestJS）
+// TestDetectNodeProject verifies Node.js framework detection (Next.js, Vite, Express, NestJS).
 func TestDetectNodeProject(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -42,7 +42,7 @@ func TestDetectNodeProject(t *testing.T) {
 	}
 }
 
-// TestDetectGoProject 验证 Go 生态指纹识别（Gin / Fiber）
+// TestDetectGoProject verifies Go framework detection (Gin and Fiber).
 func TestDetectGoProject(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -70,7 +70,7 @@ require (
 	}
 }
 
-// TestDetectPythonProject 验证 Python 生态指纹识别（命令行与 pyproject.toml / requirements.txt）
+// TestDetectPythonProject verifies Python framework detection from command lines and manifests.
 func TestDetectPythonProject(t *testing.T) {
 	t.Run("FastAPI from uvicorn cmdline", func(t *testing.T) {
 		tempDir := t.TempDir()
@@ -136,13 +136,13 @@ dependencies = [
 	})
 }
 
-// TestDirectoryUpwardTraversal 验证最多向上查 3 层的查找逻辑
+// TestDirectoryUpwardTraversal verifies lookup through at most three directory levels.
 func TestDirectoryUpwardTraversal(t *testing.T) {
 	rootDir := t.TempDir()
 	pkgJSON := `{"name": "root-app", "dependencies": {"vite": "^5.0.0"}}`
 	_ = os.WriteFile(filepath.Join(rootDir, "package.json"), []byte(pkgJSON), 0644)
 
-	// 创建深层子目录: root/a/b
+	// Create a nested directory: root/a/b.
 	deepDir := filepath.Join(rootDir, "sub1", "sub2")
 	if err := os.MkdirAll(deepDir, 0755); err != nil {
 		t.Fatalf("创建子目录失败: %v", err)
@@ -162,7 +162,7 @@ func TestDirectoryUpwardTraversal(t *testing.T) {
 		t.Errorf("Path = %q, 期望 %q", info.Path, filepath.Clean(rootDir))
 	}
 
-	// 超过 3 层（4层）不应被查到
+	// Manifests more than three levels above the working directory should not be found.
 	tooDeepDir := filepath.Join(rootDir, "l1", "l2", "l3", "l4")
 	_ = os.MkdirAll(tooDeepDir, 0755)
 	infoOver := DetectFromDirAndCmdline(tooDeepDir, "node deep.js")
@@ -171,11 +171,11 @@ func TestDirectoryUpwardTraversal(t *testing.T) {
 	}
 }
 
-// TestDetectProjectSafetyAndTimeout 验证超时与防御性安全设计
+// TestDetectProjectSafetyAndTimeout verifies timeout and defensive safety behavior.
 func TestDetectProjectSafetyAndTimeout(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. PID <= 1 必须直接返回 nil
+	// PID <= 1 must return nil immediately.
 	if res := DetectProject(ctx, 0); res != nil {
 		t.Errorf("PID 0 期望返回 nil，实际返回 %+v", res)
 	}
@@ -186,23 +186,23 @@ func TestDetectProjectSafetyAndTimeout(t *testing.T) {
 		t.Errorf("负数 PID 期望返回 nil，实际返回 %+v", res)
 	}
 
-	// 2. 超时上下文传递
+	// Verify that the timeout context is propagated.
 	cancelCtx, cancel := context.WithCancel(ctx)
-	cancel() // 立刻取消
+	cancel() // Cancel immediately.
 	if res := DetectProject(cancelCtx, int32(os.Getpid())); res != nil {
 		t.Logf("取消上下文中返回: %+v", res)
 	}
 
-	// 3. 当前测试进程自身指纹探测（自身运行在 port-detective 根目录，拥有 go.mod）
+	// Detect this test process, which runs from the repository containing go.mod.
 	selfInfo := DetectProject(ctx, int32(os.Getpid()))
 	if selfInfo != nil {
 		t.Logf("当前测试进程指纹: Name=%s, Framework=%s, Path=%s",
 			selfInfo.Name, selfInfo.Framework, selfInfo.Path)
 	}
 
-	// 4. 单测执行时间确保严格小于 100ms
+	// Ensure the test completes in less than 100 ms.
 	start := time.Now()
-	_ = DetectProject(ctx, 999999999) // 不存在的 PID
+	_ = DetectProject(ctx, 999999999) // Use a PID that does not exist.
 	elapsed := time.Since(start)
 	if elapsed > 100*time.Millisecond {
 		t.Errorf("探测耗时 %.2fms 超过 100ms", float64(elapsed.Microseconds())/1000)

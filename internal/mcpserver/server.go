@@ -1,9 +1,8 @@
-// Package mcpserver 把 internal/core 的端口探测能力封装为 MCP（Model Context
-// Protocol）Tool，并以 Stdio 传输方式对外提供服务，供 AI Agent 直接调用。
+// Package mcpserver exposes internal/core port inspection capabilities as MCP
+// (Model Context Protocol) tools over Stdio for AI agents.
 //
-// 关键约束：Stdio 传输下 **标准输出专供协议通信**。本包内任何位置都不得向
-// os.Stdout 写入日志或提示，否则会污染 JSON-RPC 报文流导致客户端解析失败。
-// 需要输出诊断信息时一律使用 os.Stderr。
+// With Stdio transport, standard output is reserved for protocol messages. Never
+// write logs or status messages to os.Stdout; send diagnostics to os.Stderr.
 package mcpserver
 
 import (
@@ -28,7 +27,7 @@ const (
 	serverVersion = "1.1.0"
 )
 
-// NewServer 构建并返回已注册全部工具的 MCP Server。
+// NewServer creates an MCP server with all tools registered.
 func NewServer() *server.MCPServer {
 	s := server.NewMCPServer(
 		serverName,
@@ -53,13 +52,13 @@ func NewServer() *server.MCPServer {
 	return s
 }
 
-// RunStdioServer 以 Stdio 传输启动 MCP 服务端，阻塞直到上下文取消或输入流关闭。
+// RunStdioServer starts the MCP server over Stdio and blocks until canceled or input closes.
 func RunStdioServer(ctx context.Context) error {
 	stdio := server.NewStdioServer(NewServer())
 	return stdio.Listen(ctx, os.Stdin, os.Stdout)
 }
 
-// ToolSummary 描述一个已注册工具的身份信息。
+// ToolSummary describes a registered tool.
 type ToolSummary struct {
 	Name        string `json:"name"`
 	Title       string `json:"title"`
@@ -68,14 +67,14 @@ type ToolSummary struct {
 	Destructive bool   `json:"destructive"`
 }
 
-// ServerInfo 描述 MCP 服务端的能力清单，供自检使用。
+// ServerInfo describes the MCP server capabilities for self-inspection.
 type ServerInfo struct {
 	Name    string        `json:"name"`
 	Version string        `json:"version"`
 	Tools   []ToolSummary `json:"tools"`
 }
 
-// Describe 返回服务端的能力清单（不启动传输层）。
+// Describe returns the server capabilities without starting the transport.
 func Describe() ServerInfo {
 	info := ServerInfo{Name: serverName, Version: serverVersion}
 
@@ -105,7 +104,7 @@ func serverTools() []mcp.Tool {
 	}
 }
 
-// ============================ 工具定义 ============================
+// ============================ Tool Definitions ============================
 
 // 1. inspect_port
 func inspectPortTool() mcp.Tool {
@@ -186,7 +185,7 @@ func cleanCurrentProjectTool() mcp.Tool {
 	)
 }
 
-// ============================ 工具处理函数 ============================
+// ============================ Tool Handlers ============================
 
 func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := request.RequireInt("port")
@@ -281,7 +280,7 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 	return jsonResult(result)
 }
 
-// ============================ 公共辅助 ============================
+// ============================ Shared Helpers ============================
 
 func jsonResult(v any) (*mcp.CallToolResult, error) {
 	payload, err := json.MarshalIndent(v, "", "  ")

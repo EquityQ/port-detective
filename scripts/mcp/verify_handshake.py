@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""MCP Stdio 协议端到端验收脚本。
+"""End-to-end acceptance checks for the MCP Stdio protocol.
 
-通过真实子进程管道与 port-detective mcp 通信，验证：
-  1. initialize 握手成功
-  2. tools/list 返回三个约定工具
-  3. stdout 上的每一行都是合法 JSON-RPC（即没有被日志污染）
+Communicate with `port-detective mcp` through a real subprocess pipe and verify:
+  1. The initialize handshake succeeds.
+  2. tools/list returns the expected tools.
+  3. Every stdout line is valid JSON-RPC, with no log output mixed in.
 """
 import json
 import os
 import subprocess
 import sys
 
-# 二进制路径解析优先级：环境变量 PORT_DETECTIVE_BIN > 仓库根目录下的默认产物。
+# Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
@@ -54,7 +54,7 @@ print(f"exit code      : {proc.returncode}")
 print(f"stdout 行数    : {len(out_lines)}")
 print(f"stderr 行数    : {len(err_text.splitlines())}")
 
-# ---- 断言 1：stdout 每一行都是合法 JSON ----
+# ---- Assertion 1: every stdout line is valid JSON ----
 bad = []
 responses = []
 for line in out_lines:
@@ -71,7 +71,7 @@ if bad:
 else:
     print(f"  通过：{len(out_lines)} 行全部是合法 JSON-RPC")
 
-# ---- 断言 2：initialize 返回服务端信息 ----
+# ---- Assertion 2: initialize returns server information ----
 init = next((r for r in responses if r.get("id") == 1), None)
 print("\n--- initialize ---")
 if init and "result" in init:
@@ -80,7 +80,7 @@ if init and "result" in init:
 else:
     print(f"  失败：{init}")
 
-# ---- 断言 3：tools/list 返回三个约定工具 ----
+# ---- Assertion 3: tools/list returns the expected tools ----
 tools_resp = next((r for r in responses if r.get("id") == 2), None)
 print("\n--- tools/list ---")
 expected = {"inspect_port", "scan_dev_ports", "free_port", "clean_current_project"}
@@ -100,7 +100,7 @@ if tools_resp and "result" in tools_resp:
 else:
     print(f"  失败：{tools_resp}")
 
-# ---- 断言 4：stderr 允许有启动提示，但不影响协议 ----
+# ---- Assertion 4: startup messages on stderr do not affect the protocol ----
 print("\n--- stderr（允许存在，属于正常诊断输出）---")
 for line in err_text.splitlines()[:4]:
     print(f"  {line}")

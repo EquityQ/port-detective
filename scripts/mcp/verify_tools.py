@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""MCP tools/call 端到端验收（只读）。
+"""End-to-end read-only checks for MCP tools/call.
 
-安全约束：本脚本**只调用只读工具**（inspect_port / scan_dev_ports），
-绝不触碰 free_port —— 破坏性工具的验证一律在受控的临时端口上进行。
+Safety: this script calls only read-only tools (inspect_port and scan_dev_ports).
+Never call free_port; validate destructive tools only with controlled temporary ports.
 """
 import json
 import os
 import subprocess
 import sys
 
-# 二进制路径解析优先级：环境变量 PORT_DETECTIVE_BIN > 仓库根目录下的默认产物。
+# Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")

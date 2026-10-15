@@ -23,7 +23,7 @@ To keep `port-detective` lightweight, robust, and AI-native across Windows, macO
 ## 🛠️ Local Development & Testing
 
 ### Prerequisites
-- Go 1.22+ (tested up to Go 1.25.x)
+- Go 1.23+ (tested with Go 1.23.x and 1.25.x)
 - Python 3.8+ (for running end-to-end MCP verification scripts)
 
 ### Run Tests

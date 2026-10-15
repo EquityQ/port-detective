@@ -1,5 +1,5 @@
-// Package fingerprint 实现了针对本地进程的项目指纹与框架智能探测。
-// 支持 Node.js 生态、Python 生态与 Go 生态，通过进程 CWD 向上回溯与启动命令进行特征识别。
+// Package fingerprint detects project metadata and frameworks for local processes.
+// It supports Node.js, Python, and Go by inspecting process working directories and command lines.
 package fingerprint
 
 import (
@@ -19,14 +19,14 @@ import (
 )
 
 func init() {
-	// 自动将指纹分析引擎注册到 core 模块，实现解耦与零环依赖
+	// Register the analyzer with core through a decoupled hook.
 	core.RegisterProjectDetector(DetectProject)
 }
 
 const (
-	// maxTraverseLevels 向上回溯查找特征文件的最大层级
+	// maxTraverseLevels is the maximum number of parent directories to inspect.
 	maxTraverseLevels = 3
-	// defaultDetectionTimeout 单进程指纹探测最大耗时保护
+	// defaultDetectionTimeout bounds fingerprint detection for one process.
 	defaultDetectionTimeout = 50 * time.Millisecond
 )
 
@@ -42,14 +42,14 @@ type packageJSON struct {
 	DevDependencies map[string]string `json:"devDependencies"`
 }
 
-// DetectProject 探测指定 PID 归属的项目指纹与开发框架。
-// 容错保护：严格保证在 50ms 内返回，任何错误或权限不足均静默返回 nil。
+// DetectProject identifies project metadata and the framework for a process.
+// Errors and permission limitations return nil; detection is bounded by a timeout.
 func DetectProject(ctx context.Context, pid int32) (res *core.ProjectInfo) {
 	if pid <= 1 {
 		return nil
 	}
 
-	// 异常恢复与超时保护
+	// Recover from unexpected errors and enforce the timeout.
 	defer func() {
 		if r := recover(); r != nil {
 			res = nil
@@ -70,29 +70,29 @@ func DetectProject(ctx context.Context, pid int32) (res *core.ProjectInfo) {
 	return DetectFromDirAndCmdline(cwd, cmdline)
 }
 
-// DetectFromDirAndCmdline 根据工作目录与命令行参数探测项目指纹（便于独立单元测试）。
+// DetectFromDirAndCmdline detects project metadata from a working directory and command line.
 func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 	lowerCmd := strings.ToLower(cmdline)
 
-	// 1. 若获取到有效工作目录，向上逐级回溯特征文件（最多查 3 层）
+	// Search the working directory and up to two parent directories for project manifests.
 	if cwd != "" {
 		cleanCwd := filepath.Clean(cwd)
 		currDir := cleanCwd
 
 		for level := 0; level < maxTraverseLevels; level++ {
-			// A. Node.js 生态检测 (package.json)
+			// Node.js project detection (package.json).
 			pkgPath := filepath.Join(currDir, "package.json")
 			if info := checkNodeProject(pkgPath, currDir); info != nil {
 				return info
 			}
 
-			// B. Go 生态检测 (go.mod)
+			// Go project detection (go.mod).
 			goModPath := filepath.Join(currDir, "go.mod")
 			if info := checkGoProject(goModPath, currDir); info != nil {
 				return info
 			}
 
-			// C. Python 生态检测 (pyproject.toml 或 requirements.txt)
+			// Python project detection (pyproject.toml or requirements.txt).
 			pyprojectPath := filepath.Join(currDir, "pyproject.toml")
 			reqPath := filepath.Join(currDir, "requirements.txt")
 			if info := checkPythonProject(pyprojectPath, reqPath, currDir, lowerCmd); info != nil {
@@ -107,7 +107,7 @@ func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 		}
 	}
 
-	// 2. 目录未命中或无法读取 CWD 时，尝试仅从命令行特征识别框架
+	// Fall back to command-line signatures when no project manifest is found.
 	if framework := identifyFrameworkFromCmdline(lowerCmd); framework != "" {
 		dir := ""
 		name := ""
@@ -125,7 +125,7 @@ func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 	return nil
 }
 
-// checkNodeProject 解析 package.json 提取项目名称、版本与框架
+// checkNodeProject parses package.json for the project name, version, and framework.
 func checkNodeProject(pkgPath, projectDir string) *core.ProjectInfo {
 	data, err := os.ReadFile(pkgPath)
 	if err != nil {
@@ -182,7 +182,7 @@ func checkNodeProject(pkgPath, projectDir string) *core.ProjectInfo {
 	}
 }
 
-// checkGoProject 解析 go.mod 提取 module 名称与 Go Web 框架
+// checkGoProject parses go.mod for the module name and Go web framework.
 func checkGoProject(goModPath, projectDir string) *core.ProjectInfo {
 	data, err := os.ReadFile(goModPath)
 	if err != nil {
@@ -225,7 +225,7 @@ func checkGoProject(goModPath, projectDir string) *core.ProjectInfo {
 	}
 }
 
-// checkPythonProject 综合分析 pyproject.toml、requirements.txt 以及命令行参数
+// checkPythonProject analyzes pyproject.toml, requirements.txt, and command-line arguments.
 func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *core.ProjectInfo {
 	var (
 		name      string
@@ -234,10 +234,10 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 		found     bool
 	)
 
-	// 先从命令行中提取典型框架
+	// Check the command line for common framework signatures first.
 	framework = identifyFrameworkFromCmdline(lowerCmd)
 
-	// 探测 pyproject.toml
+	// Inspect pyproject.toml.
 	if data, err := os.ReadFile(pyprojectPath); err == nil {
 		found = true
 		content := string(data)
@@ -254,7 +254,7 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 		}
 	}
 
-	// 探测 requirements.txt
+	// Inspect requirements.txt.
 	if data, err := os.ReadFile(reqPath); err == nil {
 		found = true
 		if framework == "" {
@@ -282,7 +282,7 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 	}
 }
 
-// identifyFrameworkFromCmdline 从启动命令行识别 Python 等框架
+// identifyFrameworkFromCmdline detects frameworks from process command lines.
 func identifyFrameworkFromCmdline(lowerCmd string) string {
 	if lowerCmd == "" {
 		return ""
@@ -303,7 +303,7 @@ func identifyFrameworkFromCmdline(lowerCmd string) string {
 	}
 }
 
-// matchPythonFrameworkKeywords 匹配 Python 依赖中的框架关键词
+// matchPythonFrameworkKeywords matches framework keywords in Python dependencies.
 func matchPythonFrameworkKeywords(lowerContent string) string {
 	switch {
 	case strings.Contains(lowerContent, "fastapi"):

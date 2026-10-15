@@ -13,7 +13,7 @@ import (
 
 var testHelperPID = int32(os.Getpid())
 
-// listenLoopback 在 IPv4 回环地址上监听一个由操作系统分配的临时端口。
+// listenLoopback listens on an ephemeral port assigned by the OS on IPv4 loopback.
 func listenLoopback(t *testing.T) (net.Listener, int) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -28,7 +28,7 @@ func listenLoopback(t *testing.T) (net.Listener, int) {
 	return ln, addr.Port
 }
 
-// freeLoopbackPort 取得一个确定空闲的端口号。
+// freeLoopbackPort returns a port that is known to be free.
 func freeLoopbackPort(t *testing.T) int {
 	t.Helper()
 	ln, port := listenLoopback(t)
@@ -38,8 +38,8 @@ func freeLoopbackPort(t *testing.T) int {
 	return port
 }
 
-// TestInspectPortOpenAndIdentifyProcess 是 Step 2 的核心验收用例：
-// 动态开启临时端口，验证 InspectPort 能够识别为 IsOpen: true，且正确关联进程信息。
+// TestInspectPortOpenAndIdentifyProcess opens an ephemeral port and verifies that
+// InspectPort reports it as open and associates process information correctly.
 func TestInspectPortOpenAndIdentifyProcess(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -75,7 +75,7 @@ func TestInspectPortOpenAndIdentifyProcess(t *testing.T) {
 		diag.Port, diag.PID, diag.ProcessName, diag.MemoryMB, diag.CPUPercent, diag.Status)
 }
 
-// TestInspectPortClosed 验证空闲端口被判定为 IsOpen: false 且 Status: "free"。
+// TestInspectPortClosed verifies that a free port has IsOpen false and status "free".
 func TestInspectPortClosed(t *testing.T) {
 	port := freeLoopbackPort(t)
 
@@ -94,7 +94,7 @@ func TestInspectPortClosed(t *testing.T) {
 	}
 }
 
-// TestInspectPortRejectsInvalidPort 覆盖非法端口号参数校验。
+// TestInspectPortRejectsInvalidPort covers invalid port argument validation.
 func TestInspectPortRejectsInvalidPort(t *testing.T) {
 	ctx := context.Background()
 	for _, port := range []int{0, -1, 65536, 100000} {
@@ -104,8 +104,8 @@ func TestInspectPortRejectsInvalidPort(t *testing.T) {
 	}
 }
 
-// TestScanPortsConcurrentDetectsAllListeners 是 Step 2 核心验收用例：
-// 开启若干临时端口，验证并发扫描端口切片能够按升序返回所有被占用端口。
+// TestScanPortsConcurrentDetectsAllListeners opens temporary listeners and verifies
+// that concurrent scanning returns all occupied ports in ascending order.
 func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 	const count = 3
 	listeners := make([]net.Listener, count)
@@ -121,7 +121,7 @@ func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 		}
 	})
 
-	// 混入一个空闲端口
+	// Include one free port.
 	freePort := freeLoopbackPort(t)
 	testPorts := append([]int{freePort}, ports...)
 
@@ -133,12 +133,12 @@ func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 		t.Fatalf("ScanPortsConcurrent 返回错误：%v", err)
 	}
 
-	// 结果必须升序排列
+	// Results must be sorted in ascending order.
 	if !sort.SliceIsSorted(results, func(i, j int) bool { return results[i].Port < results[j].Port }) {
 		t.Errorf("扫描结果未按端口号升序排序：%+v", results)
 	}
 
-	// 验证包含所有测试监听端口
+	// Verify that every test listener is included.
 	found := make(map[int]bool)
 	for _, r := range results {
 		found[r.Port] = true
@@ -156,10 +156,10 @@ func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 	}
 }
 
-// TestScanPortsConcurrentContextCancel 验证 Context 取消可快速优雅退出。
+// TestScanPortsConcurrentContextCancel verifies prompt exit after context cancellation.
 func TestScanPortsConcurrentContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // 立即取消
+	cancel() // Cancel immediately.
 
 	_, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
 	if err == nil {
@@ -170,18 +170,18 @@ func TestScanPortsConcurrentContextCancel(t *testing.T) {
 	}
 }
 
-// TestKillPortProcessDryRun 验证 KillPortProcess 的 dryRun 模式与安全红线。
+// TestKillPortProcessDryRun verifies dry-run behavior and process safety guards.
 func TestKillPortProcessDryRun(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. 测试空闲端口
+	// Test a free port.
 	idle := freeLoopbackPort(t)
 	_, _, err := KillPortProcess(ctx, idle, true)
 	if err == nil {
 		t.Errorf("空闲端口 %d 执行 KillPortProcess 期望报错，实际返回 nil", idle)
 	}
 
-	// 2. 测试自身监听端口 dryRun 预演成功
+	// Verify dry-run succeeds for a listener owned by this test process.
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
 
@@ -197,13 +197,13 @@ func TestKillPortProcessDryRun(t *testing.T) {
 	}
 	t.Logf("dry-run 预演消息: %s", msg)
 
-	// 确认端口依然活着（dryRun 绝不真杀）
+	// Ensure the listener is still alive; dry-run must never terminate it.
 	if !checkTCPOpen(port, DefaultDialTimeout) {
 		t.Errorf("dry-run 不应结束进程，但端口 %d 已无法连接", port)
 	}
 }
 
-// TestKillPortProcessRejectsInvalidPort 覆盖非法端口输入。
+// TestKillPortProcessRejectsInvalidPort covers invalid port inputs.
 func TestKillPortProcessRejectsInvalidPort(t *testing.T) {
 	ctx := context.Background()
 	if _, _, err := KillPortProcess(ctx, 0, true); err == nil {
@@ -211,7 +211,7 @@ func TestKillPortProcessRejectsInvalidPort(t *testing.T) {
 	}
 }
 
-// TestScanPortsConcurrentIsRaceFree 通过多协程并发扫描验证竞态安全性。
+// TestScanPortsConcurrentIsRaceFree verifies concurrent scans are race-free.
 func TestScanPortsConcurrentIsRaceFree(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -228,7 +228,7 @@ func TestScanPortsConcurrentIsRaceFree(t *testing.T) {
 	wg.Wait()
 }
 
-// TestRegisterProjectDetectorHook 验证指纹探测器 hook 注入与诊断报告集成
+// TestRegisterProjectDetectorHook verifies detector hook registration and report integration.
 func TestRegisterProjectDetectorHook(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -260,14 +260,14 @@ func TestRegisterProjectDetectorHook(t *testing.T) {
 	}
 }
 
-// TestCleanCurrentProjectPorts 验证项目级一键清理能力
+// TestCleanCurrentProjectPorts verifies project-scoped port cleanup.
 func TestCleanCurrentProjectPorts(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
 
 	testDir := t.TempDir()
 
-	// 保存原本的 DefaultDevPorts 并在测试结束后恢复
+	// Save and restore DefaultDevPorts.
 	origPorts := DefaultDevPorts
 	DefaultDevPorts = []int{port}
 	defer func() { DefaultDevPorts = origPorts }()
@@ -284,7 +284,7 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 	})
 	defer RegisterProjectDetector(nil)
 
-	// 1. 匹配的目录，dry-run 预演
+	// Preview cleanup for a matching project directory.
 	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
 	if err != nil {
 		t.Fatalf("CleanCurrentProjectPorts dry-run 失败: %v", err)
@@ -296,7 +296,7 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 		t.Errorf("清理端口为 %d，期望 %d", cleaned[0].Port, port)
 	}
 
-	// 2. 不匹配的目录，应返回空列表
+	// A non-matching directory should return an empty list.
 	cleanedEmpty, err := CleanCurrentProjectPorts(context.Background(), "/non-existent-dir-12345", true)
 	if err != nil {
 		t.Fatalf("CleanCurrentProjectPorts 失败: %v", err)

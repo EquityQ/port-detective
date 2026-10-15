@@ -160,7 +160,7 @@ async def _run_cli_async(args: List[str], cwd: Optional[str] = None, binary_path
         ) from exc
 
 
-# ============================ 同步接口 (Synchronous API) ============================
+# ============================ Synchronous API ============================
 
 
 def inspect_port(port: int, binary_path: Optional[str] = None) -> PortDiagnostic:
@@ -223,7 +223,7 @@ def clean_project(path: Optional[str] = None, dry_run: bool = True, binary_path:
     return [PortDiagnostic.from_dict(item) for item in data]
 
 
-# ============================ 异步接口 (Asynchronous API) ============================
+# ============================ Asynchronous API ============================
 
 
 async def async_inspect_port(port: int, binary_path: Optional[str] = None) -> PortDiagnostic:

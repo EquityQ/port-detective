@@ -1,6 +1,6 @@
-// Package core 是 port-detective 的核心业务层：负责本地端口的占用探测与
-// 进程体检。本包只依赖标准库与 gopsutil，严禁依赖 cobra 或 mcp-go，
-// 以保证 CLI 层与 MCP 层可以各自独立复用同一套能力。
+// Package core provides local port inspection and process diagnostics.
+// It depends only on the standard library and gopsutil, keeping the business
+// logic reusable by the CLI and MCP layers without depending on either.
 package core
 
 import (
@@ -20,28 +20,28 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-// ============================ 常量与类型契约 ============================
+// ============================ Constants and Types ============================
 
 const (
-	// ProtocolTCP 表示 TCP 协议。
+	// ProtocolTCP identifies the TCP protocol.
 	ProtocolTCP = "tcp"
 
-	// 状态枚举定义
+	// Diagnostic status values.
 	StatusOccupied           = "occupied"
 	StatusFree               = "free"
 	StatusPermissionRequired = "permission_required"
 
-	// DefaultDialTimeout 是单次 TCP 连通性探测的超时时间。
+	// DefaultDialTimeout is the timeout for a single TCP probe.
 	DefaultDialTimeout = 300 * time.Millisecond
 
-	// DefaultWorkers 是并发扫描的默认协程数量。
+	// DefaultWorkers is the default worker count for concurrent scans.
 	DefaultWorkers = 64
 )
 
-// DefaultDevPorts 默认高频开发端口列表（用于并发扫描演示，严格满足规格 10 个端口）
+// DefaultDevPorts lists ten commonly used development ports.
 var DefaultDevPorts = []int{3000, 3306, 5173, 5432, 6379, 8000, 8080, 8888, 9000, 27017}
 
-// ProjectInfo 描述端口所属进程的项目指纹元数据
+// ProjectInfo contains project fingerprint metadata for a port-owning process.
 type ProjectInfo struct {
 	Name      string `json:"name,omitempty"`
 	Framework string `json:"framework,omitempty"`
@@ -49,21 +49,21 @@ type ProjectInfo struct {
 	Version   string `json:"version,omitempty"`
 }
 
-// PortDiagnostic 单个端口与所属进程的体检报告（冻结核心契约）
+// PortDiagnostic contains a diagnostic report for a port and its owning process.
 type PortDiagnostic struct {
 	Port        int          `json:"port"`
 	IsOpen      bool         `json:"is_open"`
 	Protocol    string       `json:"protocol"`          // "tcp"
-	PID         int32        `json:"pid"`               // 占用进程 PID（未查到则为 0）
-	ProcessName string       `json:"process_name"`      // 进程名称，如 "node", "python", "go"
-	Cmdline     string       `json:"cmdline"`           // 启动命令行参数
-	MemoryMB    float64      `json:"memory_mb"`         // 进程物理内存占用 (MB)
-	CPUPercent  float64      `json:"cpu_percent"`       // 进程 CPU 占用率 (%)
-	Status      string       `json:"status"`            // 诊断摘要: "occupied", "free", "permission_required"
-	Project     *ProjectInfo `json:"project,omitempty"` // 所属项目指纹信息
+	PID         int32        `json:"pid"`               // Owning process ID, or 0 when unavailable.
+	ProcessName string       `json:"process_name"`      // Process name, such as "node", "python", or "go".
+	Cmdline     string       `json:"cmdline"`           // Process startup command line.
+	MemoryMB    float64      `json:"memory_mb"`         // Resident memory in megabytes.
+	CPUPercent  float64      `json:"cpu_percent"`       // Process CPU usage percentage.
+	Status      string       `json:"status"`            // "occupied", "free", or "permission_required".
+	Project     *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
 }
 
-// ProjectDetectorFunc 定义进程指纹探测函数签名。
+// ProjectDetectorFunc defines the process fingerprint detector signature.
 type ProjectDetectorFunc func(ctx context.Context, pid int32) *ProjectInfo
 
 var (
@@ -71,14 +71,14 @@ var (
 	projectDetector   ProjectDetectorFunc
 )
 
-// RegisterProjectDetector 注册外部项目指纹探测器（由 fingerprint 包注入）。
+// RegisterProjectDetector registers an external project fingerprint detector.
 func RegisterProjectDetector(fn ProjectDetectorFunc) {
 	projectDetectorMu.Lock()
 	defer projectDetectorMu.Unlock()
 	projectDetector = fn
 }
 
-// detectProjectSafe 安全调用已注册的项目指纹探测器。
+// detectProjectSafe invokes the registered project fingerprint detector safely.
 func detectProjectSafe(ctx context.Context, pid int32) *ProjectInfo {
 	projectDetectorMu.RLock()
 	fn := projectDetector
@@ -89,21 +89,21 @@ func detectProjectSafe(ctx context.Context, pid int32) *ProjectInfo {
 	return fn(ctx, pid)
 }
 
-// PortInfo 是向后兼容类型别名
+// PortInfo is retained as a backward-compatible type alias.
 type PortInfo = PortDiagnostic
 
 const sockStream = syscall.SOCK_STREAM
 
-// connKey 是「端口 + 协议类型」的复合键。
+// connKey combines a local port and socket type.
 type connKey struct {
 	port    uint32
 	sockTyp uint32
 }
 
-// ============================ 底层探测原语 ============================
+// ============================ Probe Primitives ============================
 
-// checkTCPOpen 通过一次快速 TCP 握手判断端口是否有进程监听。
-// 双栈尝试：127.0.0.1 与 [::1]，确保 IPv4/IPv6 监听服务均能被识别。
+// checkTCPOpen uses a TCP handshake to determine whether a process is listening.
+// It probes both loopback addresses to cover IPv4 and IPv6 listeners.
 func checkTCPOpen(port int, timeout time.Duration) bool {
 	targets := []string{
 		fmt.Sprintf("127.0.0.1:%d", port),
@@ -119,8 +119,8 @@ func checkTCPOpen(port int, timeout time.Duration) bool {
 	return false
 }
 
-// buildProcIndex 单次扫描系统连接表，构建「端口 -> PID」的反向索引。
-// 跨平台优化：消除逐端口查询导致的 N 倍系统调用，所有 worker 协程只读共享此索引。
+// buildProcIndex scans the system connection table once and builds a port-to-PID index.
+// Workers share this read-only index to avoid repeated system calls across platforms.
 func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 	conns, err := gnet.ConnectionsWithContext(ctx, "tcp")
 	if err != nil {
@@ -136,7 +136,7 @@ func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 	return index, nil
 }
 
-// fillProcessDetail 采集进程的名称、命令行、物理内存(MB)与 CPU 占用率。
+// fillProcessDetail collects the process name, command line, resident memory, and CPU usage.
 func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 	proc, err := process.NewProcessWithContext(ctx, diag.PID)
 	if err != nil {
@@ -151,7 +151,7 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 		diag.Cmdline = cmdline
 	}
 	if mem, err := proc.MemoryInfo(); err == nil && mem != nil {
-		// 转换字节为 MB (保留两位小数)
+		// Convert bytes to megabytes and retain two decimal places.
 		diag.MemoryMB = float64(mem.RSS) / (1024 * 1024)
 	}
 	if cpu, err := proc.CPUPercentWithContext(ctx); err == nil {
@@ -162,7 +162,7 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 	}
 }
 
-// inspectPortInternal 内部体检单个端口，支持复用预构建的进程连接表反向索引。
+// inspectPortInternal inspects one port and can reuse a prebuilt process index.
 func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32) *PortDiagnostic {
 	diag := &PortDiagnostic{
 		Port:     port,
@@ -202,33 +202,32 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 	return diag
 }
 
-// ============================ 对外核心接口契约 ============================
+// ============================ Public Core API ============================
 
-// 1. InspectPort 侦探单端口：查询指定端口是否开启，并通过 gopsutil 关联进程体检数据。
+// InspectPort checks whether a port is open and associates it with process diagnostics.
 func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("非法端口号 %d：有效范围为 1-65535", port)
+		return nil, fmt.Errorf("invalid port %d: valid range is 1-65535", port)
 	}
 	return inspectPortInternal(ctx, port, nil), nil
 }
 
-// 2. ScanPortsConcurrent 并发扫描多端口（作业核心得分点）：
-// 必须使用 goroutine + sync.WaitGroup + channel 并发探测端口列表，并按端口号升序返回结果。
+// ScanPortsConcurrent probes multiple ports concurrently and returns results in ascending order.
 //
-// 并发架构设计说明：
+// The worker pool uses a producer, a jobs channel, workers, and a results channel.
 //
 //	┌────────────────┐        ┌── worker 1 ──┐        ┌──────────────────┐
 //	│ ports channel  ├───────>│  worker 2    ├───────>│ results channel  │
-//	│ (任务分发缓冲) │        └── worker N ──┘        │ (占用结果汇聚)   │
+//	│ (buffered jobs)│        └── worker N ──┘        │ (open results)   │
 //	└────────────────┘               ▲                └─────────┬────────┘
 //	                                 │                          │
-//	              sync.WaitGroup 协同等待全部退出后关闭通道     for-range 收集 + 升序排序
+//	              sync.WaitGroup closes the channel after workers exit; results are sorted.
 func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, error) {
 	if len(ports) == 0 {
 		return []PortDiagnostic{}, nil
 	}
 
-	// 动态计算协程池大小，避免多余协程
+	// Cap the worker pool to the number of ports being scanned.
 	workers := len(ports)
 	if workers > DefaultWorkers {
 		workers = DefaultWorkers
@@ -237,14 +236,14 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		workers = 1
 	}
 
-	// 优化亮点：单次全量提取系统连接表构建反向索引，由全体 Worker 只读共享，消除 N 倍系统调用开销
+	// Build the process index once and share it read-only across all workers.
 	index, _ := buildProcIndex(ctx)
 
 	var wg sync.WaitGroup
 	portsChan := make(chan int, workers)
 	resultsChan := make(chan PortDiagnostic, workers)
 
-	// 生产者协程：投递待测端口，完毕后安全关闭 portsChan
+	// The producer submits ports and closes the jobs channel when done.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -252,13 +251,13 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		for _, port := range ports {
 			select {
 			case <-ctx.Done():
-				return // 监听上下文取消信号，优雅退出
+				return // Exit promptly when the context is canceled.
 			case portsChan <- port:
 			}
 		}
 	}()
 
-	// 消费者协程池：启动指定数量 Worker 并发探测端口
+	// Start a bounded pool of workers to probe ports concurrently.
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -268,7 +267,7 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 					continue
 				}
 				diag := inspectPortInternal(ctx, port, index)
-				// 仅收集处于占用状态的端口
+				// Collect open ports only.
 				if diag.IsOpen {
 					select {
 					case <-ctx.Done():
@@ -280,19 +279,19 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		}()
 	}
 
-	// 汇聚监控协程：等待全部 Worker 结束探测后安全关闭 resultsChan，使主协程 range 能正常结束
+	// Close the results channel after every worker has finished.
 	go func() {
 		wg.Wait()
 		close(resultsChan)
 	}()
 
-	// 主协程消费汇聚管道中的占用端口
+	// Collect open-port results from the workers.
 	var occupied []PortDiagnostic
 	for res := range resultsChan {
 		occupied = append(occupied, res)
 	}
 
-	// 保证结果确定性：按端口号升序稳定排序
+	// Return deterministic results sorted by port number.
 	sort.Slice(occupied, func(i, j int) bool {
 		return occupied[i].Port < occupied[j].Port
 	})
@@ -303,8 +302,8 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	return occupied, nil
 }
 
-// 3. KillPortProcess 释放端口（安全终止进程）：
-// 根据端口找到占用 PID，若 dryRun 为 true 仅返回将要终止的进程信息而不真杀；禁止终止 PID <= 1 的系统进程。
+// KillPortProcess terminates the process occupying a port, or previews the action
+// when dryRun is true. System processes with PID <= 1 are never terminated.
 func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnostic, string, error) {
 	diag, err := InspectPort(ctx, port)
 	if err != nil {
@@ -313,7 +312,7 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 	if !diag.IsOpen {
 		return diag, "", fmt.Errorf("端口 %d 当前未被占用，无需释放", port)
 	}
-	// 红线防护：严禁终止系统保护进程（如 PID 0/1）
+	// Never terminate protected system processes.
 	if diag.PID <= 1 {
 		return diag, "", fmt.Errorf("禁止终止系统保护进程 (PID %d)", diag.PID)
 	}
@@ -321,7 +320,7 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return diag, "", errors.New("端口已被占用，但当前权限不足以读取或终止目标进程（请以管理员/root 身份运行）")
 	}
 
-	// 安全预演分支 (dry-run)
+	// Preview the action without terminating the process.
 	if dryRun {
 		msg := fmt.Sprintf("预演成功：将终止占用端口 %d 的进程 %q (PID: %d)，当前物理内存占用 %.1f MB",
 			port, diag.ProcessName, diag.PID, diag.MemoryMB)
@@ -333,7 +332,7 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return diag, "", fmt.Errorf("无法打开目标进程 %d：%w", diag.PID, err)
 	}
 
-	// 先尝试优雅退出 (Terminate)，若失败再强制终止 (Kill)
+	// Attempt graceful termination first, then force termination if needed.
 	err = proc.Terminate()
 	if err != nil {
 		err = proc.Kill()
@@ -346,8 +345,8 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 	return diag, msg, nil
 }
 
-// 4. CleanCurrentProjectPorts 项目级一键清理能力：
-// 并发扫描常用开发端口，仅筛选并释放 Project.Path == cwd 的孤儿进程。
+// CleanCurrentProjectPorts scans common development ports and selects processes
+// whose detected project path matches cwd.
 func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]PortDiagnostic, error) {
 	if cwd == "" {
 		var err error
@@ -358,7 +357,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 	}
 
 	cleanCwd := filepath.Clean(cwd)
-	// 并发扫描高频开发端口
+	// Scan commonly used development ports concurrently.
 	occupied, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
 	if err != nil {
 		return nil, fmt.Errorf("扫描开发端口失败：%w", err)

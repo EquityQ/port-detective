@@ -9,7 +9,7 @@ import (
 	"port-detective/internal/core"
 )
 
-// captureRun 执行根命令并捕获 stdout/stderr，用于断言渲染结果。
+// captureRun executes the root command and captures stdout/stderr for rendering assertions.
 func captureRun(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
@@ -31,12 +31,12 @@ func TestDisplayWidthHandlesCJK(t *testing.T) {
 		{"", 0},
 		{"abc", 3},
 		{"port-detective", 14},
-		{"端口", 4},           // 2 个汉字 = 4 列
-		{"进程名", 6},          // 3 个汉字 = 6 列
-		{"可执行文件", 10},       // 5 个汉字 = 10 列
-		{"PID", 3},          // 纯 ASCII
+		{"端口", 4},           // Two Chinese characters occupy four terminal columns.
+		{"进程名", 6},          // Three Chinese characters occupy six terminal columns.
+		{"可执行文件", 10},       // Five Chinese characters occupy ten terminal columns.
+		{"PID", 3},          // ASCII text occupies one column per character.
 		{"中文abc", 7},        // 4 + 3
-		{"<no-access>", 11}, // 纯 ASCII 占位符
+		{"<no-access>", 11}, // ASCII placeholder.
 	}
 
 	for _, c := range cases {
@@ -179,7 +179,7 @@ func TestScanJSONIsArray(t *testing.T) {
 }
 
 func TestKillDryRunCLI(t *testing.T) {
-	// 针对空闲端口测试
+	// Test an idle port.
 	out, _, err := captureRun(t, "kill", "65432", "--dry-run")
 	if err == nil {
 		t.Errorf("针对空闲端口期望报错，实际返回: %s", out)
@@ -217,14 +217,14 @@ func TestDegradedMarkerIsASCII(t *testing.T) {
 }
 
 func TestScanTableHeadersBilingual(t *testing.T) {
-	// 英文测试
+	// Test English output.
 	outEn, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "en")
 	if err != nil {
 		t.Fatalf("scan --lang en 执行失败：%v", err)
 	}
 	t.Logf("outEn: %s", outEn)
 
-	// 中文测试
+	// Test Chinese output.
 	outZh, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "zh")
 	if err != nil {
 		t.Fatalf("scan --lang zh 执行失败：%v", err)

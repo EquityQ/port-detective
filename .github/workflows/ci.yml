@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go: ['1.22.x', '1.23.x']
+        go: ['1.23.x', '1.25.x']
 
     steps:
       - name: Checkout code
@@ -34,6 +34,13 @@ jobs:
 
       - name: Build all packages
         run: go build -v ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
 
       - name: Run unit tests with race detector
         run: go test -v -race ./...
