@@ -4,6 +4,11 @@
   <strong>An AI-Native, cross-platform Port Inspector, Framework Fingerprint Engine & Process Diagnostic Tool designed for Claude Code, Cursor, Windsurf & Modern Developers (CLI + MCP Server + Python SDK).</strong>
 </p>
 
+> **Release status:** The repository currently tracks the v1.1 development line.
+> The first `v1.1.0` release tag and published archives are still pending the
+> release-readiness gates in [QUALITY_REVIEW.md](QUALITY_REVIEW.md). Use a release
+> archive when available, or build from the pinned source revision.
+
 <p align="center">
   <a href="README_zh.md">
     <img src="https://img.shields.io/badge/语言-简体中文-red?style=flat-square" alt="简体中文" />
@@ -215,8 +220,11 @@ port-detective scan --json | jq '.[].project.framework'
 Zero-CGo **Subprocess Wrapper** architecture guarantees frictionless installation across all platforms:
 
 ```bash
-pip install port-detective
+# From this repository checkout
+python -m pip install ./python
 ```
+
+Use `pip install port-detective` after the matching SDK release is published.
 
 ### Synchronous API
 ```python
@@ -254,9 +262,9 @@ asyncio.run(main())
 ```
 
 The Python SDK is a subprocess wrapper and does not include the Go executable. Install
-the same CLI release separately (`go install github.com/EquityQ/port-detective@v1.1.0`)
-or download the matching archive from [GitHub Releases](https://github.com/EquityQ/port-detective/releases/tag/v1.1.0).
-Use `PORT_DETECTIVE_BIN` or the SDK's `binary_path` argument when the executable is not on `PATH`.
+the CLI from the reviewed source revision above, or download the matching archive after
+the `v1.1.0` release is published. Use `PORT_DETECTIVE_BIN` or the SDK's `binary_path`
+argument when the executable is not on `PATH`.
 
 ---
 
@@ -313,10 +321,13 @@ Tested on Windows 11 AMD64, macOS Sonoma (M-Series Apple Silicon), and Ubuntu 22
 
 ## 📦 Installation
 
-### Via `go install`
+### Via `go install` (source revision)
 ```bash
-go install github.com/EquityQ/port-detective@latest
+go install github.com/EquityQ/port-detective@master
 ```
+
+For reproducible builds, replace `master` with a reviewed commit or the published
+`v1.1.0` tag once it is available.
 
 ### Precompiled Binaries
 Download pre-built cross-platform binaries (Windows, Linux, macOS for `amd64` and `arm64`) from the [GitHub Releases](https://github.com/EquityQ/port-detective/releases) page.
@@ -339,7 +350,10 @@ go test -v -race ./...
 
 Contributions are warmly welcomed! Please read our [Contributing Guide](CONTRIBUTING.md) for Conventional Commits rules and local test instructions.
 
-See the [current project status](STATUS.md) and [platform support policy](PLATFORM_SUPPORT.md) before opening an issue. Report vulnerabilities privately using the [Security Policy](SECURITY.md).
+See the [current project status](STATUS.md), [quality review](QUALITY_REVIEW.md),
+and [roadmap](ROADMAP.md) before opening an issue. Report vulnerabilities privately
+using the [Security Policy](SECURITY.md). Please also read the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 

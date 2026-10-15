@@ -26,16 +26,17 @@ The Python package is a thin client and does not bundle the Go executable. Insta
 matching CLI release separately, then make it available on `PATH`:
 
 ```bash
-# Option A: install the pinned CLI version from source
-go install github.com/EquityQ/port-detective@v1.1.0
+# Option A: install the reviewed CLI source revision
+go install github.com/EquityQ/port-detective@master
 
-# Option B: download the matching OS/architecture archive from GitHub Releases
-# https://github.com/EquityQ/port-detective/releases/tag/v1.1.0
+# Option B: download the matching OS/architecture archive after the release is published
+# https://github.com/EquityQ/port-detective/releases
 ```
 
 For a custom location, set `PORT_DETECTIVE_BIN` or pass `binary_path` to each API call.
 Keep the Python SDK and CLI on the same release version because the SDK consumes the
-CLI's JSON output contract.
+CLI's JSON output contract. The repository currently contains the v1.1 development
+line; pin both packages to a reviewed release or commit for production automation.
 
 ---
 
@@ -122,3 +123,7 @@ asyncio.run(main())
 ## License
 
 MIT License.
+
+See the repository [quality review](../QUALITY_REVIEW.md), [roadmap](../ROADMAP.md),
+and [platform support policy](../PLATFORM_SUPPORT.md) for release and compatibility
+status.

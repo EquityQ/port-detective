@@ -4,6 +4,10 @@
   <strong>专为 AI 编程助手（Claude Code、Cursor、Windsurf）与现代开发者打造的 AI-Native 跨平台端口占用侦探、框架指纹分析与孤儿进程体检工具（CLI + MCP Server + Python SDK）。</strong>
 </p>
 
+> **发布状态：** 当前仓库处于 v1.1 开发主线。首个 `v1.1.0` 发布标签和正式构建产物
+> 仍需通过 [精品开源项目质量评估](QUALITY_REVIEW.md) 中的发布门禁后再发布。正式版本发布前，
+> 可以使用经过审核的源码提交自行构建。
+
 <p align="center">
   <a href="README.md">
     <img src="https://img.shields.io/badge/Language-English-blue?style=flat-square" alt="English README" />
@@ -213,8 +217,11 @@ port-detective scan --json | jq '.[].project.framework'
 采用无 CGo 的 **Subprocess Wrapper** 轻量架构，保证全平台开箱即用：
 
 ```bash
-pip install port-detective
+# 在当前源码仓库中安装 SDK
+python -m pip install ./python
 ```
+
+正式 Python SDK 发布后，再使用 `pip install port-detective` 安装对应版本。
 
 ### 同步调用示例
 ```python
@@ -250,12 +257,13 @@ async def main():
 asyncio.run(main())
 ```
 
-Python SDK 采用子进程包装方式，不会内置 Go 可执行文件。请单独安装相同版本的 CLI：
+Python SDK 采用子进程包装方式，不会内置 Go 可执行文件。请先按照上面的源码主线安装 CLI，
+或在 `v1.1.0` 正式发布后下载匹配版本：
 ```bash
-go install github.com/EquityQ/port-detective@v1.1.0
+go install github.com/EquityQ/port-detective@master
 ```
-也可以从 [GitHub Releases](https://github.com/EquityQ/port-detective/releases/tag/v1.1.0)
-下载对应平台的压缩包。SDK 与 CLI 应保持相同版本，因为 SDK 依赖 CLI 的 JSON 输出契约；
+也可以从 [GitHub Releases](https://github.com/EquityQ/port-detective/releases)
+下载正式发布的对应平台压缩包。SDK 与 CLI 应保持相同版本，因为 SDK 依赖 CLI 的 JSON 输出契约；
 如果可执行文件不在 `PATH` 中，请设置 `PORT_DETECTIVE_BIN` 或传入 `binary_path`。
 
 ---
@@ -313,10 +321,13 @@ flowchart TD
 
 ## 📦 安装与构建
 
-### 通过 Go 安装
+### 通过 Go 安装（源码主线）
 ```bash
-go install github.com/EquityQ/port-detective@latest
+go install github.com/EquityQ/port-detective@master
 ```
+
+如需可复现构建，请将 `master` 替换为经过审核的具体提交；`v1.1.0` 正式标签发布后，
+优先使用对应版本标签。
 
 ### 直接下载二进制
 访问 [GitHub Releases](https://github.com/EquityQ/port-detective/releases) 下载适用于 Windows、macOS、Linux 的可执行文件。
@@ -337,7 +348,9 @@ go test -v -race ./...
 
 ## 🤝 参与贡献与获取支持
 
-提交问题前请查看[当前项目状态](STATUS.md)与[平台支持政策](PLATFORM_SUPPORT.md)。安全漏洞请按照[安全策略](SECURITY.md)通过 GitHub 私密通道报告，不要发布在公开 Issue 中。
+提交问题前请查看[当前项目状态](STATUS.md)、[质量评估](QUALITY_REVIEW.md)、
+[路线图](ROADMAP.md)与[平台支持政策](PLATFORM_SUPPORT.md)。安全漏洞请按照[安全策略](SECURITY.md)
+通过 GitHub 私密通道报告，不要发布在公开 Issue 中。参与协作前请阅读[行为准则](CODE_OF_CONDUCT.md)。
 
 ---
 

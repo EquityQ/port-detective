@@ -9,6 +9,7 @@
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
+- **精品开源项目评估**: 当前质量基线为 **78/100**；v1.1.0 发布前的签名、SBOM、来源证明、跨平台 Python CI 与正式版本标签仍待完成，详见 `QUALITY_REVIEW.md` 与 `ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -234,6 +235,7 @@ port-detective
 - **[OSS Quality Step 3 done]**: Pinned GoReleaser to `v2.6.1` and added a configuration check before publishing. Release archives now include both README languages and the license. Added a Python 3.9/3.13 workflow covering tests, wheel/sdist builds, and wheel installation smoke tests. Documented the external CLI prerequisite and matching-version policy in both SDK and root READMEs.
 - **[OSS Quality Step 4 done]**: Added private vulnerability reporting guidance, GitHub issue forms for bugs and feature requests, a pull request checklist, a platform support policy, and a concise v1.1 project status page. Linked the new maintenance entry points from both READMEs and the contributor guide. Go build/tests/race/vet/gofmt, Python tests, and local Markdown link checks pass.
 - **[OSS Quality Step 5 done]**: Marked the old contract-divergence and handoff notes as historical after the contract alignment was completed. Updated documentation to match the Python 3.9+ floor, operational `--json` scope, and `scan --ports` behavior. Verified CLI JSON commands with a disposable listener, all MCP acceptance scripts, Python tests, Go build/tests/race/vet, formatting, and local Markdown links.
+- **[Open Source Quality Review]**: 完成代码、测试、发布、社区治理与文档基线评估，当前评分 78/100。主要待提升项为正式 v1.1.0 发布、签名/SBOM/来源证明、Python 跨平台 CI、依赖漏洞扫描、集成夹具与版本化 API/MCP 参考文档；详见 `QUALITY_REVIEW.md` 与 `ROADMAP.md`。
 
 ---
 

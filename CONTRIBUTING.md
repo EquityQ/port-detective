@@ -2,6 +2,9 @@
 
 Thank you for your interest in contributing to **port-detective**! We welcome community contributions, bug reports, feature suggestions, and documentation improvements.
 
+Read the [Code of Conduct](CODE_OF_CONDUCT.md), [platform support policy](PLATFORM_SUPPORT.md),
+and [current quality review](QUALITY_REVIEW.md) before making a change.
+
 ---
 
 ## 🧭 Architecture Principles & Ground Rules
@@ -37,6 +40,11 @@ go test -race ./...
 # Verify code formatting and linting
 go vet ./...
 gofmt -l .
+```
+
+When Python files change, also run:
+```bash
+python -m unittest discover -s python/tests -v
 ```
 
 ### End-to-End MCP Verification
@@ -87,9 +95,15 @@ docs(readme): add Windsurf MCP configuration guide
 5. Push to your fork and submit a Pull Request to `main`.
 6. Our CI workflow will automatically verify cross-platform builds and race conditions on Ubuntu, macOS, and Windows.
 
+Documentation, CI, and release changes should explain their compatibility impact.
+Do not claim a release is available until its tag, checksums, and artifacts have been
+published successfully.
+
 ## Community and Support
 
 - Review the [platform support policy](PLATFORM_SUPPORT.md) before filing a platform-specific report.
 - Use the repository's issue forms for reproducible bugs and focused feature requests.
 - Report security vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue.
 - Check [STATUS.md](STATUS.md) for the current maintenance focus and known limitations.
+- Use [QUALITY_REVIEW.md](QUALITY_REVIEW.md) and [ROADMAP.md](ROADMAP.md) to understand
+  current priorities before proposing a broad refactor.

@@ -2,13 +2,13 @@
 
 ## Supported Versions
 
-Security fixes are applied to the latest released version. Please upgrade before
-reporting an issue against an older release.
+Security fixes are applied to the latest published release and the active development
+line. Please upgrade before reporting an issue against an older release.
 
 | Version | Security fixes |
 | --- | --- |
-| `1.1.x` | Supported |
-| `< 1.1` | Not supported |
+| `v1.1.x` / active development line | Supported |
+| `v0.1.0-assignment` and older | Best effort only |
 
 ## Reporting a Vulnerability
 
@@ -24,6 +24,10 @@ before submitting.
 The maintainers will acknowledge a report within 5 business days and will use the
 advisory to coordinate validation, a fix, and public disclosure. Response times are
 best effort for this community-maintained project.
+
+The repository does not currently publish a signed v1.1.0 artifact. For deployed
+automation, use a reviewed commit or a future release with verified checksums and
+provenance.
 
 ## Scope and Safety Notes
 

@@ -1,7 +1,9 @@
 # Platform Support
 
 `port-detective` is built with Go and uses `gopsutil` plus the standard library for
-network and process inspection. Release archives target the following platforms:
+network and process inspection. The Go CI matrix validates Windows, macOS, and Linux;
+the Python SDK build workflow currently validates Ubuntu. Release archives target the
+following CLI platforms:
 
 | Platform | Architectures | Support level |
 | --- | --- | --- |
@@ -29,3 +31,6 @@ requires a separately installed CLI from the same release.
 Please include the OS version, architecture, Go/Python version, CLI version, and
 whether elevated permissions or a container were involved when reporting a
 platform-specific issue.
+
+See [QUALITY_REVIEW.md](QUALITY_REVIEW.md) for the planned expansion of the Python
+cross-platform matrix and integration fixtures.
