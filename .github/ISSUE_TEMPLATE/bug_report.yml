@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible problem in port-detective.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, tokens, private paths, or security exploit details.
+        Use the private security advisory link for vulnerabilities.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: CLI or Python SDK version.
+      placeholder: v1.1.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, and whether elevated permissions or a container were used.
+      placeholder: Windows 11 amd64, standard user
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the exact command or minimal Python snippet and sanitized output.
+      placeholder: |
+        1. Run ...
+        2. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+      description: Explain what you expected and what happened instead.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I removed sensitive information from logs and command output.
+          required: true

@@ -335,6 +335,8 @@ go test -v -race ./...
 
 Contributions are warmly welcomed! Please read our [Contributing Guide](CONTRIBUTING.md) for Conventional Commits rules and local test instructions.
 
+See the [current project status](STATUS.md) and [platform support policy](PLATFORM_SUPPORT.md) before opening an issue. Report vulnerabilities privately using the [Security Policy](SECURITY.md).
+
 ---
 
 ## 📄 License

@@ -86,3 +86,10 @@ docs(readme): add Windsurf MCP configuration guide
 4. Commit your changes with a conventional commit message.
 5. Push to your fork and submit a Pull Request to `main`.
 6. Our CI workflow will automatically verify cross-platform builds and race conditions on Ubuntu, macOS, and Windows.
+
+## Community and Support
+
+- Review the [platform support policy](PLATFORM_SUPPORT.md) before filing a platform-specific report.
+- Use the repository's issue forms for reproducible bugs and focused feature requests.
+- Report security vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue.
+- Check [STATUS.md](STATUS.md) for the current maintenance focus and known limitations.

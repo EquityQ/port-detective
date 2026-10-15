@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/EquityQ/port-detective/security/advisories/new
+    about: Do not disclose security vulnerabilities in a public issue.
+  - name: Read the platform support policy
+    url: https://github.com/EquityQ/port-detective/blob/master/PLATFORM_SUPPORT.md
+    about: Check supported operating systems, architectures, and permission limits first.

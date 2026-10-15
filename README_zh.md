@@ -331,6 +331,12 @@ go test -v -race ./...
 
 ---
 
+## 🤝 参与贡献与获取支持
+
+提交问题前请查看[当前项目状态](STATUS.md)与[平台支持政策](PLATFORM_SUPPORT.md)。安全漏洞请按照[安全策略](SECURITY.md)通过 GitHub 私密通道报告，不要发布在公开 Issue 中。
+
+---
+
 ## 📄 开源许可证
 
 本项目基于 [MIT License](LICENSE) 协议开源。

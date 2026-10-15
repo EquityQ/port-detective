@@ -8,7 +8,7 @@
 > 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
 
 ## 当前状态指针
-- **当前待执行步骤**: OSS Quality Step 4（社区维护入口）
+- **当前待执行步骤**: OSS Quality Step 5（文档收敛与命令核验）
 - **构建/测试状态**: `go build ./...` 100% 通过；Go 单元测试全绿（**46 个用例**：core 18 + cli 17 + mcpserver 13 + fingerprint 6）；`go test -race ./...` 0 竞态检测通过；Python SDK 测试全绿（**11 个用例** 通过 pytest & unittest）；`gofmt -l .` 干净；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -29,7 +29,7 @@
   - Pin the GoReleaser action version, validate release artifacts and checksums, and define how the Python package installs or locates the matching CLI binary.
   - Add Python package build/install checks and keep Go/Python versions synchronized.
   - Validation: GoReleaser `v2.6.1` is checked before release, archives include both README languages and LICENSE, and the Python workflow tests Python 3.9/3.13, builds distributions, and installs a wheel smoke test.
-- [ ] **Step 4: Add community maintenance entry points**
+- [x] **Step 4: Add community maintenance entry points**
   - Add security reporting guidance, issue/PR templates, platform support policy, and a concise current project status.
 - [ ] **Step 5: Reconcile and simplify project documentation**
   - Remove obsolete handoff claims from the active project instructions, retain relevant history, and verify all README commands against actual CLI/MCP behavior.
@@ -234,6 +234,7 @@ port-detective
 - **[OSS Quality Step 1 done]**: Translated Chinese comments and docstrings in tracked Go and Python source files, aligned CI, contributor guidance, and README badges to Go 1.23+, and added CI vet/format checks. Verified with Go 1.25.13 on Windows: build, 46 Go tests, race tests, vet, and gofmt all pass; all 11 Python tests pass. `AGENTS.md` remains unchanged because its repository policy marks it read-only; its Go 1.22+ statement is a known stale claim.
 - **[OSS Quality Step 2 done]**: Added creation-time process identity checks and an immediate pre-termination port/PID revalidation to reduce PID reuse and race-window risks. Added canceled-context coverage using a temporary test listener and documented project cleanup limitations and dry-run review guidance in both README files. All Go validation checks pass.
 - **[OSS Quality Step 3 done]**: Pinned GoReleaser to `v2.6.1` and added a configuration check before publishing. Release archives now include both README languages and the license. Added a Python 3.9/3.13 workflow covering tests, wheel/sdist builds, and wheel installation smoke tests. Documented the external CLI prerequisite and matching-version policy in both SDK and root READMEs.
+- **[OSS Quality Step 4 done]**: Added private vulnerability reporting guidance, GitHub issue forms for bugs and feature requests, a pull request checklist, a platform support policy, and a concise v1.1 project status page. Linked the new maintenance entry points from both READMEs and the contributor guide. Go build/tests/race/vet/gofmt, Python tests, and local Markdown link checks pass.
 
 ---
 
