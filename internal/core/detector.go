@@ -302,9 +302,29 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	return occupied, nil
 }
 
+// processIdentity returns a process handle and its creation time. The creation
+// time lets callers detect PID reuse between two independent port inspections.
+func processIdentity(ctx context.Context, pid int32) (*process.Process, int64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
+	proc, err := process.NewProcessWithContext(ctx, pid)
+	if err != nil {
+		return nil, 0, err
+	}
+	created, err := proc.CreateTimeWithContext(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	return proc, created, nil
+}
+
 // KillPortProcess terminates the process occupying a port, or previews the action
 // when dryRun is true. System processes with PID <= 1 are never terminated.
 func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnostic, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	diag, err := InspectPort(ctx, port)
 	if err != nil {
 		return nil, "", err
@@ -327,15 +347,39 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return diag, msg, nil
 	}
 
-	proc, err := process.NewProcessWithContext(ctx, diag.PID)
+	_, created, err := processIdentity(ctx, diag.PID)
 	if err != nil {
-		return diag, "", fmt.Errorf("无法打开目标进程 %d：%w", diag.PID, err)
+		return diag, "", fmt.Errorf("无法确认目标进程 %d 的身份（可能需要管理员/root 权限）：%w", diag.PID, err)
+	}
+
+	// Re-scan immediately before termination so a released port or a reused PID
+	// cannot cause an unrelated process to be terminated.
+	latest, err := InspectPort(ctx, port)
+	if err != nil {
+		return diag, "", fmt.Errorf("终止前重新检查端口 %d 失败：%w", port, err)
+	}
+	if !latest.IsOpen {
+		return latest, "", fmt.Errorf("端口 %d 在终止前已释放", port)
+	}
+	if latest.PID != diag.PID {
+		return latest, "", fmt.Errorf("端口 %d 的归属进程已变化（原 PID %d，当前 PID %d），已取消终止", port, diag.PID, latest.PID)
+	}
+
+	latestProc, latestCreated, err := processIdentity(ctx, latest.PID)
+	if err != nil {
+		return latest, "", fmt.Errorf("无法在终止前确认目标进程 %d：%w", latest.PID, err)
+	}
+	if latestCreated != created {
+		return latest, "", fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
+	}
+	if err := ctx.Err(); err != nil {
+		return latest, "", err
 	}
 
 	// Attempt graceful termination first, then force termination if needed.
-	err = proc.Terminate()
+	err = latestProc.Terminate()
 	if err != nil {
-		err = proc.Kill()
+		err = latestProc.Kill()
 	}
 	if err != nil {
 		return diag, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", diag.PID, err)

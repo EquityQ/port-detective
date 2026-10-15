@@ -8,7 +8,7 @@
 > 该偏离由用户明确决策为「**保持现状、仅登记不重构**」。
 
 ## 当前状态指针
-- **当前待执行步骤**: OSS Quality Step 2（进程终止安全审计）
+- **当前待执行步骤**: OSS Quality Step 3（发布与 Python 安装流程）
 - **构建/测试状态**: `go build ./...` 100% 通过；Go 单元测试全绿（**46 个用例**：core 18 + cli 17 + mcpserver 13 + fingerprint 6）；`go test -race ./...` 0 竞态检测通过；Python SDK 测试全绿（**11 个用例** 通过 pytest & unittest）；`gofmt -l .` 干净；`go vet ./...` 通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -21,9 +21,10 @@
   - Align CI, contributor guidance, and README badges with the Go 1.23 minimum declared by `go.mod` and required by the pinned MCP dependency.
   - Add `go vet` and `gofmt` checks to CI.
   - Validation: `go build ./...`, `go test -v ./...`, `go test -race ./...`, `go vet ./...`, and `gofmt` check.
-- [ ] **Step 2: Audit process termination safety**
+- [x] **Step 2: Audit process termination safety**
   - Revalidate PID-to-listener ownership immediately before termination; cover PID reuse, process exit, permission failures, and dry-run behavior with controlled temporary listeners.
   - Review project path matching and document its limitations without absolute safety guarantees.
+  - Validation: added process creation-time identity checks, pre-termination port/PID revalidation, context cancellation coverage, and safety notes in both README files. Go build, tests, race tests, vet, and formatting checks pass.
 - [ ] **Step 3: Make release and Python installation reproducible**
   - Pin the GoReleaser action version, validate release artifacts and checksums, and define how the Python package installs or locates the matching CLI binary.
   - Add Python package build/install checks and keep Go/Python versions synchronized.
@@ -230,6 +231,7 @@ port-detective
   5. **全球化文档**: 重写 English-First `README.md`，新增中文 `README_zh.md`，提供语言切换徽章。
   6. **测试指标**: 全模块 `go test -v ./...` 46/46 全部绿灯通过；`go test -race ./...` 0 竞态检测通过；Python 11 个测试用例全部通过。
 - **[OSS Quality Step 1 done]**: Translated Chinese comments and docstrings in tracked Go and Python source files, aligned CI, contributor guidance, and README badges to Go 1.23+, and added CI vet/format checks. Verified with Go 1.25.13 on Windows: build, 46 Go tests, race tests, vet, and gofmt all pass; all 11 Python tests pass. `AGENTS.md` remains unchanged because its repository policy marks it read-only; its Go 1.22+ statement is a known stale claim.
+- **[OSS Quality Step 2 done]**: Added creation-time process identity checks and an immediate pre-termination port/PID revalidation to reduce PID reuse and race-window risks. Added canceled-context coverage using a temporary test listener and documented project cleanup limitations and dry-run review guidance in both README files. All Go validation checks pass.
 
 ---
 

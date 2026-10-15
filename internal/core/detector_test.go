@@ -211,6 +211,22 @@ func TestKillPortProcessRejectsInvalidPort(t *testing.T) {
 	}
 }
 
+// TestKillPortProcessCanceledContext verifies that cancellation prevents both
+// process lookup and termination.
+func TestKillPortProcessCanceledContext(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := KillPortProcess(ctx, port, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if !checkTCPOpen(port, DefaultDialTimeout) {
+		t.Fatal("canceled termination must leave the listener alive")
+	}
+}
+
 // TestScanPortsConcurrentIsRaceFree verifies concurrent scans are race-free.
 func TestScanPortsConcurrentIsRaceFree(t *testing.T) {
 	ln, port := listenLoopback(t)

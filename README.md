@@ -58,6 +58,7 @@ When this occurs:
 - 🧹 **One-Click Project Port Clean (`clean`)**: Concurrently scans dev ports and terminates orphan processes belonging strictly to the current working directory, preventing accidental collateral damage.
 - 🩺 **Deep Process Diagnostics**: Complete metrics on demand—PID, binary name, command-line arguments, resident memory (`MemoryMB`), CPU usage percentage, and health status (`occupied`, `free`, `permission_required`).
 - 🛡️ **Safety-First & Guardrailed**: Built-in `--dry-run` simulation mode. Hard-coded protections **strictly prohibit terminating system processes (`PID <= 1`)**.
+- 🔒 **Revalidated Termination**: Before a real termination, the CLI rechecks the port owner and process creation time to reduce PID reuse and race-window risks. Permission-limited processes are skipped with an explicit diagnostic.
 - 🤖 **Zero-Pollution MCP Stdio Server**: Dedicated Stdio protocol server for AI agents. `os.Stdout` is 100% clean JSON-RPC, while all diagnostics flow to `os.Stderr`.
 - 🌐 **Native Bilingual CLI**: Supports `--lang en` and `--lang zh` (auto-detected from system environment), with Unicode East Asian Width (CJK) table alignment.
 
@@ -190,6 +191,11 @@ port-detective kill 3000 --dry-run
 # Terminate process
 port-detective kill 3000 -y
 ```
+
+`kill` and `clean` are designed for local development cleanup. Project cleanup matches
+the detected process working directory and the current project path; processes whose
+metadata cannot be read are not selected. Always review the dry-run output before using
+`-y` or `--dry-run=false`, especially when running with elevated privileges.
 
 ### 5. Machine-Readable JSON Pipeline (`--json`)
 Every subcommand supports `--json` for direct pipelines with `jq`:
