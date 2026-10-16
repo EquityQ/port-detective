@@ -10,7 +10,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/core"
 )
 
 func listenLoopback(t *testing.T) (net.Listener, int) {

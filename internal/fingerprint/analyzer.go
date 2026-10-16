@@ -15,7 +15,7 @@ import (
 
 	"github.com/shirou/gopsutil/v3/process"
 
-	"port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/core"
 )
 
 func init() {

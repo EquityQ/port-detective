@@ -5,8 +5,8 @@
 package main
 
 import (
-	"port-detective/internal/cli"
-	_ "port-detective/internal/fingerprint"
+	"github.com/EquityQ/port-detective/internal/cli"
+	_ "github.com/EquityQ/port-detective/internal/fingerprint"
 )
 
 func main() {

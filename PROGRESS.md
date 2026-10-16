@@ -4,8 +4,8 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前待执行步骤**: Step 7 complete; continue the OSS quality backlog
-- **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**52 个用例**：core 13 + cli 17 + mcpserver 13 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **14 个用例**与字节码编译通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **当前待执行步骤**: Step 8 complete; continue the OSS quality backlog
+- **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**52 个用例**：core 13 + cli 17 + mcpserver 13 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**与字节码编译通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
@@ -40,6 +40,12 @@
   - Return context cancellation before and after a port inspection so callers never receive a partial result as a normal free-port diagnostic.
   - Add a regression test covering an already-canceled inspection context.
   - Validation: Go formatting, build, unit tests, race tests, and vet when the Go toolchain is available; Python tests remain green.
+
+- [ ] **Step 8: Close process cleanup and release validation gaps**
+  - Revalidate project cleanup targets by PID, process creation time, current port ownership, and project path immediately before termination.
+  - Recover from panics in externally registered project detectors and clean up Python CLI children when async calls are cancelled.
+  - Align the public Go module path and installation examples, correct worker-pool benchmark text, and add complete release preflight validation for Go, Python, and MCP.
+  - Validation: Go build/tests/race/vet/formatting, Python tests/build, MCP handshake/tool/stdio checks, and release configuration validation.
 
 ---
 
@@ -246,6 +252,7 @@ port-detective
 - **[OSS Quality Step 5 done]**: Marked the old contract-divergence and handoff notes as historical after the contract alignment was completed. Updated documentation to match the Python 3.9+ floor, operational `--json` scope, and `scan --ports` behavior. Verified CLI JSON commands with a disposable listener, all MCP acceptance scripts, Python tests, Go build/tests/race/vet, formatting, and local Markdown links.
 - **[Open Source Quality Review]**: 完成代码、测试、发布、社区治理与文档基线评估，当前评分 78/100。主要待提升项为正式 v1.1.0 发布、签名/SBOM/来源证明、Python 跨平台 CI、依赖漏洞扫描、集成夹具与版本化 API/MCP 参考文档；详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 - **[Step-7 done]**: `InspectPort` now propagates context cancellation before and after probing, with a regression test ensuring canceled requests do not return a misleading free-port result. Go build, tests, race detection, vet, and formatting checks pass; Python tests and compilation also pass.
+- **[Step-8 done]**: Project cleanup now revalidates PID, process creation time, port ownership, and project path immediately before action; registered project detectors are panic-safe; Python async cancellation kills and reaps CLI children; Go module imports and install docs use the GitHub path; README benchmarks reflect the 64-worker pool; release CI now gates Go, Python, and MCP acceptance before GoReleaser. Go/Python/MCP validation passed locally.
 
 ---
 

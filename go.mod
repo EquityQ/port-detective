@@ -1,4 +1,4 @@
-module port-detective
+module github.com/EquityQ/port-detective
 
 go 1.23.0
 

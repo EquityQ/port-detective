@@ -57,16 +57,17 @@ type ProjectInfo struct {
 
 // PortDiagnostic contains a diagnostic report for a port and its owning process.
 type PortDiagnostic struct {
-	Port        int          `json:"port"`
-	IsOpen      bool         `json:"is_open"`
-	Protocol    string       `json:"protocol"`          // "tcp"
-	PID         int32        `json:"pid"`               // Owning process ID, or 0 when unavailable.
-	ProcessName string       `json:"process_name"`      // Process name, such as "node", "python", or "go".
-	Cmdline     string       `json:"cmdline"`           // Process startup command line.
-	MemoryMB    float64      `json:"memory_mb"`         // Resident memory in megabytes.
-	CPUPercent  float64      `json:"cpu_percent"`       // Process CPU usage percentage.
-	Status      string       `json:"status"`            // "occupied", "free", or "permission_required".
-	Project     *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
+	Port           int          `json:"port"`
+	IsOpen         bool         `json:"is_open"`
+	Protocol       string       `json:"protocol"`          // "tcp"
+	PID            int32        `json:"pid"`               // Owning process ID, or 0 when unavailable.
+	ProcessName    string       `json:"process_name"`      // Process name, such as "node", "python", or "go".
+	Cmdline        string       `json:"cmdline"`           // Process startup command line.
+	MemoryMB       float64      `json:"memory_mb"`         // Resident memory in megabytes.
+	CPUPercent     float64      `json:"cpu_percent"`       // Process CPU usage percentage.
+	Status         string       `json:"status"`            // "occupied", "free", or "permission_required".
+	Project        *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
+	processCreated int64        // Internal process creation timestamp used for identity checks.
 }
 
 // ProjectDetectorFunc defines the process fingerprint detector signature.
@@ -85,13 +86,18 @@ func RegisterProjectDetector(fn ProjectDetectorFunc) {
 }
 
 // detectProjectSafe invokes the registered project fingerprint detector safely.
-func detectProjectSafe(ctx context.Context, pid int32) *ProjectInfo {
+func detectProjectSafe(ctx context.Context, pid int32) (info *ProjectInfo) {
 	projectDetectorMu.RLock()
 	fn := projectDetector
 	projectDetectorMu.RUnlock()
 	if fn == nil || pid <= 1 {
 		return nil
 	}
+	defer func() {
+		if recover() != nil {
+			info = nil
+		}
+	}()
 	return fn(ctx, pid)
 }
 
@@ -156,6 +162,9 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 	if err != nil {
 		diag.Status = StatusPermissionRequired
 		return
+	}
+	if created, err := proc.CreateTimeWithContext(ctx); err == nil {
+		diag.processCreated = created
 	}
 
 	if name, err := proc.Name(); err == nil {
@@ -374,54 +383,16 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return diag, "", fmt.Errorf("无法确认目标进程 %d 的身份（可能需要管理员/root 权限）：%w", diag.PID, err)
 	}
 
-	// Re-scan immediately before termination so a released port or a reused PID
-	// cannot cause an unrelated process to be terminated.
-	latest, err := InspectPort(ctx, port)
+	latest, latestProc, err := verifyTerminationTarget(ctx, port, &PortDiagnostic{
+		Port:           diag.Port,
+		PID:            diag.PID,
+		processCreated: created,
+	}, "")
 	if err != nil {
-		return diag, "", fmt.Errorf("终止前重新检查端口 %d 失败：%w", port, err)
-	}
-	if !latest.IsOpen {
-		return latest, "", fmt.Errorf("端口 %d 在终止前已释放", port)
-	}
-	if latest.PID != diag.PID {
-		return latest, "", fmt.Errorf("端口 %d 的归属进程已变化（原 PID %d，当前 PID %d），已取消终止", port, diag.PID, latest.PID)
-	}
-
-	latestProc, latestCreated, err := processIdentity(ctx, latest.PID)
-	if err != nil {
-		return latest, "", fmt.Errorf("无法在终止前确认目标进程 %d：%w", latest.PID, err)
-	}
-	if latestCreated != created {
-		return latest, "", fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
-	}
-	if err := ctx.Err(); err != nil {
 		return latest, "", err
 	}
-
-	// Attempt graceful termination first, then force termination if the process
-	// does not exit within the bounded grace period.
-	if err = latestProc.Terminate(); err != nil {
-		if ctx.Err() != nil {
-			return latest, "", ctx.Err()
-		}
-		err = latestProc.Kill()
-		if err == nil {
-			err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
-		}
-	} else {
-		err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
-		if err != nil {
-			if ctx.Err() != nil {
-				return latest, "", ctx.Err()
-			}
-			err = latestProc.Kill()
-			if err == nil {
-				err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
-			}
-		}
-	}
-	if err != nil {
-		return diag, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", diag.PID, err)
+	if err := terminateProcess(ctx, latestProc); err != nil {
+		return latest, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", diag.PID, err)
 	}
 	if err := waitForPortRelease(ctx, port, terminationGracePeriod); err != nil {
 		return latest, "", fmt.Errorf("进程 %d 已收到终止请求，但端口 %d 尚未确认释放：%w", diag.PID, port, err)
@@ -429,6 +400,69 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 
 	msg := fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)", port, diag.ProcessName, diag.PID)
 	return diag, msg, nil
+}
+
+// verifyTerminationTarget rechecks the observable port owner and process identity
+// immediately before a destructive action. projectPath is required for project
+// cleanup and prevents a process that moved to another project from being killed.
+func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagnostic, projectPath string) (*PortDiagnostic, *process.Process, error) {
+	latest, err := InspectPort(ctx, port)
+	if err != nil {
+		return expected, nil, fmt.Errorf("终止前重新检查端口 %d 失败：%w", port, err)
+	}
+	if !latest.IsOpen {
+		return latest, nil, fmt.Errorf("端口 %d 在终止前已释放", port)
+	}
+	if latest.PID != expected.PID {
+		return latest, nil, fmt.Errorf("端口 %d 的归属进程已变化（原 PID %d，当前 PID %d），已取消终止", port, expected.PID, latest.PID)
+	}
+	if expected.processCreated <= 0 || latest.processCreated <= 0 {
+		return latest, nil, fmt.Errorf("无法确认端口 %d 的进程启动时间，已取消终止", port)
+	}
+	if latest.processCreated != expected.processCreated {
+		return latest, nil, fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
+	}
+	if projectPath != "" {
+		if latest.Project == nil || latest.Project.Path == "" || !projectPathsMatch(latest.Project.Path, projectPath) {
+			return latest, nil, fmt.Errorf("端口 %d 的项目路径已变化或无法确认，已取消终止", port)
+		}
+	}
+	proc, created, err := processIdentity(ctx, latest.PID)
+	if err != nil {
+		return latest, nil, fmt.Errorf("无法在终止前确认目标进程 %d：%w", latest.PID, err)
+	}
+	if created != expected.processCreated {
+		return latest, nil, fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
+	}
+	if err := ctx.Err(); err != nil {
+		return latest, nil, err
+	}
+	return latest, proc, nil
+}
+
+// terminateProcess attempts graceful termination first and escalates to a force
+// kill only after the bounded grace period expires.
+func terminateProcess(ctx context.Context, proc *process.Process) error {
+	err := proc.Terminate()
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err = proc.Kill(); err == nil {
+			err = waitForProcessExit(ctx, proc, terminationGracePeriod)
+		}
+		return err
+	}
+	if err = waitForProcessExit(ctx, proc, terminationGracePeriod); err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err = proc.Kill(); err != nil {
+		return err
+	}
+	return waitForProcessExit(ctx, proc, terminationGracePeriod)
 }
 
 // waitForProcessExit confirms that the exact process handle is no longer running.
@@ -519,7 +553,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 
 	var cleaned []PortDiagnostic
 	for _, target := range targets {
-		diag, _, err := KillPortProcess(ctx, target.Port, dryRun)
+		diag, _, err := cleanProjectTarget(ctx, target, cleanCwd, dryRun)
 		if err != nil {
 			target.Status = fmt.Sprintf("kill_failed: %v", err)
 			cleaned = append(cleaned, target)
@@ -533,6 +567,42 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 	}
 
 	return cleaned, nil
+}
+
+// cleanProjectTarget validates the original scan result again before a project
+// cleanup action. The public KillPortProcess API cannot enforce project scope,
+// so cleanup uses this private path with an additional project-path check.
+func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, dryRun bool) (*PortDiagnostic, string, error) {
+	if err := ctx.Err(); err != nil {
+		return &target, "", err
+	}
+	if !target.IsOpen {
+		return &target, "", fmt.Errorf("端口 %d 当前未被占用，无需释放", target.Port)
+	}
+	if target.PID <= 1 {
+		return &target, "", fmt.Errorf("禁止终止系统保护进程 (PID %d)", target.PID)
+	}
+	if target.Status == StatusPermissionRequired || target.processCreated <= 0 {
+		return &target, "", fmt.Errorf("无法确认端口 %d 的目标进程身份，已取消清理", target.Port)
+	}
+
+	latest, proc, err := verifyTerminationTarget(ctx, target.Port, &target, cwd)
+	if err != nil {
+		return latest, "", err
+	}
+	if dryRun {
+		msg := fmt.Sprintf("预演成功：将终止占用端口 %d 的进程 %q (PID: %d)",
+			target.Port, latest.ProcessName, latest.PID)
+		return latest, msg, nil
+	}
+	if err := terminateProcess(ctx, proc); err != nil {
+		return latest, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", latest.PID, err)
+	}
+	if err := waitForPortRelease(ctx, target.Port, terminationGracePeriod); err != nil {
+		return latest, "", fmt.Errorf("进程 %d 已收到终止请求，但端口 %d 尚未确认释放：%w", latest.PID, target.Port, err)
+	}
+	return latest, fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)",
+		target.Port, latest.ProcessName, latest.PID), nil
 }
 
 // projectPathsMatch applies the filesystem's path semantics before cleanup.

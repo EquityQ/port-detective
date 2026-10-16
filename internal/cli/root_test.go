@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/core"
 )
 
 // captureRun executes the root command and captures stdout/stderr for rendering assertions.

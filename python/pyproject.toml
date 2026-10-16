@@ -8,7 +8,7 @@ version = "1.1.0"
 description = "Lightweight Python SDK for port-detective: inspect ports, detect framework fingerprints, and clean orphan processes."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "port-detective Maintainers" }
 ]
@@ -16,7 +16,6 @@ keywords = ["networking", "ports", "developer-tools", "process", "framework-dete
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",

@@ -318,6 +318,34 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         mock_proc.kill.assert_called_once_with()
         self.assertEqual(ctx.exception.returncode, -1)
 
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("asyncio.create_subprocess_exec")
+    async def test_async_cancellation_kills_and_reaps_child(self, mock_exec, mock_find):
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()
+        calls = 0
+        release = asyncio.Event()
+
+        async def communicate():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                await release.wait()
+            return b"", b""
+
+        mock_proc.communicate = AsyncMock(side_effect=communicate)
+        mock_exec.return_value = mock_proc
+
+        task = asyncio.create_task(async_inspect_port(3000, timeout=None))
+        await asyncio.sleep(0)
+        task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        mock_proc.kill.assert_called_once_with()
+        self.assertEqual(mock_proc.communicate.await_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

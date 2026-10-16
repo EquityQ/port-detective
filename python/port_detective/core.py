@@ -67,6 +67,14 @@ def _decode_output(value: Any) -> str:
     return str(value)
 
 
+async def _terminate_async_process(proc: Any) -> tuple[str, str]:
+    """Terminate and reap a CLI child so timeout/cancellation cannot leak it."""
+    if proc.returncode is None:
+        proc.kill()
+    stdout_bytes, stderr_bytes = await proc.communicate()
+    return _decode_output(stdout_bytes).strip(), _decode_output(stderr_bytes).strip()
+
+
 def find_binary(explicit_path: Optional[str] = None) -> str:
     """
     Locate the port-detective executable.
@@ -184,6 +192,7 @@ async def _run_cli_async(
     bin_path = find_binary(binary_path)
     cmd = [bin_path, *args, "--json"]
 
+    proc = None
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -196,14 +205,21 @@ async def _run_cli_async(
         else:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError as exc:
-        proc.kill()
-        stdout_bytes, stderr_bytes = await proc.communicate()
+        stdout_str, stderr_str = await _terminate_async_process(proc)
         raise PortDetectiveExecutionError(
             f"port-detective timed out after {timeout} seconds",
             returncode=-1,
-            stderr=_decode_output(stderr_bytes).strip(),
-            stdout=_decode_output(stdout_bytes).strip(),
+            stderr=stderr_str,
+            stdout=stdout_str,
         ) from exc
+    except asyncio.CancelledError:
+        if proc is not None:
+            try:
+                await _terminate_async_process(proc)
+            except Exception:
+                # Preserve task cancellation even if child cleanup itself fails.
+                pass
+        raise
     except FileNotFoundError as exc:
         raise PortDetectiveNotFoundError(f"Failed to execute {bin_path}: {exc}") from exc
     except OSError as exc:

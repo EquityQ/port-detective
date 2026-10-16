@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -310,6 +311,26 @@ func TestRegisterProjectDetectorHook(t *testing.T) {
 	}
 }
 
+// TestRegisterProjectDetectorPanicIsRecovered ensures a third-party detector
+// cannot crash a port inspection when its own implementation panics.
+func TestRegisterProjectDetectorPanicIsRecovered(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	RegisterProjectDetector(func(context.Context, int32) *ProjectInfo {
+		panic("detector failure")
+	})
+	defer RegisterProjectDetector(nil)
+
+	diag, err := InspectPort(context.Background(), port)
+	if err != nil {
+		t.Fatalf("InspectPort 失败: %v", err)
+	}
+	if diag.Project != nil {
+		t.Fatalf("panic 的项目探测器不应返回项目结果: %+v", diag.Project)
+	}
+}
+
 // TestCleanCurrentProjectPorts verifies project-scoped port cleanup.
 func TestCleanCurrentProjectPorts(t *testing.T) {
 	ln, port := listenLoopback(t)
@@ -353,5 +374,38 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 	}
 	if len(cleanedEmpty) != 0 {
 		t.Errorf("非匹配目录期望返回 0 个端口，实际为 %d", len(cleanedEmpty))
+	}
+}
+
+// TestCleanCurrentProjectPortsRevalidatesProjectPath ensures a process that
+// changes project identity between scan and cleanup is never terminated.
+func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	testDir := t.TempDir()
+	otherDir := t.TempDir()
+	origPorts := DefaultDevPorts
+	DefaultDevPorts = []int{port}
+	defer func() { DefaultDevPorts = origPorts }()
+
+	var calls atomic.Int32
+	RegisterProjectDetector(func(context.Context, int32) *ProjectInfo {
+		if calls.Add(1) == 1 {
+			return &ProjectInfo{Name: "clean-demo", Path: testDir}
+		}
+		return &ProjectInfo{Name: "moved-demo", Path: otherDir}
+	})
+	defer RegisterProjectDetector(nil)
+
+	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
+	if err != nil {
+		t.Fatalf("CleanCurrentProjectPorts 失败: %v", err)
+	}
+	if len(cleaned) != 1 || !strings.HasPrefix(cleaned[0].Status, "kill_failed:") {
+		t.Fatalf("项目路径变化时应保留失败诊断而不执行清理: %+v", cleaned)
+	}
+	if !checkTCPOpen(port, DefaultDialTimeout) {
+		t.Fatal("项目路径变化时监听端口必须保持开启")
 	}
 }

@@ -18,9 +18,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"port-detective/internal/core"
-	_ "port-detective/internal/fingerprint"
-	"port-detective/internal/version"
+	"github.com/EquityQ/port-detective/internal/core"
+	_ "github.com/EquityQ/port-detective/internal/fingerprint"
+	"github.com/EquityQ/port-detective/internal/version"
 )
 
 const (

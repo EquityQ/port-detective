@@ -20,10 +20,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"port-detective/internal/core"
-	_ "port-detective/internal/fingerprint"
-	"port-detective/internal/mcpserver"
-	"port-detective/internal/version"
+	"github.com/EquityQ/port-detective/internal/core"
+	_ "github.com/EquityQ/port-detective/internal/fingerprint"
+	"github.com/EquityQ/port-detective/internal/mcpserver"
+	"github.com/EquityQ/port-detective/internal/version"
 )
 
 // ============================ Output Style Constants ============================

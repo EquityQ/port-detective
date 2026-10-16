@@ -337,7 +337,7 @@ Tested on Windows 11 AMD64, macOS Sonoma (M-Series Apple Silicon), and Ubuntu 22
 | Single Port Inspection (`check`) | TCP Dial + Connection Index Lookup | **2~4 ms** | Negligible (zero syscall storms) |
 | Dev Ports Concurrent Scan (`scan`) | Goroutine pool scanning 10 dev ports | **3~6 ms** | < 10 MB RSS |
 | Framework Fingerprint Detection | Upward traversal (3 levels) with 50ms circuit breaker | **0.5~2 ms** | Zero scanning blockage |
-| Full Port Range Scan (`1-65535`) | 128 Goroutines Worker Pool | **~8.2 s** | Controlled CPU, zero leak |
+| Full Port Range Scan (`1-65535`) | 64 Goroutines Worker Pool | **~8.2 s** | Controlled CPU, zero leak |
 
 ---
 

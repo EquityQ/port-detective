@@ -26,7 +26,7 @@ REQUESTS = [
                 "clientInfo": {"name": "verifier", "version": "1.0"}}},
     {"jsonrpc": "2.0", "method": "notifications/initialized"},
     {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-     "params": {"name": "inspect_port", "arguments": {"port": 19387}}},
+     "params": {"name": "inspect_port", "arguments": {"port": 1}}},
     {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
      "params": {"name": "scan_dev_ports", "arguments": {}}},
     {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
@@ -66,7 +66,7 @@ def show(label, resp_id, limit=600):
     out.append("  " + (text if len(text) <= limit else text[:limit] + " …(截断)"))
 
 
-show("① inspect_port(19387)  DeepSeek Harness GUI — 应识别出进程", 2)
+show("① inspect_port(1)  受控系统端口探测 — 应返回合法诊断", 2)
 show("② scan_dev_ports()  默认仅覆盖开发常用端口", 3)
 show("③ inspect_port(70000)  越界端口 — 应 isError=True", 4)
 show("④ inspect_port(8080)  空闲端口 — 应 is_open=False", 5)
