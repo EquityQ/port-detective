@@ -1,5 +1,5 @@
-name: Bug report
-description: Report a reproducible problem in port-detective.
+name: Bug report / 问题报告
+description: Report a reproducible problem in port-detective / 报告可复现的问题。
 title: "bug: "
 labels:
   - bug
@@ -8,28 +8,28 @@ body:
     attributes:
       value: |
         Do not include credentials, tokens, private paths, or security exploit details.
-        Use the private security advisory link for vulnerabilities.
+        请勿包含凭据、令牌、私有路径或安全漏洞细节。漏洞请使用私密 Security Advisory。
   - type: input
     id: version
     attributes:
-      label: Version
-      description: CLI or Python SDK version.
+      label: Version / 版本
+      description: CLI or Python SDK version / CLI 或 Python SDK 版本。
       placeholder: v1.1.0
     validations:
       required: true
   - type: input
     id: environment
     attributes:
-      label: Environment
-      description: OS, architecture, and whether elevated permissions or a container were used.
+      label: Environment / 环境
+      description: OS, architecture, and permissions or container details / 操作系统、架构、权限或容器信息。
       placeholder: Windows 11 amd64, standard user
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: Reproduction steps
-      description: Include the exact command or minimal Python snippet and sanitized output.
+      label: Reproduction steps / 复现步骤
+      description: Include the exact command or minimal Python snippet and sanitized output / 提供命令或最小 Python 示例及脱敏输出。
       placeholder: |
         1. Run ...
         2. Observe ...
@@ -38,16 +38,16 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected and actual behavior
-      description: Explain what you expected and what happened instead.
+      label: Expected and actual behavior / 预期与实际行为
+      description: Explain what you expected and what happened instead / 说明预期结果和实际结果。
     validations:
       required: true
   - type: checkboxes
     id: checks
     attributes:
-      label: Checks
+      label: Checks / 检查项
       options:
-        - label: I searched existing issues and confirmed this is not a duplicate.
+        - label: I searched existing issues and confirmed this is not a duplicate. / 我已搜索现有 Issue，确认不是重复问题。
           required: true
-        - label: I removed sensitive information from logs and command output.
+        - label: I removed sensitive information from logs and command output. / 我已从日志和命令输出中删除敏感信息。
           required: true

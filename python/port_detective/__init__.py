@@ -3,7 +3,7 @@ port_detective
 ~~~~~~~~~~~~~~
 
 Lightweight Python SDK for port-detective: inspect ports, detect framework fingerprints,
-and clean orphan processes.
+and clean project-scoped listeners.
 """
 
 from .models import PortDiagnostic, ProjectInfo, KillResult
@@ -23,7 +23,7 @@ from .core import (
     PortDetectiveExecutionError,
 )
 
-__version__ = "1.1.0"
+__version__ = "1.1.0.dev0"
 __all__ = [
     "PortDiagnostic",
     "ProjectInfo",

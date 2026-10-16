@@ -11,7 +11,7 @@ Uses a zero-CGo **Subprocess Wrapper** architecture, ensuring 100% cross-platfor
 - 🔍 **Single Port Inspection**: Check port occupancy, owning PID, memory RSS, CPU%, and command line.
 - 🧠 **Framework Fingerprint Detection**: Automatically identify Next.js, Vite, Nuxt, Express, NestJS, FastAPI, Django, Streamlit, Jupyter, Gin, Fiber, etc.
 - ⚡ **Concurrent Dev Port Scanning**: Rapidly scan dev ports (`3000`, `8000`, `8080`, `5173`, etc.) using Go worker pools.
-- 🧹 **One-Click Project Port Clean**: Safely terminate or preview (`dry_run=True`) orphan processes belonging strictly to the current working directory.
+- 🧹 **Project Port Clean**: Safely terminate or preview (`dry_run=True`) listeners belonging to the current project path.
 - 🚀 **Full Async/Await Support**: Both synchronous and `asyncio` APIs out of the box.
 - ⏱️ **Bounded CLI Calls**: API calls use a 30-second timeout by default; pass `timeout=None` for a deliberate unlimited wait.
 
@@ -23,15 +23,13 @@ Uses a zero-CGo **Subprocess Wrapper** architecture, ensuring 100% cross-platfor
 python -m pip install ./python
 ```
 
-The Python package is a thin client and does not bundle the Go executable. Install the
-matching CLI release separately, then make it available on `PATH`:
-
-The package is not published to PyPI yet. After the matching release is published, the
-equivalent install command will be `python -m pip install port-detective`.
+The Python package is a thin client and does not bundle the Go executable. The package
+is not published to PyPI yet; install a reviewed CLI source build separately and make
+it available on `PATH`:
 
 ```bash
-# Option A: install the reviewed CLI source revision
-go install github.com/EquityQ/port-detective@master
+# Build the reviewed CLI source revision from the repository root
+go build -o port-detective .
 
 # Option B: download the matching OS/architecture archive after the release is published
 # https://github.com/EquityQ/port-detective/releases
@@ -70,11 +68,11 @@ for item in occupied:
     fw = item.project.framework if item.project else "Unknown"
     print(f"Port {item.port} -> {item.process_name} [{fw}] (PID {item.pid})")
 
-# 3. Clean orphan processes belonging to the current project (safe dry-run by default)
+# 3. Preview project-scoped listener cleanup
 preview = clean_project(dry_run=True)
-print(f"Found {len(preview)} orphan processes to clean.")
+print(f"Found {len(preview)} project-scoped listeners.")
 
-# To actually terminate the orphan processes:
+# To actually terminate the selected listeners:
 # cleaned = clean_project(dry_run=False)
 
 # 4. Release a specific port

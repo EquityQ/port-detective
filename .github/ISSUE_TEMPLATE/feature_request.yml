@@ -1,5 +1,5 @@
-name: Feature request
-description: Suggest an improvement to port-detective.
+name: Feature request / 功能建议
+description: Suggest an improvement to port-detective / 提出改进建议。
 title: "feat: "
 labels:
   - enhancement
@@ -7,21 +7,21 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem or use case
-      description: What workflow or limitation should this address?
+      label: Problem or use case / 问题或场景
+      description: What workflow or limitation should this address? / 希望解决什么流程或限制？
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
-      description: Describe the behavior or interface you would like to see.
+      label: Proposed solution / 建议方案
+      description: Describe the behavior or interface you would like to see. / 描述期望的行为或接口。
     validations:
       required: true
   - type: dropdown
     id: area
     attributes:
-      label: Area
+      label: Area / 范围
       options:
         - CLI
         - MCP server
@@ -36,5 +36,5 @@ body:
     attributes:
       label: Checks
       options:
-        - label: I searched existing issues and confirmed this is not a duplicate.
+        - label: I searched existing issues and confirmed this is not a duplicate. / 我已搜索现有 Issue，确认不是重复建议。
           required: true

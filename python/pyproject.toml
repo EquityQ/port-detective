@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "port-detective"
-version = "1.1.0"
-description = "Lightweight Python SDK for port-detective: inspect ports, detect framework fingerprints, and clean orphan processes."
+version = "1.1.0.dev0"
+description = "Lightweight Python SDK for port-detective: inspect ports, detect framework fingerprints, and clean project-scoped listeners."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"

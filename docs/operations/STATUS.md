@@ -10,8 +10,8 @@ The repository's latest Git tag is `v0.1.0-assignment`; a signed and published
 - Project and framework fingerprinting for Node.js, Python, and Go services.
 - Dry-run-aware process cleanup through the CLI and MCP tools.
 - A bilingual CLI, MCP Stdio server, and Python 3.9+ SDK.
-- Cross-platform release archives for Windows, macOS, and Linux on `amd64` and
-  `arm64`.
+- GoReleaser configuration targeting Windows, macOS, and Linux on `amd64` and
+  `arm64`; no v1.1.0 archives have been published yet.
 
 The project is in active maintenance. Current priorities are signed release artifacts,
 provenance/SBOM metadata, cross-platform Python validation, compatibility reports,

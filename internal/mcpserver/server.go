@@ -171,9 +171,9 @@ func freePortTool() mcp.Tool {
 func cleanCurrentProjectTool() mcp.Tool {
 	return mcp.NewTool("clean_current_project",
 		mcp.WithDescription(
-			"Concurrently scan development ports and terminate orphan processes belonging to the current working directory project. Set dry_run=false to actually kill processes.",
+			"Concurrently scan development ports and process listeners belonging to the current working directory project. Set dry_run=false to actually kill processes.",
 		),
-		mcp.WithTitleAnnotation("清理当前项目孤儿端口"),
+		mcp.WithTitleAnnotation("清理当前项目端口"),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(false),

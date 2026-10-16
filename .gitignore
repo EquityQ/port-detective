@@ -40,4 +40,5 @@ venv/
 dist/
 build/
 *.egg-info/
+python/uv.lock
 

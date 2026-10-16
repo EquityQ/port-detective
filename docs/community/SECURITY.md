@@ -9,7 +9,7 @@ line. Please upgrade before reporting an issue against an older release.
 
 | Version | Security fixes |
 | --- | --- |
-| `v1.1.x` / active development line | Supported |
+| Active development line (unreleased) | Supported |
 | `v0.1.0-assignment` and older | Best effort only |
 
 ## Reporting a Vulnerability

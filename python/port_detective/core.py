@@ -323,7 +323,7 @@ def clean_project(
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
 ) -> List[PortDiagnostic]:
     """
-    Concurrently scan dev ports and terminate orphan processes belonging to the project path.
+    Concurrently scan dev ports and process listeners belonging to the project path.
     Set dry_run=False to actually kill the processes.
     """
     args = ["clean", "-y"]
@@ -400,7 +400,7 @@ async def async_clean_project(
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
 ) -> List[PortDiagnostic]:
-    """Asynchronously clean project orphan processes."""
+    """Asynchronously clean listeners belonging to the project path."""
     args = ["clean", "-y"]
     if dry_run:
         args.append("--dry-run")

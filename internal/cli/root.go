@@ -10,6 +10,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -854,6 +855,9 @@ func newKillCommand(opts *options) *cobra.Command {
 				fmt.Fprintf(out, "\n")
 			}
 
+			if !dryRun && opts.jsonOutput && !yes {
+				return errors.New("refusing destructive JSON operation without explicit --yes")
+			}
 			if !dryRun && !yes && !opts.jsonOutput {
 				confirmPrompt := fmt.Sprintf("确认结束该进程？%s ", p.paint(p.dim, "[y/N]:"))
 				if !zh {
@@ -904,7 +908,7 @@ func newKillCommand(opts *options) *cobra.Command {
 	return cmd
 }
 
-// clean releases orphan processes associated with the current project.
+// clean processes listeners associated with the current project.
 func newCleanCommand(opts *options) *cobra.Command {
 	var (
 		dryRun bool
@@ -913,10 +917,10 @@ func newCleanCommand(opts *options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "clean",
-		Short: "一键清理当前项目占用的开发端口孤儿进程 / Clean orphan processes for the current project",
+		Short: "一键清理当前项目占用的开发端口进程 / Clean project-scoped development port processes",
 		Long: strings.Join([]string{
-			"并发扫描高频开发端口，仅释放属于当前工作目录项目的孤儿进程。",
-			"Concurrently scan development ports and clean up orphan processes belonging to current working directory.",
+			"并发扫描高频开发端口，仅处理属于当前工作目录项目的进程。",
+			"Concurrently scan development ports and process only listeners belonging to the current working directory.",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective clean",
@@ -934,10 +938,13 @@ func newCleanCommand(opts *options) *cobra.Command {
 				return fmt.Errorf("无法获取当前工作目录: %w", err)
 			}
 
+			if !dryRun && opts.jsonOutput && !yes {
+				return errors.New("refusing destructive JSON operation without explicit --yes")
+			}
 			if !dryRun && !yes && !opts.jsonOutput {
-				promptMsg := fmt.Sprintf("确认清理当前项目目录 %s 下占用的孤儿进程？", cwd)
+				promptMsg := fmt.Sprintf("确认清理当前项目目录 %s 下占用的进程？", cwd)
 				if !zh {
-					promptMsg = fmt.Sprintf("Clean orphan processes occupying ports for project in %s?", cwd)
+					promptMsg = fmt.Sprintf("Process listeners occupying ports for project in %s?", cwd)
 				}
 				fmt.Fprintf(out, "  %s %s ", promptMsg, p.paint(p.dim, "[y/N]:"))
 				if !confirm(cmd.InOrStdin()) {
@@ -973,9 +980,9 @@ func newCleanCommand(opts *options) *cobra.Command {
 			sectionTitle(out, p, title, 80)
 
 			if len(cleaned) == 0 {
-				emptyMsg := "当前工作目录项目未发现占用端口的孤儿进程。"
+				emptyMsg := "当前工作目录项目未发现占用端口的进程。"
 				if !zh {
-					emptyMsg = "No orphan processes found for current project."
+					emptyMsg = "No project-scoped listeners found for the current project."
 				}
 				fmt.Fprintf(out, "  %s\n\n", p.paint(p.dim, emptyMsg))
 				fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
@@ -1022,7 +1029,7 @@ func newMCPCommand(opts *options) *cobra.Command {
 			"  inspect_port           体检单个端口，返回占用进程全景体检报告与框架指纹",
 			"  scan_dev_ports         并发扫描开发端口（默认覆盖 DefaultDevPorts）",
 			"  free_port              释放端口占用进程（默认 dry_run=true 安全预演）",
-			"  clean_current_project  一键清理当前项目占用的开发端口孤儿进程",
+			"  clean_current_project  一键清理当前项目占用的开发端口进程",
 			"",
 			"注意：Stdio 模式下标准输出专供协议通信，诊断信息一律写入标准错误。",
 		}, "\n"),

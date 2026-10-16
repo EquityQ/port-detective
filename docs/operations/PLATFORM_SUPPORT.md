@@ -4,14 +4,14 @@ Language / 语言: English below · [中文摘要](#中文摘要) · [Documentat
 
 `port-detective` is built with Go and uses `gopsutil` plus the standard library for
 network and process inspection. The Go CI matrix validates Windows, macOS, and Linux;
-the Python SDK build workflow currently validates Ubuntu. Release archives target the
-following CLI platforms:
+the Python SDK build workflow currently validates Ubuntu. The release configuration
+targets the following CLI platforms, but no v1.1.0 archives are published yet:
 
 | Platform | Architectures | Support level |
 | --- | --- | --- |
-| Windows 10/11 | `amd64`, `arm64` | Tier 1 |
-| macOS 13+ | `amd64`, `arm64` | Tier 1 |
-| Ubuntu 22.04+ | `amd64`, `arm64` | Tier 1 |
+| Windows 10/11 | `amd64`, `arm64` | CLI Tier 1 |
+| macOS 13+ | `amd64`, `arm64` | CLI Tier 1 |
+| Ubuntu 22.04+ | `amd64`, `arm64` | CLI Tier 1 |
 
 The source is expected to work on other recent Linux distributions and supported Go
 platforms, but those combinations are not part of the release validation matrix.

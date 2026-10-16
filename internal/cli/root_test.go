@@ -3,8 +3,11 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"net"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/EquityQ/port-detective/internal/core"
 )
@@ -183,6 +186,30 @@ func TestKillDryRunCLI(t *testing.T) {
 	out, _, err := captureRun(t, "kill", "65432", "--dry-run")
 	if err == nil {
 		t.Errorf("针对空闲端口期望报错，实际返回: %s", out)
+	}
+}
+
+func TestKillJSONRequiresExplicitConfirmation(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create disposable listener: %v", err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	_, _, err = captureRun(t, "kill", strconv.Itoa(port), "--json")
+	if err == nil || !strings.Contains(err.Error(), "--yes") {
+		t.Fatalf("kill --json without --yes should refuse destructive execution, got %v", err)
+	}
+	if _, err := net.DialTimeout("tcp", ln.Addr().String(), 250*time.Millisecond); err != nil {
+		t.Fatalf("safety refusal must leave the listener alive: %v", err)
+	}
+}
+
+func TestCleanJSONRequiresExplicitConfirmation(t *testing.T) {
+	_, _, err := captureRun(t, "clean", "--json")
+	if err == nil || !strings.Contains(err.Error(), "--yes") {
+		t.Fatalf("clean --json without --yes should refuse destructive execution, got %v", err)
 	}
 }
 

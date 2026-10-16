@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前待执行步骤**: Step 8 complete; continue the OSS quality backlog
+- **当前待执行步骤**: Step 9 complete; release hardening remains
 - **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**52 个用例**：core 13 + cli 17 + mcpserver 13 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**与字节码编译通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **78/100**；v1.1.0 发布前的签名、SBOM、来源证明、跨平台 Python CI 与正式版本标签仍待完成，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **79/100**；v1.1.0 发布前的签名、SBOM、来源证明、跨平台 Python CI 与正式版本标签仍待完成，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -41,11 +41,17 @@
   - Add a regression test covering an already-canceled inspection context.
   - Validation: Go formatting, build, unit tests, race tests, and vet when the Go toolchain is available; Python tests remain green.
 
-- [ ] **Step 8: Close process cleanup and release validation gaps**
+- [x] **Step 8: Close process cleanup and release validation gaps**
   - Revalidate project cleanup targets by PID, process creation time, current port ownership, and project path immediately before termination.
   - Recover from panics in externally registered project detectors and clean up Python CLI children when async calls are cancelled.
   - Align the public Go module path and installation examples, correct worker-pool benchmark text, and add complete release preflight validation for Go, Python, and MCP.
   - Validation: Go build/tests/race/vet/formatting, Python tests/build, MCP handshake/tool/stdio checks, and release configuration validation.
+
+- [x] **Step 9: Reconcile public documentation and destructive CLI safety**
+  - Require explicit `--yes` for destructive `--json` invocations so formatting never bypasses confirmation.
+  - Correct tracked documentation to match the unreleased version, actual platform validation, project-scoped cleanup behavior, and reproducible installation guidance.
+  - Keep public documentation concise and retain only repository-facing guides; keep local workflow instructions ignored.
+  - Validation: Go build/tests/race/vet/formatting, Python tests, local Markdown link checks, and CLI safety regression coverage.
 
 ---
 
@@ -114,7 +120,7 @@ func KillPortProcess(port int, force bool) (int32, error)
 - `ScanPortsConcurrent` **只返回被占用的端口**（`IsOpen == true`），且已按端口号升序排序，CLI 直接渲染即可，无需再排序。
 - `KillPortProcess` 已内置「端口空闲」「拿不到 PID」「权限不足」三类错误文案；CLI 侧直接打印 `err` 即可，`force=true` 走 `Kill()`，`false` 走 `Terminate()`。
 - `PortInfo.Degraded == true` 时，应当打印 `PortInfo.Err` 作为**优雅降级提示**，而不是当错误处理、也不要让命令返回非零退出码。
-- 扫描全端口 1-65535 在本机实测约 **8.2 秒**（128 协程）。
+- 扫描全端口 1-65535 在本机实测约 **8.2 秒**（64 协程；历史本机参考数据）。
 
 - [x] **Step 3: Cobra 命令行交互层实现 (`internal/cli` & `main.go`)**
   - **动作**:
@@ -187,7 +193,7 @@ port-detective
 
 - [x] **v1.1 Milestone: 国际化、项目指纹、一键清理与 Python SDK**
   - **动作**:
-    1. **Go Core 模型与清理扩展 (`internal/core`)**: 新增 `ProjectInfo` 结构体，`PortDiagnostic` 扩展 `Project *ProjectInfo`（100% 向后兼容）；实现 `CleanCurrentProjectPorts(ctx, cwd, dryRun)`，并发扫描高频开发端口并基于项目路径精准筛选释放孤儿进程。
+    1. **Go Core 模型与清理扩展 (`internal/core`)**: 新增 `ProjectInfo` 结构体，`PortDiagnostic` 扩展 `Project *ProjectInfo`（100% 向后兼容）；实现 `CleanCurrentProjectPorts(ctx, cwd, dryRun)`，并发扫描高频开发端口并基于项目路径筛选进程。
     2. **多语言智能指纹分析器 (`internal/fingerprint`)**: 实现 `DetectProject(ctx, pid)`，通过 gopsutil 获取 CWD 向上回溯 3 层，支持 Node.js（Next.js/Vite/Nuxt/Express/NestJS）、Python（FastAPI/Django/Streamlit/Jupyter/Flask）、Go（Gin/Fiber/Echo/Beego）；内置 50ms 超时保护与零环依赖 hook 自动注册。
     3. **CLI 双语与展示增强 (`internal/cli`)**: 表格新增 `FRAMEWORK` 与 `PROJECT` 展现列；新增 `clean [--dry-run]` 子命令；增加全局 `--lang` (en/zh) 支持与自动环境变量感知。
     4. **MCP Tools 扩展 (`internal/mcpserver`)**: 升级协议结果携带 `project` 字段；注册第 4 个 MCP 工具 `clean_current_project(dry_run bool)`；严格守住 stdout 零污染。
@@ -239,7 +245,7 @@ port-detective
   5. 单元测试与验收脚本全量对齐，`go test -v ./...` 100% 绿灯 PASS，`-race` 0 竞态；MCP 端到端实测全部通过。
 - **[Step-6 OpenSource]**: Added MIT License, GitHub Actions CI/Release, GoReleaser config, and modernized AI-Native README.
 - **[v1.1 Milestone done]**: 成功完成 v1.1 里程碑全部 4 大清单任务：
-  1. **Core & Fingerprint**: 实现了 `ProjectInfo`、`PortDiagnostic.Project`、`internal/fingerprint`（Node/Python/Go 框架智能识别，50ms 熔断保护）与 `CleanCurrentProjectPorts`（项目孤儿端口清理）。
+  1. **Core & Fingerprint**: 实现了 `ProjectInfo`、`PortDiagnostic.Project`、`internal/fingerprint`（Node/Python/Go 框架智能识别，50ms 熔断保护）与 `CleanCurrentProjectPorts`（项目范围端口清理）。
   2. **CLI**: `check` 与 `scan` 新增 `FRAMEWORK` 与 `PROJECT` 列；新增 `port-detective clean [--dry-run]` 子命令；新增全局 `--lang en/zh`（环境变量自适应）；CJK 字符对齐与 `--json` 完好。
   3. **MCP**: 注册了第 4 个工具 `clean_current_project`；`inspect_port` 与 `scan_dev_ports` 均包含 `project` 字段；`stdout` 保持绝对纯净。
   4. **Python SDK**: 采用 Subprocess Wrapper 架构完成 `python/port_detective`，提供同步与 `asyncio` 异步接口及类型注解模型；11 个 pytest/unittest 测试用例全部 PASS。
@@ -250,9 +256,10 @@ port-detective
 - **[OSS Quality Step 3 done]**: Pinned GoReleaser to `v2.6.1` and added a configuration check before publishing. Release archives now include both README languages and the license. Added a Python 3.9/3.13 workflow covering tests, wheel/sdist builds, and wheel installation smoke tests. Documented the external CLI prerequisite and matching-version policy in both SDK and root READMEs.
 - **[OSS Quality Step 4 done]**: Added private vulnerability reporting guidance, GitHub issue forms for bugs and feature requests, a pull request checklist, a platform support policy, and a concise v1.1 project status page. Linked the new maintenance entry points from both READMEs and the contributor guide. Go build/tests/race/vet/gofmt, Python tests, and local Markdown link checks pass.
 - **[OSS Quality Step 5 done]**: Marked the old contract-divergence and handoff notes as historical after the contract alignment was completed. Updated documentation to match the Python 3.9+ floor, operational `--json` scope, and `scan --ports` behavior. Verified CLI JSON commands with a disposable listener, all MCP acceptance scripts, Python tests, Go build/tests/race/vet, formatting, and local Markdown links.
-- **[Open Source Quality Review]**: 完成代码、测试、发布、社区治理与文档基线评估，当前评分 78/100。主要待提升项为正式 v1.1.0 发布、签名/SBOM/来源证明、Python 跨平台 CI、依赖漏洞扫描、集成夹具与版本化 API/MCP 参考文档；详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **[Open Source Quality Review]**: 完成代码、测试、发布、社区治理与文档基线评估，当前评分 79/100。主要待提升项为正式 v1.1.0 发布、签名/SBOM/来源证明、Python 跨平台 CI、依赖漏洞扫描、集成夹具与版本化 API/MCP 参考文档；详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 - **[Step-7 done]**: `InspectPort` now propagates context cancellation before and after probing, with a regression test ensuring canceled requests do not return a misleading free-port result. Go build, tests, race detection, vet, and formatting checks pass; Python tests and compilation also pass.
 - **[Step-8 done]**: Project cleanup now revalidates PID, process creation time, port ownership, and project path immediately before action; registered project detectors are panic-safe; Python async cancellation kills and reaps CLI children; Go module imports and install docs use the GitHub path; README benchmarks reflect the 64-worker pool; release CI now gates Go, Python, and MCP acceptance before GoReleaser. Go/Python/MCP validation passed locally.
+- **[Step-9 done]**: Destructive JSON CLI commands now require explicit `--yes`; project cleanup wording no longer claims orphan detection; root READMEs were reduced to quick-start guides; unreleased version, platform support, security policy, Python package metadata, issue forms, and score documentation were corrected. The unused mirror-specific `python/uv.lock` was removed. Go race/vet/formatting, Python tests/build, MCP acceptance, and Markdown link checks pass.
 
 ---
 
