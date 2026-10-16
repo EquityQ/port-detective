@@ -6,12 +6,13 @@ Cross-platform CLI, MCP server, and Python SDK for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 
 > **Release status:** The repository is on the v1.1 development line. No v1.1.0
-> binary or PyPI package has been published yet. Use a reviewed source commit until
-> a release is available.
+> binary, PyPI package, or npm package has been published yet. Use a reviewed source
+> commit until a release is available.
 
 ## Quick Start
 
-Requirements: Go 1.23+ for the CLI; Python 3.9+ for the SDK.
+Requirements: Go 1.23+ for the CLI, Python 3.9+ for the Python SDK, and Node.js 22+
+for the Node.js client.
 
 ```bash
 git clone https://github.com/EquityQ/port-detective.git
@@ -91,6 +92,18 @@ occupied = scan_ports([3000, 8080])
 
 See the [Python SDK guide](python/README.md) for synchronous and asyncio APIs.
 
+## Node.js Client
+
+The zero-dependency npm package wraps the CLI and does not bundle its binary:
+
+```bash
+npm install ./npm/port-detective
+```
+
+It provides synchronous and Promise APIs. Process actions default to dry-run; set
+`dryRun: false` only after reviewing the target. The package is currently available
+from the checkout and has not been published to npm. See the [Node.js client guide](npm/port-detective/README.md).
+
 ## Safety and Platform Notes
 
 - Cleanup matches the detected process project path; it does not determine
@@ -104,6 +117,7 @@ See the [Python SDK guide](python/README.md) for synchronous and asyncio APIs.
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Node.js client guide](npm/port-detective/README.md)
 - [Contributing](docs/community/CONTRIBUTING.md)
 - [Security policy](docs/community/SECURITY.md)
 - [Project status](docs/operations/STATUS.md)

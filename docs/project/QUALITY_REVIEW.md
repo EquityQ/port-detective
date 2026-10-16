@@ -3,7 +3,7 @@
 Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
 
 **Review date:** 2026-10-16
-**Review scope:** Go core, CLI, MCP server, Python SDK, CI/release automation, documentation, and community files.
+**Review scope:** Go core, CLI, MCP server, Python and Node.js SDKs, CI/release automation, documentation, and community files.
 
 ## Current Assessment
 
@@ -22,7 +22,7 @@ assumption.
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 14/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks, a real CLI/SDK integration matrix, and a post-publish PyPI install check | API reference and a reproducible demo environment |
+| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, and a post-publish PyPI install check | Published npm package, generated API reference, and a reproducible demo environment |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
@@ -38,6 +38,9 @@ assumption.
   each OS installs a built wheel.
 - The integration workflow builds the matching CLI on all three operating systems
   and verifies synchronous and asyncio SDK calls against a real temporary listener.
+- The Node.js client provides sync and Promise APIs, TypeScript declarations, safe
+  process-action defaults, timeout and abort handling, and a real CLI matrix on
+  Windows, macOS, and Linux with Node.js 22 and 24.
 - The tag workflow is configured to verify and sign all assets, check Cosign
   signatures, emit provenance attestations, publish Python distributions through
   PyPI Trusted Publishing, install that version from PyPI, and check it against the
@@ -68,6 +71,8 @@ assumption.
    tool arguments cannot drift from the README.
 3. Configure the PyPI Trusted Publisher and create the first release so the
    post-publish installation check has public artifact evidence.
+4. Decide whether to configure npm Trusted Publishing and publish the Node.js client
+   with the matching CLI release.
 
 ### P2: Maturity and Adoption
 
@@ -81,7 +86,7 @@ assumption.
 ## Quality Gates
 
 Every change should pass `go build ./...`, `go test -race ./...`, `go vet ./...`,
-`gofmt`, and the Python test suite when applicable. Changes to MCP or CLI behavior
+`gofmt`, and the Python and Node.js test suites when applicable. Changes to MCP or CLI behavior
 must also run the scripts under `scripts/mcp/`. Release changes must validate the
 GoReleaser configuration, archive contents, checksums, and Python wheel smoke test.
 
@@ -90,4 +95,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **89/100**。真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；发布工作流现在会先完成制品校验、签名验真和来源证明，通过 PyPI Trusted Publishing 发布 wheel/sdist，从 PyPI 安装相同版本并对匹配 CLI 做真实验证，最后创建 GitHub Release。所有 GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪。仍需实际创建 `v1.1.0` Tag、保留公开制品证据，并补充版本化 CLI/MCP API 参考。
+当前质量基线为 **89/100**。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。PyPI 发布工作流会校验制品、签名和来源证明，发布 wheel/sdist，并从 PyPI 安装相同版本对匹配 CLI 做真实验证。仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并补充版本化 CLI/MCP API 参考。

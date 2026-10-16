@@ -1,0 +1,44 @@
+{
+  "name": "port-detective",
+  "version": "1.1.0-dev",
+  "description": "Dependency-free Node.js client for the port-detective CLI.",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "port",
+    "process",
+    "cli",
+    "networking",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EquityQ/port-detective.git",
+    "directory": "npm/port-detective"
+  },
+  "homepage": "https://github.com/EquityQ/port-detective/tree/master/npm/port-detective",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
+}

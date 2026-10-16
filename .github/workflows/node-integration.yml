@@ -1,0 +1,84 @@
+name: Node.js SDK CLI Integration
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - "internal/**"
+      - "main.go"
+      - "npm/**"
+      - "scripts/integration/verify_node_cli.js"
+      - ".github/workflows/node-integration.yml"
+  pull_request:
+    paths:
+      - "*.go"
+      - "go.mod"
+      - "go.sum"
+      - "internal/**"
+      - "main.go"
+      - "npm/**"
+      - "scripts/integration/verify_node_cli.js"
+      - ".github/workflows/node-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Node ${{ matrix.node-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: ["22", "24"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.23.x"
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run Node.js client tests
+        working-directory: npm/port-detective
+        run: npm test
+
+      - name: Verify npm package contents
+        working-directory: npm/port-detective
+        run: npm pack --dry-run
+
+      - name: Install the packed npm client
+        working-directory: npm/port-detective
+        shell: bash
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install --prefix "$RUNNER_TEMP/node-client" \
+            --no-audit --no-fund --ignore-scripts \
+            "$RUNNER_TEMP"/port-detective-*.tgz
+          echo "PORT_DETECTIVE_NODE_MODULE=$RUNNER_TEMP/node-client/node_modules/port-detective" >> "$GITHUB_ENV"
+
+      - name: Build matching CLI
+        shell: bash
+        run: |
+          output="port-detective"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            output="port-detective.exe"
+          fi
+          go build -o "$output" .
+          echo "PORT_DETECTIVE_BIN=$GITHUB_WORKSPACE/$output" >> "$GITHUB_ENV"
+
+      - name: Exercise the client against the CLI
+        run: node scripts/integration/verify_node_cli.js

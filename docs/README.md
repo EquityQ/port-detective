@@ -10,6 +10,7 @@ users usually have.
 
 - [English README](../README.md) | [中文 README](../README_zh.md)
 - [Python SDK guide](../python/README.md) | Python SDK 使用指南
+- [Node.js client guide](../npm/port-detective/README.md) | Node.js 客户端指南
 - [Platform support / 平台支持](operations/PLATFORM_SUPPORT.md)
 
 ## Community / 社区协作

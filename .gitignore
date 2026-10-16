@@ -1,6 +1,6 @@
 # ===== 编译产物（二进制文件不入库）=====
-port-detective
-port-detective.exe
+/port-detective
+/port-detective.exe
 *.exe
 *.dll
 *.so
@@ -41,4 +41,8 @@ dist/
 build/
 *.egg-info/
 python/uv.lock
+
+# ===== Node.js package artifacts =====
+node_modules/
+*.tgz
 

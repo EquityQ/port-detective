@@ -29,8 +29,10 @@ project.
   with PyPI Trusted Publishing, then install the exact version from PyPI and exercise
   it against the matching CLI. Configure the `pypi` environment and publisher before
   creating the first release.
-- Add a small dependency-free npm/Node.js wrapper around the CLI JSON contract when
-  Node consumers are part of the supported audience.
+- A zero-dependency npm client with sync/Promise APIs, TypeScript declarations,
+  dry-run defaults, and Windows/macOS/Linux real CLI integration is available under
+  `npm/port-detective`. Decide whether to configure npm Trusted Publishing for the
+  matching CLI release; until then, install the package from a checkout.
 - Publish coverage reports and enforce reviewed minimum thresholds without weakening
   the cross-platform, race, MCP, or dependency security gates.
 
@@ -62,7 +64,7 @@ prevention always take precedence over feature work.
 ### 打包与质量门槛
 
 - Tag 工作流已配置为通过 PyPI Trusted Publishing 发布 Python SDK，并从 PyPI 安装相同版本对匹配 CLI 做真实验证；首次发布前仍需配置 `pypi` 环境和 Trusted Publisher。
-- 下一步是在确认 Node 用户需求后增加轻量 npm/Node.js CLI 包装器，并为各语言设置可执行的覆盖率门槛。
+- `npm/port-detective` 已提供零依赖客户端、同步/Promise API、TypeScript 类型、dry-run 默认值及 Windows/macOS/Linux 真实 CLI 集成。可在后续为匹配 CLI 版本配置 npm Trusted Publishing；目前从源码仓库安装。各语言覆盖率门槛仍待建立。
 
 ### 后续：社区规模化
 

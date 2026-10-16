@@ -25,6 +25,8 @@ The repository currently contains the v1.1 feature-complete development line. A
   Python, and workflow dependencies.
 - PyPI Trusted Publishing for the Python wheel and source distribution, followed
   by a retrying post-publish installation and real CLI integration check.
+- Dependency-free Node.js client with synchronous and Promise APIs, TypeScript
+  declarations, dry-run process-action defaults, and a three-OS real CLI matrix.
 
 ### Changed
 
@@ -42,7 +44,7 @@ implementation record.
 
 ### [未发布]
 
-当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名、签名验真、GitHub 来源证明和 PyPI Trusted Publishing 工作流；发布会在所有门禁通过后最后创建。工作流动作已固定到不可变提交，Dependabot 负责依赖更新；发布后会从 PyPI 安装相同版本并对匹配 CLI 做真实验证，同时校正源码构建、发布产物和 CLI/MCP/Python 示例的说明。
+当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名、签名验真、GitHub 来源证明和 PyPI Trusted Publishing 工作流；发布会在所有门禁通过后最后创建。新增零依赖 Node.js 客户端、TypeScript 类型、同步和 Promise API、dry-run 安全默认值及三平台真实 CLI 集成。工作流动作已固定到不可变提交，Dependabot 负责依赖更新；发布后会从 PyPI 安装相同版本并对匹配 CLI 做真实验证，同时校正源码构建、发布产物和 CLI/MCP/Python/Node.js 示例的说明。
 
 ### [0.1.0-assignment]
 

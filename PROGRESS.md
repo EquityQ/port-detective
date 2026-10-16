@@ -5,11 +5,11 @@
 
 ## 当前状态指针
 - **当前状态指针**: Step 14 complete; ready for Step 15
-- **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**59 个用例**：core 17 + cli 19 + mcpserver 14 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**、字节码编译和 wheel/sdist 构建通过；发布校验器、MCP 三项验收和 Markdown 链接检查通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**59 个用例**：core 17 + cli 19 + mcpserver 14 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**、Node.js SDK **7 个用例**，Python wheel/sdist 构建及 npm package dry-run 通过；发布校验器、MCP 三项验收、Python/Node.js 真实 CLI 集成和 Markdown 链接检查通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python 集成矩阵、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13，v1.1.0 尚未发布，下一步重点是 npm 客户端和覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python/Node.js 集成矩阵、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，下一步重点是 CI 覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -96,10 +96,15 @@
     No v1.1.0 package has been published until the maintainer configures the `pypi`
     environment and creates the tag.
 
-- [ ] **Step 15: Add a dependency-free npm/Node.js client**
+- [x] **Step 15: Add a dependency-free npm/Node.js client**
   - Provide a small Node.js wrapper around the CLI JSON contract with sync and async
     APIs, matching safety defaults, types, tests, and npm package metadata.
   - Document that the npm client uses a separately installed matching CLI binary.
+  - Validation: seven built-in Node tests pass; `npm pack --dry-run` contains only
+    runtime files, declarations, README, and license. A real temporary TCP listener
+    fixture passes sync inspect/scan/dry-run, async inspect, and clean preview on
+    Windows locally; CI runs Node.js 22/24 against real CLI builds on Windows, macOS,
+    and Linux. npm registry publishing is not configured and is not claimed.
 
 - [ ] **Step 16: Add measurable CI quality thresholds**
   - Publish Go and Python coverage reports and enforce reviewed minimum thresholds
@@ -319,6 +324,7 @@ port-detective
 - **[Step-12 done]**: Added a real Python SDK and CLI integration workflow across Windows, macOS, and Linux for Python 3.9/3.13. The fixture builds the matching CLI, holds a temporary TCP listener, verifies synchronous inspect/scan/dry-run calls and an asyncio inspect call, and never performs destructive cleanup. Local Windows integration, Go validation, Python compilation, workflow YAML parsing, and formatting checks pass; the hosted matrix remains the required cross-platform evidence.
 - **[Step-13 done]**: Changed the tag workflow to build GoReleaser artifacts without publishing, verify archives and checksums, generate the SBOM, sign and verify every release file with keyless Cosign, and emit provenance attestations before `gh release create` publishes the verified assets. Pinned all GitHub Actions to immutable commit SHAs and added monthly Dependabot updates for Actions, Go modules, and Python packaging. Workflow YAML, action pinning, Go/Python tests, race, vet, formatting, and diff checks pass; no `v1.1.0` release has been created yet.
 - **[Step-14 done]**: Added pinned PyPI Trusted Publishing with the `pypi` GitHub environment, staged only wheel/sdist files for upload, made same-version reruns idempotent, extended release verification to wheel and source distribution metadata, and added a retrying post-publish installer that runs the installed SDK against the matching CLI. Focused tests cover matching and mismatching metadata. Updated bilingual installation, release checklist, status, roadmap, changelog, and quality review documents to keep the package unreleased until the first tag is created. Local script compilation, workflow parsing, Go/Python quality gates, MCP acceptance, real CLI/SDK integration, and documentation link checks pass; PyPI publication remains a maintainer action after configuring the Trusted Publisher.
+- **[Step-15 done]**: Added the zero-dependency `npm/port-detective` package with synchronous and Promise APIs, TypeScript declarations, bounded process execution, abort support, typed errors, and dry-run defaults. Added seven Node unit tests and a real listener integration fixture; CI runs Node 22/24 against matching Go CLI builds on Windows/macOS/Linux. Fixed `.gitignore` to anchor the root binary pattern so it no longer hides the npm package. Updated bilingual READMEs, platform support, status, roadmap, quality review, and changelog. Local Node tests, package dry-run, and Windows integration pass; npm registry publishing is not configured.
 
 ---
 

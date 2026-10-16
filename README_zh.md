@@ -4,11 +4,11 @@
 
 面向本机 TCP 端口诊断的跨平台 CLI、MCP 服务端和 Python SDK，支持进程信息、项目指纹和项目范围端口清理。
 
-> **发布状态：** 当前处于 v1.1 开发主线，尚未发布 v1.1.0 二进制包或 PyPI 包。正式版本发布前请使用经过审核的源码提交。
+> **发布状态：** 当前处于 v1.1 开发主线，尚未发布 v1.1.0 二进制包、PyPI 包或 npm 包。正式版本发布前请使用经过审核的源码提交。
 
 ## 快速开始
 
-要求：CLI 需要 Go 1.23+；Python SDK 需要 Python 3.9+。
+要求：CLI 需要 Go 1.23+；Python SDK 需要 Python 3.9+；Node.js 客户端需要 Node.js 22+。
 
 ```bash
 git clone https://github.com/EquityQ/port-detective.git
@@ -82,6 +82,17 @@ occupied = scan_ports([3000, 8080])
 
 同步和 asyncio 接口详见 [Python SDK 指南](python/README.md)。
 
+## Node.js 客户端
+
+零依赖 npm 包通过子进程调用 CLI，不内置 CLI 二进制：
+
+```bash
+npm install ./npm/port-detective
+```
+
+提供同步和 Promise API。释放或清理操作默认 dry-run；确认目标后才设置 `dryRun: false`。
+详见 [Node.js 客户端指南](npm/port-detective/README.md)。
+
 ## 安全与平台说明
 
 - 清理操作匹配进程的项目路径，不判断进程是否真正成为孤儿进程。
@@ -92,6 +103,7 @@ occupied = scan_ports([3000, 8080])
 ## 文档
 
 - [文档中心](docs/README.md)
+- [Node.js 客户端指南](npm/port-detective/README.md)
 - [贡献指南](docs/community/CONTRIBUTING.md)
 - [安全策略](docs/community/SECURITY.md)
 - [项目状态](docs/operations/STATUS.md)
