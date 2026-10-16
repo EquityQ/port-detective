@@ -15,13 +15,22 @@ project.
 
 ## Next: Confidence Across Environments
 
-- Add an end-to-end Python SDK job that builds and exercises the matching CLI binary
-  on Windows, macOS, and Linux. The current Python matrix covers mocked SDK calls
-  and wheel installation on all three operating systems.
+- The real CLI/Python SDK integration workflow now builds and exercises the matching
+  binary on Windows, macOS, and Linux with Python 3.9 and 3.13. Keep the matrix
+  required and retain its listener-based evidence for every release candidate.
 - Add integration fixtures for protected processes, PID reuse, IPv4/IPv6, WSL, and
   containers.
 - Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
 - Generate CLI and MCP reference tables from tests or machine-readable schemas.
+
+## Next: Packaging and measurable quality
+
+- Publish the Python SDK with PyPI Trusted Publishing after the first signed CLI
+  release and verify installation from the published wheel.
+- Add a small dependency-free npm/Node.js wrapper around the CLI JSON contract when
+  Node consumers are part of the supported audience.
+- Publish coverage reports and enforce reviewed minimum thresholds without weakening
+  the cross-platform, race, MCP, or dependency security gates.
 
 ## Later: Community Scale
 
@@ -44,7 +53,7 @@ prevention always take precedence over feature work.
 
 ### 下一步：跨环境可信度
 
-- 增加在 Windows、macOS 和 Linux 构建匹配 CLI 并执行 Python SDK 的端到端任务；当前 Python 矩阵已覆盖三类系统的 mock 逻辑和 wheel 安装。
+- 已增加真实 CLI/Python SDK 集成工作流，在 Windows、macOS 和 Linux 上使用 Python 3.9/3.13 构建并调用匹配二进制；应将该矩阵作为发布候选版本的必需证据。
 - 增加受保护进程、PID 复用、IPv4/IPv6、WSL 和容器集成夹具。
 - 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考。
 
@@ -53,3 +62,4 @@ prevention always take precedence over feature work.
 - 明确维护者、响应目标和发布节奏。
 - 增加故障排查、Shell 补全和可复现演示。
 - 按系统、架构和权限记录兼容性与基准数据。
+- 通过 PyPI Trusted Publishing 发布 Python SDK；在确认 Node 用户需求后增加轻量 npm/Node.js CLI 包装器，并为各语言设置可执行的覆盖率门槛。

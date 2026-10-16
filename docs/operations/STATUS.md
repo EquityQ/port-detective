@@ -17,8 +17,9 @@ The repository's latest Git tag is `v0.1.0-assignment`; a signed and published
 
 The project is in active maintenance. Current priorities are the first tagged release,
 end-to-end compatibility reports, and careful security fixes. Go and Python CI now
-cover Windows, macOS, and Linux; the Python matrix uses
-mocked CLI subprocesses and does not replace binary integration fixtures. Process
+cover Windows, macOS, and Linux. The standard Python matrix uses mocked CLI
+subprocesses for fast SDK feedback, while a separate integration matrix builds and
+exercises the real CLI on all three operating systems. Process
 metadata can still be unavailable for protected or system-owned processes; this is
 reported as a permission-limited diagnostic rather than treated as proof that a
 port is free.
@@ -31,4 +32,4 @@ in [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md), with execution order in [R
 
 项目当前处于 v1.1 功能完成开发阶段，最新 Git 标签仍是 `v0.1.0-assignment`，签名并正式发布的 `v1.1.0` 尚未创建。现有能力包括并发端口诊断、Node/Python/Go 项目指纹、CLI/MCP 清理功能、双语 CLI、MCP Stdio 服务和 Python 3.9+ SDK。
 
-当前重点是首个正式 Tag、真实 CLI 兼容性报告及安全修复。发布工作流已自动校验版本、归档和校验和，生成 SBOM、签名和来源证明。Go 和 Python CI 已覆盖 Windows、macOS 和 Linux；Python 矩阵中的 CLI 子进程使用 mock，不能替代二进制集成夹具。受保护进程的元数据可能不可用，工具会将其标记为权限受限诊断，不会据此判断端口空闲。
+当前重点是首个正式 Tag、真实 CLI 兼容性报告及安全修复。发布工作流已自动校验版本、归档和校验和，生成 SBOM、签名和来源证明。Go 和 Python CI 已覆盖 Windows、macOS 和 Linux；标准 Python 矩阵使用 mock 以快速验证 SDK，独立集成矩阵会在三类系统上构建并调用真实 CLI。受保护进程的元数据可能不可用，工具会将其标记为权限受限诊断，不会据此判断端口空闲。

@@ -11,16 +11,18 @@ Language / 语言: English below · [中文摘要](#中文摘要) · [Documentat
 architecture and unusually good safety coverage for a local process tool. It is
 ready for careful public use from source or a locally built binary. It is not yet a
 fully mature release project because the v1.1.0 tag and published artifact trail do
-not exist yet, and cross-platform SDK validation still uses mocked CLI calls.
+not exist yet. A real CLI/Python integration matrix now covers Windows, macOS, and
+Linux, while its first hosted run remains release evidence rather than a local
+assumption.
 
-**Current score: 86/100**
+**Current score: 87/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 12/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks | API reference and a reproducible demo environment |
+| Developer experience | 13/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks, and a real CLI/SDK integration matrix | API reference, PyPI publication, and a reproducible demo environment |
 | Release and supply chain | 13/15 | Pinned GoReleaser, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
@@ -34,6 +36,8 @@ not exist yet, and cross-platform SDK validation still uses mocked CLI calls.
 - Go and Python CI cover Windows, macOS, and Linux with Go 1.23/1.25 and Python
   3.9/3.13. Python tests cover the synchronous and asynchronous wrapper APIs, and
   each OS installs a built wheel.
+- The integration workflow builds the matching CLI on all three operating systems
+  and verifies synchronous and asyncio SDK calls against a real temporary listener.
 - Scan input validation, TCP listener filtering, stable empty MCP arrays, and
   aggregate project-cleanup failures are covered by focused regression tests.
 - The project explains permission-limited process metadata instead of presenting
@@ -51,12 +55,13 @@ not exist yet, and cross-platform SDK validation still uses mocked CLI calls.
 
 ### P1: Next Development Cycle
 
-1. Add integration fixtures for protected processes, PID reuse, IPv4/IPv6 listeners,
-   WSL/containers, and non-English paths.
+1. Keep the cross-platform CLI/SDK integration matrix required and add fixtures for
+   protected processes, PID reuse, IPv4/IPv6 listeners, WSL/containers, and
+   non-English paths.
 2. Generate a versioned CLI/MCP schema reference from the implementation or tests so
    tool arguments cannot drift from the README.
-3. Add an end-to-end Python SDK job that builds the matching CLI binary on each OS;
-   current Python CI intentionally mocks subprocess calls.
+3. Publish the Python SDK through PyPI Trusted Publishing and add a post-publish
+   installation check against the matching CLI release.
 
 ### P2: Maturity and Adoption
 
@@ -79,4 +84,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **86/100**。发布工作流已加入签名归档、校验和与归档内容验收、SPDX SBOM、GitHub 来源证明，以及 CLI/Python 版本一致性检查；仍需维护者实际创建 `v1.1.0` Tag 并保留发布产物证据。下一阶段应补充真实 CLI 集成夹具、权限和 PID 复用场景、版本化 CLI/MCP API 参考。
+当前质量基线为 **87/100**。新增的真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；仍需保留首次托管矩阵运行证据，并补充受保护进程、PID 复用等系统夹具。发布工作流仍需实际创建 `v1.1.0` Tag、发布匹配的 Python SDK，并补充版本化 CLI/MCP API 参考。

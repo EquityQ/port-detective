@@ -141,7 +141,7 @@ func checkTCPOpenContext(ctx context.Context, port int, timeout time.Duration) b
 }
 
 // buildProcIndex scans the system connection table once and builds a port-to-PID index.
-// Workers share this read-only index to avoid repeated system calls across platforms.
+// Callers share the resulting read-only index across process-detail lookups.
 func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 	conns, err := gnet.ConnectionsWithContext(ctx, "tcp")
 	if err != nil {
@@ -195,8 +195,8 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 	}
 }
 
-// inspectPortInternal inspects one port and can reuse a prebuilt process index.
-func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32) *PortDiagnostic {
+// probePort checks the observable TCP state without consulting the process table.
+func probePort(ctx context.Context, port int) *PortDiagnostic {
 	diag := &PortDiagnostic{
 		Port:     port,
 		Protocol: ProtocolTCP,
@@ -210,19 +210,27 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 	}
 
 	diag.IsOpen = true
+	return diag
+}
+
+// enrichProcessDetail associates an open port with a process from a shared index.
+func enrichProcessDetail(ctx context.Context, diag *PortDiagnostic, index map[connKey]int32) {
+	if !diag.IsOpen {
+		return
+	}
 	if index == nil {
 		built, err := buildProcIndex(ctx)
 		if err != nil {
 			diag.Status = StatusPermissionRequired
-			return diag
+			return
 		}
 		index = built
 	}
 
-	pid, found := index[connKey{port: uint32(port), sockTyp: sockStream}]
+	pid, found := index[connKey{port: uint32(diag.Port), sockTyp: sockStream}]
 	if !found || pid <= 0 {
 		diag.Status = StatusPermissionRequired
-		return diag
+		return
 	}
 
 	diag.PID = pid
@@ -232,6 +240,12 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 	} else {
 		diag.Status = StatusPermissionRequired
 	}
+}
+
+// inspectPortInternal inspects one port and can reuse a prebuilt process index.
+func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32) *PortDiagnostic {
+	diag := probePort(ctx, port)
+	enrichProcessDetail(ctx, diag, index)
 	return diag
 }
 
@@ -285,17 +299,6 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		workers = 1
 	}
 
-	// Build the process index once and share it read-only across all workers.
-	index, indexErr := buildProcIndex(ctx)
-	if indexErr != nil {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		// Keep a non-nil empty index so workers degrade to permission_required
-		// without rebuilding the system connection table for every port.
-		index = make(map[connKey]int32)
-	}
-
 	var wg sync.WaitGroup
 	portsChan := make(chan int, workers)
 	resultsChan := make(chan PortDiagnostic, workers)
@@ -320,7 +323,9 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		go func() {
 			defer wg.Done()
 			for port := range portsChan {
-				diag := inspectPortInternal(ctx, port, index)
+				// Probe first so newly-created listeners have time to appear in
+				// the system connection table before the shared index is built.
+				diag := probePort(ctx, port)
 				// Collect open ports only.
 				if diag.IsOpen {
 					select {
@@ -343,6 +348,22 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	occupied := make([]PortDiagnostic, 0)
 	for res := range resultsChan {
 		occupied = append(occupied, res)
+	}
+
+	// Build the process index once after probing. This ordering avoids a
+	// cross-platform race where a fresh listener is reachable by TCP but is not
+	// visible in the OS connection table yet.
+	if len(occupied) > 0 {
+		index, indexErr := buildProcIndex(ctx)
+		if indexErr != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			index = make(map[connKey]int32)
+		}
+		for i := range occupied {
+			enrichProcessDetail(ctx, &occupied[i], index)
+		}
 	}
 
 	// Return deterministic results sorted by port number.
