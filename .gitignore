@@ -23,6 +23,7 @@ coverage.txt
 vendor/
 
 # ===== Local AI prompts and process notes (not project deliverables) =====
+AGENTS.md
 AICANTREAD.md
 process.md
 PROCESS.md
