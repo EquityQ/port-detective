@@ -19,7 +19,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --experimental-test-coverage --test-coverage-lines=45 --test-coverage-branches=65 --test-coverage-functions=55 --test"
   },
   "engines": {
     "node": ">=22"

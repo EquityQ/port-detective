@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 14 complete; ready for Step 15
-- **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**59 个用例**：core 17 + cli 19 + mcpserver 14 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**、Node.js SDK **7 个用例**，Python wheel/sdist 构建及 npm package dry-run 通过；发布校验器、MCP 三项验收、Python/Node.js 真实 CLI 集成和 Markdown 链接检查通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
+- **当前状态指针**: Step 16 complete; ready for Step 17
+- **构建/测试状态**: Go 覆盖率门槛通过（core 65.6%/60%、CLI 50.2%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。Go 与 Python CI 保留 HTML/XML 报告为工作流产物。常规构建、竞态、vet、多平台集成和依赖安全门禁保留。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python/Node.js 集成矩阵、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，下一步重点是 CI 覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python/Node.js 集成矩阵、分层覆盖率门槛、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -106,11 +106,15 @@
     Windows locally; CI runs Node.js 22/24 against real CLI builds on Windows, macOS,
     and Linux. npm registry publishing is not configured and is not claimed.
 
-- [ ] **Step 16: Add measurable CI quality thresholds**
+- [x] **Step 16: Add measurable CI quality thresholds**
   - Publish Go and Python coverage reports and enforce reviewed minimum thresholds
     for core, CLI, MCP, fingerprint, and SDK paths.
   - Keep platform integration, MCP acceptance, race, vet, and dependency audits in
     the required checks.
+  - Validation: Go minimums are core 60%, CLI 45%, MCP 70%, and fingerprint 70%;
+    Python minimums are core 60%, models 85%, and 65% overall; Node.js minimums
+    are 45% lines, 65% branches, and 55% functions. Local coverage measurements
+    exceed every threshold. CI retains Go and Python reports as artifacts.
 
 ---
 
@@ -325,6 +329,7 @@ port-detective
 - **[Step-13 done]**: Changed the tag workflow to build GoReleaser artifacts without publishing, verify archives and checksums, generate the SBOM, sign and verify every release file with keyless Cosign, and emit provenance attestations before `gh release create` publishes the verified assets. Pinned all GitHub Actions to immutable commit SHAs and added monthly Dependabot updates for Actions, Go modules, and Python packaging. Workflow YAML, action pinning, Go/Python tests, race, vet, formatting, and diff checks pass; no `v1.1.0` release has been created yet.
 - **[Step-14 done]**: Added pinned PyPI Trusted Publishing with the `pypi` GitHub environment, staged only wheel/sdist files for upload, made same-version reruns idempotent, extended release verification to wheel and source distribution metadata, and added a retrying post-publish installer that runs the installed SDK against the matching CLI. Focused tests cover matching and mismatching metadata. Updated bilingual installation, release checklist, status, roadmap, changelog, and quality review documents to keep the package unreleased until the first tag is created. Local script compilation, workflow parsing, Go/Python quality gates, MCP acceptance, real CLI/SDK integration, and documentation link checks pass; PyPI publication remains a maintainer action after configuring the Trusted Publisher.
 - **[Step-15 done]**: Added the zero-dependency `npm/port-detective` package with synchronous and Promise APIs, TypeScript declarations, bounded process execution, abort support, typed errors, and dry-run defaults. Added seven Node unit tests and a real listener integration fixture; CI runs Node 22/24 against matching Go CLI builds on Windows/macOS/Linux. Fixed `.gitignore` to anchor the root binary pattern so it no longer hides the npm package. Updated bilingual READMEs, platform support, status, roadmap, quality review, and changelog. Local Node tests, package dry-run, and Windows integration pass; npm registry publishing is not configured.
+- **[Step-16 done]**: Added package-level Go coverage gates and HTML reports for core/CLI/MCP/fingerprint, branch-aware Python SDK gates and HTML/XML reports, and Node.js line/branch/function thresholds using the built-in test runner. Thresholds are core 60%, CLI 45%, MCP 70%, fingerprint 70%, Python core 60%/models 85%/overall 65%, and Node.js lines 45%/branches 65%/functions 55%. Local measurements pass all thresholds; existing race, vet, cross-platform integration, MCP, and dependency audit workflows remain intact.
 
 ---
 

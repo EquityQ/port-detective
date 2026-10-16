@@ -90,9 +90,14 @@ Every change should pass `go build ./...`, `go test -race ./...`, `go vet ./...`
 must also run the scripts under `scripts/mcp/`. Release changes must validate the
 GoReleaser configuration, archive contents, checksums, and Python wheel smoke test.
 
+CI enforces Go statement coverage of 60% for core, 45% for CLI, 70% for MCP, and
+70% for fingerprinting. Python requires 60% for `core.py`, 85% for `models.py`,
+and 65% overall. Node.js requires 45% line, 65% branch, and 55% function coverage.
+Go and Python HTML reports are retained as workflow artifacts.
+
 See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 [STATUS.md](../operations/STATUS.md) for the current release state.
 
 ## 中文摘要
 
-当前质量基线为 **89/100**。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。PyPI 发布工作流会校验制品、签名和来源证明，发布 wheel/sdist，并从 PyPI 安装相同版本对匹配 CLI 做真实验证。仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并补充版本化 CLI/MCP API 参考。
+当前质量基线为 **89/100**。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并补充版本化 CLI/MCP API 参考。

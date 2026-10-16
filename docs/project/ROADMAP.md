@@ -33,8 +33,10 @@ project.
   dry-run defaults, and Windows/macOS/Linux real CLI integration is available under
   `npm/port-detective`. Decide whether to configure npm Trusted Publishing for the
   matching CLI release; until then, install the package from a checkout.
-- Publish coverage reports and enforce reviewed minimum thresholds without weakening
-  the cross-platform, race, MCP, or dependency security gates.
+- Go, Python, and Node.js CI now enforce reviewed package-level coverage thresholds;
+  Go and Python HTML reports are published as workflow artifacts. Raise thresholds
+  alongside meaningful regression tests without weakening platform, race, MCP, or
+  dependency security gates.
 
 ## Later: Community Scale
 
@@ -64,7 +66,8 @@ prevention always take precedence over feature work.
 ### 打包与质量门槛
 
 - Tag 工作流已配置为通过 PyPI Trusted Publishing 发布 Python SDK，并从 PyPI 安装相同版本对匹配 CLI 做真实验证；首次发布前仍需配置 `pypi` 环境和 Trusted Publisher。
-- `npm/port-detective` 已提供零依赖客户端、同步/Promise API、TypeScript 类型、dry-run 默认值及 Windows/macOS/Linux 真实 CLI 集成。可在后续为匹配 CLI 版本配置 npm Trusted Publishing；目前从源码仓库安装。各语言覆盖率门槛仍待建立。
+- `npm/port-detective` 已提供零依赖客户端、同步/Promise API、TypeScript 类型、dry-run 默认值及 Windows/macOS/Linux 真实 CLI 集成。可在后续为匹配 CLI 版本配置 npm Trusted Publishing；目前从源码仓库安装。
+- Go、Python 和 Node.js CI 已执行经审查的分层覆盖率门槛；Go 与 Python 覆盖率报告作为工作流产物保留。后续应通过有针对性的回归测试逐步提高门槛，并保持平台集成、race、MCP 和依赖安全门禁。
 
 ### 后续：社区规模化
 
