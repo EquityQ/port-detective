@@ -32,6 +32,8 @@ The repository currently contains the v1.1 feature-complete development line. A
 - Versioned bilingual CLI and MCP API reference covering commands, JSON results,
   tool inputs, and safety defaults.
 - Standard-library API drift checker wired into the required CI documentation gate.
+- IPv6 loopback inspection coverage and a dedicated core termination/cleanup module.
+- Unicode project-path and protected system PID guard regression tests.
 
 ### Changed
 

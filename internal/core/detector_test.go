@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,16 @@ func TestProjectPathsMatchUsesPlatformCaseRules(t *testing.T) {
 	}
 	if projectPathsMatch(canonical, variant) {
 		t.Fatalf("Unix path comparison should reject different paths: %q vs %q", canonical, variant)
+	}
+}
+
+func TestProjectPathsMatchUnicodePath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "项目-服务")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatalf("create Unicode project directory: %v", err)
+	}
+	if !projectPathsMatch(path, path) {
+		t.Fatalf("identical Unicode project paths should match: %q", path)
 	}
 }
 
@@ -93,6 +104,33 @@ func TestInspectPortOpenAndIdentifyProcess(t *testing.T) {
 	}
 	t.Logf("端口 %d -> PID=%d ProcessName=%q MemoryMB=%.2f CPU=%.2f%% Status=%s",
 		diag.Port, diag.PID, diag.ProcessName, diag.MemoryMB, diag.CPUPercent, diag.Status)
+}
+
+// TestInspectPortIPv6Listener verifies loopback probing on IPv6-capable hosts.
+func TestInspectPortIPv6Listener(t *testing.T) {
+	ln, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("IPv6 loopback is unavailable on this host: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected IPv6 listener address type: %T", ln.Addr())
+	}
+	probe, err := net.DialTimeout("tcp6", net.JoinHostPort("::1", strconv.Itoa(addr.Port)), time.Second)
+	if err != nil {
+		t.Skipf("IPv6 loopback listener is not reachable on this host: %v", err)
+	}
+	_ = probe.Close()
+
+	diag, err := InspectPort(context.Background(), addr.Port)
+	if err != nil {
+		t.Fatalf("InspectPort(%d) returned an unexpected error: %v", addr.Port, err)
+	}
+	if !diag.IsOpen {
+		t.Fatalf("IPv6 listener on port %d was not detected", addr.Port)
+	}
 }
 
 // TestInspectPortClosed verifies that a free port has IsOpen false and status "free".
@@ -436,5 +474,22 @@ func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
 	}
 	if !checkTCPOpen(port, DefaultDialTimeout) {
 		t.Fatal("项目路径变化时监听端口必须保持开启")
+	}
+}
+
+func TestCleanProjectTargetRejectsSystemPIDs(t *testing.T) {
+	for _, pid := range []int32{0, 1} {
+		t.Run(strconv.Itoa(int(pid)), func(t *testing.T) {
+			target := PortDiagnostic{
+				Port:        8080,
+				IsOpen:      true,
+				PID:         pid,
+				Status:      StatusOccupied,
+				ProcessName: "system",
+			}
+			if _, _, err := cleanProjectTarget(context.Background(), target, t.TempDir(), false); err == nil {
+				t.Fatalf("system PID %d must be rejected", pid)
+			}
+		})
 	}
 }

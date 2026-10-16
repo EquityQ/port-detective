@@ -4,7 +4,7 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 18 complete; ready for Step 19
+- **当前状态指针**: Step 19 complete; ready for Step 20
 - **构建/测试状态**: Go 覆盖率门槛通过（core 65.6%/60%、CLI 50.2%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。Go 与 Python CI 保留 HTML/XML 报告为工作流产物。常规构建、竞态、vet、多平台集成和依赖安全门禁保留。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -129,6 +129,17 @@
   - Run the checker as a required CI documentation job without changing runtime code.
   - Validation: the checker passes locally and workflow YAML remains valid; existing
     build, test, MCP, race, vet, and security gates remain unchanged.
+
+- [x] **Step 19: Improve cross-platform fixtures and core modularity**
+  - Add an IPv6 loopback listener fixture that skips only when the host does not
+    provide reachable IPv6, plus Unicode path and protected PID guard coverage;
+    retain the existing IPv4 listener and filesystem path-semantics coverage.
+  - Move process termination and project cleanup helpers into `internal/core/termination.go`;
+    keep `detector.go` focused on probing, indexing, and concurrent scanning without
+    changing the frozen public contracts.
+  - Validation: Go build/full tests/race/vet/formatting and Windows/macOS/Linux core
+    test cross-compilation pass. IPv6 fixture skips on this Windows host because the
+    OS denies IPv6 loopback connections; Unicode path and PID 0/1 guard tests pass.
 
 ---
 
@@ -346,6 +357,7 @@ port-detective
 - **[Step-16 done]**: Added package-level Go coverage gates and HTML reports for core/CLI/MCP/fingerprint, branch-aware Python SDK gates and HTML/XML reports, and Node.js line/branch/function thresholds using the built-in test runner. Thresholds are core 60%, CLI 45%, MCP 70%, fingerprint 70%, Python core 60%/models 85%/overall 65%, and Node.js lines 45%/branches 65%/functions 55%. Local measurements pass all thresholds; existing race, vet, cross-platform integration, MCP, and dependency audit workflows remain intact.
 - **[Step-17 done]**: Added the concise bilingual `docs/project/API_REFERENCE.md` for the v1.1 CLI JSON contract and four MCP tools, including flags, result shapes, safety defaults, stdout rules, and compatibility policy. Linked it from both root READMEs and `docs/README.md`; updated the quality review, roadmap, and changelog. Markdown links and the existing CLI/MCP contract tests remain passing. External release publication and generated drift detection remain open follow-up work.
 - **[Step-18 done]**: Added `scripts/quality/verify_api_reference.py`, a standard-library checker that compares CLI commands/flags and MCP tools/arguments with the bilingual API reference. Added it as a required CI documentation job and updated the quality review, roadmap, changelog, and progress board. Local checker and workflow parsing pass.
+- **[Step-19 done]**: Added a portable IPv6 loopback inspection fixture with a capability-based skip, Unicode project-path coverage, and PID 0/1 cleanup guard tests. Split process termination/project cleanup from `detector.go` into `internal/core/termination.go`; public core signatures and behavior remain unchanged. Go build/tests, race, vet, formatting, and Windows/macOS/Linux core test cross-compilation pass. The local Windows IPv6 fixture skipped because the OS denied loopback connections; WSL/container/protected-process integration remains environment-dependent.
 
 ---
 

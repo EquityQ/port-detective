@@ -20,7 +20,7 @@ assumption.
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
-| Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
+| Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, and a dedicated core termination module | The CLI root module remains large and should be split when command contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
 | Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference with CI drift detection, and a post-publish PyPI install check | Published npm package, generated reference output, and a reproducible demo environment |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
@@ -49,6 +49,9 @@ assumption.
   the evidence for the external publishing configuration.
 - Scan input validation, TCP listener filtering, stable empty MCP arrays, and
   aggregate project-cleanup failures are covered by focused regression tests.
+- The core package now has a dedicated termination and project-cleanup module, and
+  the test suite includes an IPv6 loopback fixture that skips only when the host
+  cannot reach IPv6 loopback, plus Unicode path and system PID guard checks.
 - The project explains permission-limited process metadata instead of presenting
   incomplete data as certainty.
 
@@ -64,9 +67,9 @@ assumption.
 
 ### P1: Next Development Cycle
 
-1. Keep the cross-platform CLI/SDK integration matrix required and add fixtures for
-   protected processes, PID reuse, IPv4/IPv6 listeners, WSL/containers, and
-   non-English paths.
+1. Keep the cross-platform CLI/SDK integration matrix required and add hosted or
+   disposable-environment fixtures for protected processes, PID reuse, WSL, and
+   containers. IPv4/IPv6 loopback, Unicode paths, and PID 0/1 guard checks are present.
 2. Configure the PyPI Trusted Publisher and create the first release so the
    post-publish installation check has public artifact evidence.
 3. Decide whether to configure npm Trusted Publishing and publish the Node.js client
@@ -74,8 +77,8 @@ assumption.
 
 ### P2: Maturity and Adoption
 
-1. Split the largest Go modules into cohesive files without changing the public
-   contracts documented in `AGENTS.md`.
+1. Split the remaining large CLI root module into cohesive files without changing
+   the public contracts documented in `AGENTS.md`.
 2. Add shell completion examples, a troubleshooting guide, and a short recorded demo.
 3. Track compatibility reports and benchmark results by OS, architecture, and
    permission level instead of presenting one environment as universal.

@@ -18,8 +18,9 @@ project.
 - The real CLI/Python SDK integration workflow now builds and exercises the matching
   binary on Windows, macOS, and Linux with Python 3.9 and 3.13. Keep the matrix
   required and retain its listener-based evidence for every release candidate.
-- Add integration fixtures for protected processes, PID reuse, IPv4/IPv6, WSL, and
-  containers.
+- Add integration fixtures for protected processes, PID reuse, WSL, and containers.
+- IPv4 and IPv6 loopback, Unicode project-path, and PID 0/1 guard checks now run in
+  the core suite; the IPv6 fixture skips when host policy blocks IPv6 loopback.
 - Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
 - Keep the versioned [CLI/MCP API reference](API_REFERENCE.md) synchronized with
   implementation and acceptance tests; CI now fails when documented command, flag,
@@ -46,7 +47,8 @@ project.
 - Add a troubleshooting guide, shell completion walkthroughs, and a reproducible demo.
 - Track benchmarks and compatibility reports by operating system, architecture, and
   permission level.
-- Split oversized implementation files while preserving the documented contracts.
+- Split the remaining oversized CLI implementation while preserving the documented
+  contracts.
 
 Priorities may change as compatibility reports arrive. Security fixes and data-loss
 prevention always take precedence over feature work.
@@ -62,7 +64,7 @@ prevention always take precedence over feature work.
 ### 下一步：跨环境可信度
 
 - 已增加真实 CLI/Python SDK 集成工作流，在 Windows、macOS 和 Linux 上使用 Python 3.9/3.13 构建并调用匹配二进制；应将该矩阵作为发布候选版本的必需证据。
-- 增加受保护进程、PID 复用、IPv4/IPv6、WSL 和容器集成夹具。
+- 增加受保护进程、PID 复用、WSL 和容器集成夹具；IPv4/IPv6 回环、Unicode 路径及 PID 0/1 保护测试已加入核心测试，IPv6 会按宿主能力跳过。
 - 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考。
 
 ### 打包与质量门槛
@@ -76,4 +78,4 @@ prevention always take precedence over feature work.
 - 明确维护者、响应目标和发布节奏。
 - 增加故障排查、Shell 补全和可复现演示。
 - 按系统、架构和权限记录兼容性与基准数据。
-- 发布流程已改为先校验、签名验真和生成来源证明，最后创建 GitHub Release；GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪更新。
+- 已将核心终止与项目清理逻辑拆到独立模块；后续继续拆分较大的 CLI 根模块。发布流程已改为先校验、签名验真和生成来源证明，最后创建 GitHub Release；GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪更新。
