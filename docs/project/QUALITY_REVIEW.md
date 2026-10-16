@@ -22,7 +22,7 @@ assumption.
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference, and a post-publish PyPI install check | Published npm package, generated reference synchronization, and a reproducible demo environment |
+| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference with CI drift detection, and a post-publish PyPI install check | Published npm package, generated reference output, and a reproducible demo environment |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
@@ -84,7 +84,7 @@ assumption.
 ## Quality Gates
 
 Every change should pass `go build ./...`, `go test -race ./...`, `go vet ./...`,
-`gofmt`, and the Python and Node.js test suites when applicable. Changes to MCP or CLI behavior
+`gofmt`, the API reference drift check, and the Python and Node.js test suites when applicable. Changes to MCP or CLI behavior
 must also run the scripts under `scripts/mcp/`. Release changes must validate the
 GoReleaser configuration, archive contents, checksums, and Python wheel smoke test.
 

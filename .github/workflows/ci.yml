@@ -10,6 +10,16 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    name: Verify API reference
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Check CLI and MCP API reference
+        run: python scripts/quality/verify_api_reference.py
+
   test:
     name: Test on ${{ matrix.os }} (Go ${{ matrix.go }})
     runs-on: ${{ matrix.os }}

@@ -22,7 +22,8 @@ project.
   containers.
 - Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
 - Keep the versioned [CLI/MCP API reference](API_REFERENCE.md) synchronized with
-  implementation and acceptance tests; automate drift detection in a later cycle.
+  implementation and acceptance tests; CI now fails when documented command, flag,
+  tool, or argument names drift.
 
 ## Next: Packaging and measurable quality
 

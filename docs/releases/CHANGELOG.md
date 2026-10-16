@@ -31,6 +31,7 @@ The repository currently contains the v1.1 feature-complete development line. A
   and Python coverage reports retained by CI.
 - Versioned bilingual CLI and MCP API reference covering commands, JSON results,
   tool inputs, and safety defaults.
+- Standard-library API drift checker wired into the required CI documentation gate.
 
 ### Changed
 
