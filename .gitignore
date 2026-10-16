@@ -22,11 +22,11 @@ desktop.ini
 coverage.txt
 vendor/
 
-# ===== 本地提示词 / 需求草稿（非项目交付物，不入库）=====
-# AICANTREAD.md 是「给 AI 的操作指南 + 原始需求草稿」，
-# 它包含生成 AGENTS.md / PROGRESS.md 的模板正文，属于本地参考资料，
-# 不属于课程作业的交付内容，因此保留在本地但不提交。
+# ===== Local AI prompts and process notes (not project deliverables) =====
 AICANTREAD.md
+process.md
+PROCESS.md
+*.local.md
 
 # ===== Python 产物与缓存 =====
 __pycache__/
