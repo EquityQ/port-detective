@@ -123,6 +123,7 @@ from the checkout and has not been published to npm. See the [Node.js client gui
 - [Project status](docs/operations/STATUS.md)
 - [Quality review](docs/project/QUALITY_REVIEW.md)
 - [Roadmap](docs/project/ROADMAP.md)
+- [CLI and MCP API reference](docs/project/API_REFERENCE.md)
 - [Changelog](docs/releases/CHANGELOG.md)
 - [Release checklist](docs/releases/RELEASE_CHECKLIST.md)
 

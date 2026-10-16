@@ -21,7 +21,8 @@ project.
 - Add integration fixtures for protected processes, PID reuse, IPv4/IPv6, WSL, and
   containers.
 - Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
-- Generate CLI and MCP reference tables from tests or machine-readable schemas.
+- Keep the versioned [CLI/MCP API reference](API_REFERENCE.md) synchronized with
+  implementation and acceptance tests; automate drift detection in a later cycle.
 
 ## Next: Packaging and measurable quality
 

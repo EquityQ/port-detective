@@ -29,6 +29,8 @@ The repository currently contains the v1.1 feature-complete development line. A
   declarations, dry-run process-action defaults, and a three-OS real CLI matrix.
 - Reviewed coverage thresholds for Go packages and Python/Node.js SDKs, with Go
   and Python coverage reports retained by CI.
+- Versioned bilingual CLI and MCP API reference covering commands, JSON results,
+  tool inputs, and safety defaults.
 
 ### Changed
 

@@ -22,7 +22,7 @@ assumption.
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, and a post-publish PyPI install check | Published npm package, generated API reference, and a reproducible demo environment |
+| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference, and a post-publish PyPI install check | Published npm package, generated reference synchronization, and a reproducible demo environment |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
@@ -67,11 +67,9 @@ assumption.
 1. Keep the cross-platform CLI/SDK integration matrix required and add fixtures for
    protected processes, PID reuse, IPv4/IPv6 listeners, WSL/containers, and
    non-English paths.
-2. Generate a versioned CLI/MCP schema reference from the implementation or tests so
-   tool arguments cannot drift from the README.
-3. Configure the PyPI Trusted Publisher and create the first release so the
+2. Configure the PyPI Trusted Publisher and create the first release so the
    post-publish installation check has public artifact evidence.
-4. Decide whether to configure npm Trusted Publishing and publish the Node.js client
+3. Decide whether to configure npm Trusted Publishing and publish the Node.js client
    with the matching CLI release.
 
 ### P2: Maturity and Adoption
@@ -100,4 +98,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **89/100**。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并补充版本化 CLI/MCP API 参考。
+当前质量基线为 **89/100**。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。已补充版本化 CLI/MCP 接口参考；仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并让参考文档未来由实现或测试自动校验。

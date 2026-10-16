@@ -23,6 +23,7 @@ users usually have.
 
 - [Quality review / 精品项目质量评估](project/QUALITY_REVIEW.md)
 - [Roadmap / 路线图](project/ROADMAP.md)
+- [CLI and MCP API reference / CLI 与 MCP 接口参考](project/API_REFERENCE.md)
 
 ## Operations / 使用与状态
 

@@ -4,7 +4,7 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 16 complete; ready for Step 17
+- **当前状态指针**: Step 17 complete; no local implementation step is queued
 - **构建/测试状态**: Go 覆盖率门槛通过（core 65.6%/60%、CLI 50.2%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。Go 与 Python CI 保留 HTML/XML 报告为工作流产物。常规构建、竞态、vet、多平台集成和依赖安全门禁保留。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -115,6 +115,13 @@
     Python minimums are core 60%, models 85%, and 65% overall; Node.js minimums
     are 45% lines, 65% branches, and 55% functions. Local coverage measurements
     exceed every threshold. CI retains Go and Python reports as artifacts.
+
+- [x] **Step 17: Publish a versioned CLI and MCP API reference**
+  - Document CLI commands, JSON result shapes, MCP tool inputs, safety defaults,
+    and the compatibility policy in a concise bilingual reference.
+  - Link the reference from both root READMEs and the documentation index.
+  - Validation: Markdown links, CLI/MCP acceptance expectations, and the documented
+    command/tool names match the current implementation.
 
 ---
 
@@ -330,6 +337,7 @@ port-detective
 - **[Step-14 done]**: Added pinned PyPI Trusted Publishing with the `pypi` GitHub environment, staged only wheel/sdist files for upload, made same-version reruns idempotent, extended release verification to wheel and source distribution metadata, and added a retrying post-publish installer that runs the installed SDK against the matching CLI. Focused tests cover matching and mismatching metadata. Updated bilingual installation, release checklist, status, roadmap, changelog, and quality review documents to keep the package unreleased until the first tag is created. Local script compilation, workflow parsing, Go/Python quality gates, MCP acceptance, real CLI/SDK integration, and documentation link checks pass; PyPI publication remains a maintainer action after configuring the Trusted Publisher.
 - **[Step-15 done]**: Added the zero-dependency `npm/port-detective` package with synchronous and Promise APIs, TypeScript declarations, bounded process execution, abort support, typed errors, and dry-run defaults. Added seven Node unit tests and a real listener integration fixture; CI runs Node 22/24 against matching Go CLI builds on Windows/macOS/Linux. Fixed `.gitignore` to anchor the root binary pattern so it no longer hides the npm package. Updated bilingual READMEs, platform support, status, roadmap, quality review, and changelog. Local Node tests, package dry-run, and Windows integration pass; npm registry publishing is not configured.
 - **[Step-16 done]**: Added package-level Go coverage gates and HTML reports for core/CLI/MCP/fingerprint, branch-aware Python SDK gates and HTML/XML reports, and Node.js line/branch/function thresholds using the built-in test runner. Thresholds are core 60%, CLI 45%, MCP 70%, fingerprint 70%, Python core 60%/models 85%/overall 65%, and Node.js lines 45%/branches 65%/functions 55%. Local measurements pass all thresholds; existing race, vet, cross-platform integration, MCP, and dependency audit workflows remain intact.
+- **[Step-17 done]**: Added the concise bilingual `docs/project/API_REFERENCE.md` for the v1.1 CLI JSON contract and four MCP tools, including flags, result shapes, safety defaults, stdout rules, and compatibility policy. Linked it from both root READMEs and `docs/README.md`; updated the quality review, roadmap, and changelog. Markdown links and the existing CLI/MCP contract tests remain passing. External release publication and generated drift detection remain open follow-up work.
 
 ---
 
