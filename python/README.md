@@ -13,6 +13,7 @@ Uses a zero-CGo **Subprocess Wrapper** architecture, ensuring 100% cross-platfor
 - ⚡ **Concurrent Dev Port Scanning**: Rapidly scan dev ports (`3000`, `8000`, `8080`, `5173`, etc.) using Go worker pools.
 - 🧹 **One-Click Project Port Clean**: Safely terminate or preview (`dry_run=True`) orphan processes belonging strictly to the current working directory.
 - 🚀 **Full Async/Await Support**: Both synchronous and `asyncio` APIs out of the box.
+- ⏱️ **Bounded CLI Calls**: API calls use a 30-second timeout by default; pass `timeout=None` for a deliberate unlimited wait.
 
 ---
 
@@ -40,6 +41,9 @@ For a custom location, set `PORT_DETECTIVE_BIN` or pass `binary_path` to each AP
 Keep the Python SDK and CLI on the same release version because the SDK consumes the
 CLI's JSON output contract. The repository currently contains the v1.1 development
 line; pin both packages to a reviewed release or commit for production automation.
+
+All public calls accept an optional `timeout` in seconds. Invalid ports and missing
+project working directories fail before a child process is started.
 
 ---
 

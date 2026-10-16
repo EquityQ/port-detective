@@ -8,6 +8,7 @@ and clean orphan processes.
 
 from .models import PortDiagnostic, ProjectInfo, KillResult
 from .core import (
+    DEFAULT_CLI_TIMEOUT,
     inspect_port,
     scan_ports,
     free_port,
@@ -39,4 +40,5 @@ __all__ = [
     "PortDetectiveError",
     "PortDetectiveNotFoundError",
     "PortDetectiveExecutionError",
+    "DEFAULT_CLI_TIMEOUT",
 ]

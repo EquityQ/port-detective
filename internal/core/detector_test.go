@@ -123,6 +123,21 @@ func TestInspectPortRejectsInvalidPort(t *testing.T) {
 	}
 }
 
+// TestInspectPortContextCancel verifies that cancellation is returned to the caller
+// instead of being reported as an ordinary free-port diagnostic.
+func TestInspectPortContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	diag, err := InspectPort(ctx, freeLoopbackPort(t))
+	if diag != nil {
+		t.Fatalf("取消的检查不应返回诊断报告：%+v", diag)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("期望返回 context.Canceled，实际为 %v", err)
+	}
+}
+
 // TestScanPortsConcurrentDetectsAllListeners opens temporary listeners and verifies
 // that concurrent scanning returns all occupied ports in ascending order.
 func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {

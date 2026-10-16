@@ -3,8 +3,10 @@ Tests for port_detective Python client.
 Supports running under both pytest and python -m unittest.
 """
 
+import asyncio
 import json
 import os
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -26,6 +28,7 @@ from port_detective.core import (
     PortDetectiveError,
     PortDetectiveNotFoundError,
     PortDetectiveExecutionError,
+    DEFAULT_CLI_TIMEOUT,
 )
 
 
@@ -100,6 +103,15 @@ class TestModels(unittest.TestCase):
 
 
 class TestSyncClient(unittest.TestCase):
+    def test_invalid_port_and_timeout_are_rejected(self):
+        with self.assertRaises(ValueError):
+            inspect_port(0)
+        with self.assertRaises(ValueError):
+            scan_ports([3000, 70000])
+        with self.assertRaises(ValueError):
+            inspect_port(3000, timeout=0)
+        self.assertEqual(DEFAULT_CLI_TIMEOUT, 30.0)
+
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
     @patch("subprocess.run")
     def test_inspect_port(self, mock_run, mock_find):
@@ -135,6 +147,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
+            timeout=30.0,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -162,6 +175,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
+            timeout=30.0,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -189,6 +203,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
+            timeout=30.0,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -203,7 +218,7 @@ class TestSyncClient(unittest.TestCase):
             stderr="",
         )
 
-        cleaned = clean_project(path="/workspace/app", dry_run=True)
+        cleaned = clean_project(path=os.getcwd(), dry_run=True)
         self.assertEqual(len(cleaned), 1)
         self.assertEqual(cleaned[0].port, 3000)
 
@@ -212,8 +227,9 @@ class TestSyncClient(unittest.TestCase):
             capture_output=True,
             text=True,
             encoding="utf-8",
-            cwd="/workspace/app",
+            cwd=os.getcwd(),
             check=False,
+            timeout=30.0,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -229,6 +245,14 @@ class TestSyncClient(unittest.TestCase):
             inspect_port(80)
         self.assertEqual(ctx.exception.returncode, 1)
         self.assertIn("Permission denied", ctx.exception.stderr)
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["port-detective"], 0.01, output=b"partial"))
+    def test_sync_timeout_is_wrapped(self, mock_run, mock_find):
+        with self.assertRaises(PortDetectiveExecutionError) as ctx:
+            inspect_port(3000, timeout=0.01)
+        self.assertEqual(ctx.exception.returncode, -1)
+        self.assertIn("timed out", str(ctx.exception))
 
 
 class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
@@ -279,6 +303,20 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         mock_proc.communicate = AsyncMock(return_value=(json.dumps(free_payload).encode("utf-8"), b""))
         freed = await async_free_port(8080, dry_run=True)
         self.assertEqual(freed.port, 8080)
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("asyncio.create_subprocess_exec")
+    async def test_async_timeout_kills_child(self, mock_exec, mock_find):
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()
+        mock_proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError(), (b"", b"")])
+        mock_exec.return_value = mock_proc
+
+        with self.assertRaises(PortDetectiveExecutionError) as ctx:
+            await async_inspect_port(3000, timeout=0.01)
+        mock_proc.kill.assert_called_once_with()
+        self.assertEqual(ctx.exception.returncode, -1)
 
 
 if __name__ == "__main__":

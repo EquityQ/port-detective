@@ -20,18 +20,18 @@ import (
 
 	"port-detective/internal/core"
 	_ "port-detective/internal/fingerprint"
+	"port-detective/internal/version"
 )
 
 const (
-	serverName    = "port-detective"
-	serverVersion = "1.1.0"
+	serverName = "port-detective"
 )
 
 // NewServer creates an MCP server with all tools registered.
 func NewServer() *server.MCPServer {
 	s := server.NewMCPServer(
 		serverName,
-		serverVersion,
+		version.Value,
 		server.WithRecovery(),
 	)
 
@@ -76,7 +76,7 @@ type ServerInfo struct {
 
 // Describe returns the server capabilities without starting the transport.
 func Describe() ServerInfo {
-	info := ServerInfo{Name: serverName, Version: serverVersion}
+	info := ServerInfo{Name: serverName, Version: version.Value}
 
 	for _, tool := range serverTools() {
 		summary := ToolSummary{

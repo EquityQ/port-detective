@@ -37,6 +37,11 @@ const (
 
 	// DefaultWorkers is the default worker count for concurrent scans.
 	DefaultWorkers = 64
+
+	// terminationGracePeriod bounds how long a graceful process termination may take.
+	terminationGracePeriod = 2 * time.Second
+	// terminationPollInterval controls process and port release polling.
+	terminationPollInterval = 25 * time.Millisecond
 )
 
 // DefaultDevPorts lists ten commonly used development ports.
@@ -106,15 +111,23 @@ type connKey struct {
 // checkTCPOpen uses a TCP handshake to determine whether a process is listening.
 // It probes both loopback addresses to cover IPv4 and IPv6 listeners.
 func checkTCPOpen(port int, timeout time.Duration) bool {
+	return checkTCPOpenContext(context.Background(), port, timeout)
+}
+
+func checkTCPOpenContext(ctx context.Context, port int, timeout time.Duration) bool {
 	targets := []string{
 		fmt.Sprintf("127.0.0.1:%d", port),
 		fmt.Sprintf("[::1]:%d", port),
 	}
+	dialer := net.Dialer{Timeout: timeout}
 	for _, target := range targets {
-		conn, err := net.DialTimeout("tcp", target, timeout)
+		conn, err := dialer.DialContext(ctx, "tcp", target)
 		if err == nil {
 			_ = conn.Close()
 			return true
+		}
+		if ctx.Err() != nil {
+			return false
 		}
 	}
 	return false
@@ -171,7 +184,7 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 		Status:   StatusFree,
 	}
 
-	if !checkTCPOpen(port, DefaultDialTimeout) {
+	if !checkTCPOpenContext(ctx, port, DefaultDialTimeout) {
 		diag.IsOpen = false
 		diag.Status = StatusFree
 		return diag
@@ -207,10 +220,18 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 
 // InspectPort checks whether a port is open and associates it with process diagnostics.
 func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("invalid port %d: valid range is 1-65535", port)
 	}
-	return inspectPortInternal(ctx, port, nil), nil
+
+	diag := inspectPortInternal(ctx, port, nil)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return diag, nil
 }
 
 // ScanPortsConcurrent probes multiple ports concurrently and returns results in ascending order.
@@ -377,17 +398,89 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return latest, "", err
 	}
 
-	// Attempt graceful termination first, then force termination if needed.
-	err = latestProc.Terminate()
-	if err != nil {
+	// Attempt graceful termination first, then force termination if the process
+	// does not exit within the bounded grace period.
+	if err = latestProc.Terminate(); err != nil {
+		if ctx.Err() != nil {
+			return latest, "", ctx.Err()
+		}
 		err = latestProc.Kill()
+		if err == nil {
+			err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
+		}
+	} else {
+		err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
+		if err != nil {
+			if ctx.Err() != nil {
+				return latest, "", ctx.Err()
+			}
+			err = latestProc.Kill()
+			if err == nil {
+				err = waitForProcessExit(ctx, latestProc, terminationGracePeriod)
+			}
+		}
 	}
 	if err != nil {
 		return diag, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", diag.PID, err)
 	}
+	if err := waitForPortRelease(ctx, port, terminationGracePeriod); err != nil {
+		return latest, "", fmt.Errorf("进程 %d 已收到终止请求，但端口 %d 尚未确认释放：%w", diag.PID, port, err)
+	}
 
 	msg := fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)", port, diag.ProcessName, diag.PID)
 	return diag, msg, nil
+}
+
+// waitForProcessExit confirms that the exact process handle is no longer running.
+func waitForProcessExit(ctx context.Context, proc *process.Process, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(terminationPollInterval)
+	defer ticker.Stop()
+
+	for {
+		running, err := proc.IsRunningWithContext(ctx)
+		if err != nil {
+			if errors.Is(err, process.ErrorProcessNotRunning) {
+				return nil
+			}
+			return err
+		}
+		if !running {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("process did not exit within %s", timeout)
+		case <-ticker.C:
+		}
+	}
+}
+
+// waitForPortRelease verifies the observable user-facing result after termination.
+func waitForPortRelease(ctx context.Context, port int, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(terminationPollInterval)
+	defer ticker.Stop()
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !checkTCPOpenContext(ctx, port, DefaultDialTimeout) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("port remained open for %s", timeout)
+		case <-ticker.C:
+		}
+	}
 }
 
 // CleanCurrentProjectPorts scans common development ports and selects processes

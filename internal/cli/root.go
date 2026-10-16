@@ -23,6 +23,7 @@ import (
 	"port-detective/internal/core"
 	_ "port-detective/internal/fingerprint"
 	"port-detective/internal/mcpserver"
+	"port-detective/internal/version"
 )
 
 // ============================ Output Style Constants ============================
@@ -449,8 +450,9 @@ func NewRootCommand() *cobra.Command {
 	opts := &options{}
 
 	root := &cobra.Command{
-		Use:   "port-detective",
-		Short: "本地端口占用侦探与进程体检工具 / Local Port Detective & Process Diagnostic Tool",
+		Use:     "port-detective",
+		Version: version.Value,
+		Short:   "本地端口占用侦探与进程体检工具 / Local Port Detective & Process Diagnostic Tool",
 		Long: strings.Join([]string{
 			"port-detective —— Local Port Detective & Process Diagnostic CLI",
 			"",
