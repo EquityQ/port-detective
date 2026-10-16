@@ -1,5 +1,7 @@
 # Open Source Quality Review
 
+Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
+
 **Review date:** 2026-10-15
 **Review scope:** Go core, CLI, MCP server, Python SDK, CI/release automation, documentation, and community files.
 
@@ -73,4 +75,10 @@ must also run the scripts under `scripts/mcp/`. Release changes must validate th
 GoReleaser configuration, archive contents, checksums, and Python wheel smoke test.
 
 See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
-[STATUS.md](STATUS.md) for the current release state.
+[STATUS.md](../operations/STATUS.md) for the current release state.
+
+## 中文摘要
+
+当前质量基线为 **78/100**。项目已经具备清晰的 core/CLI/MCP 分层、并发扫描、进程安全校验、MCP 协议验收、跨平台 Go CI 和 Python SDK，但仍属于 v1.1 开发线，尚未达到成熟发布项目的完整闭环。
+
+发布前必须完成：正式 `v1.1.0` 标签、签名归档、校验和、SBOM、来源证明、MCP 发布包验收，以及与 CLI 版本匹配的 Python wheel 验证。下一阶段应补充 Python 在 Windows/macOS 的 CI、权限和 PID 复用集成夹具、依赖漏洞扫描、版本化 CLI/MCP API 参考。

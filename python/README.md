@@ -19,11 +19,14 @@ Uses a zero-CGo **Subprocess Wrapper** architecture, ensuring 100% cross-platfor
 ## Installation
 
 ```bash
-pip install port-detective
+python -m pip install ./python
 ```
 
 The Python package is a thin client and does not bundle the Go executable. Install the
 matching CLI release separately, then make it available on `PATH`:
+
+The package is not published to PyPI yet. After the matching release is published, the
+equivalent install command will be `python -m pip install port-detective`.
 
 ```bash
 # Option A: install the reviewed CLI source revision
@@ -124,6 +127,12 @@ asyncio.run(main())
 
 MIT License.
 
-See the repository [quality review](../QUALITY_REVIEW.md), [roadmap](../ROADMAP.md),
-and [platform support policy](../PLATFORM_SUPPORT.md) for release and compatibility
-status.
+See the repository [quality review](../docs/project/QUALITY_REVIEW.md), [roadmap](../docs/project/ROADMAP.md),
+and [platform support policy](../docs/operations/PLATFORM_SUPPORT.md) for release and compatibility
+status. 中文说明请查看根目录的 [README_zh.md](../README_zh.md) 与[文档中心](../docs/README.md)。
+
+## 中文说明
+
+这是一个通过子进程调用 `port-detective` CLI 的轻量 Python SDK，提供同步和 `asyncio` 异步接口。当前版本尚未发布到 PyPI，请在仓库根目录运行 `python -m pip install ./python`，再把匹配版本的 CLI 放入 `PATH` 或设置 `PORT_DETECTIVE_BIN`。
+
+主要接口包括 `inspect_port`、`scan_ports`、`free_port` 和 `clean_project`；释放或清理操作默认使用 dry-run 预演。SDK 与 CLI 的版本需要保持一致，完整示例请查看上面的 English API quickstart。

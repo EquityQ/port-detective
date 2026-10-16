@@ -6,7 +6,7 @@
 
 > **Release status:** The repository currently tracks the v1.1 development line.
 > The first `v1.1.0` release tag and published archives are still pending the
-> release-readiness gates in [QUALITY_REVIEW.md](QUALITY_REVIEW.md). Use a release
+> release-readiness gates in [QUALITY_REVIEW.md](docs/project/QUALITY_REVIEW.md). Use a release
 > archive when available, or build from the pinned source revision.
 
 <p align="center">
@@ -28,8 +28,8 @@
   <a href="https://modelcontextprotocol.io/">
     <img src="https://img.shields.io/badge/MCP-Compatible-9cf?logo=openai" alt="MCP Compatible" />
   </a>
-  <a href="https://pypi.org/project/port-detective/">
-    <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python" alt="Python SDK" />
+  <a href="python/README.md">
+    <img src="https://img.shields.io/badge/Python%20SDK-source-3776AB?logo=python" alt="Python SDK source" />
   </a>
 </p>
 
@@ -42,6 +42,28 @@
   <a href="#-cross-platform-benchmarks">Benchmarks</a> •
   <a href="#-installation">Installation</a>
 </p>
+
+## Quick start
+
+```bash
+# Install the CLI from source
+go install github.com/EquityQ/port-detective@master
+
+# Inspect, scan, and preview a safe cleanup
+port-detective check 3000
+port-detective scan --ports 3000,5173,8080
+port-detective clean --dry-run
+
+# Start the MCP server for an AI client
+port-detective mcp
+```
+
+For the Python SDK, install the local package with `python -m pip install ./python`.
+The SDK calls the CLI, so keep both components on the same reviewed version.
+
+Documentation map: [docs/](docs/README.md) · [community](docs/community/CONTRIBUTING.md) ·
+[project](docs/project/ROADMAP.md) · [operations](docs/operations/PLATFORM_SUPPORT.md) ·
+[releases](docs/releases/CHANGELOG.md).
 
 ---
 
@@ -224,7 +246,7 @@ Zero-CGo **Subprocess Wrapper** architecture guarantees frictionless installatio
 python -m pip install ./python
 ```
 
-Use `pip install port-detective` after the matching SDK release is published.
+Use `python -m pip install port-detective` after the matching SDK release is published.
 
 ### Synchronous API
 ```python
@@ -348,12 +370,13 @@ go test -v -race ./...
 
 ## 🤝 Contributing
 
-Contributions are warmly welcomed! Please read our [Contributing Guide](CONTRIBUTING.md) for Conventional Commits rules and local test instructions.
+Contributions are warmly welcomed! Please read our [Contributing Guide](docs/community/CONTRIBUTING.md) for Conventional Commits rules and local test instructions.
 
-See the [current project status](STATUS.md), [quality review](QUALITY_REVIEW.md),
-and [roadmap](ROADMAP.md) before opening an issue. Report vulnerabilities privately
-using the [Security Policy](SECURITY.md). Please also read the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+See the [current project status](docs/operations/STATUS.md), [quality review](docs/project/QUALITY_REVIEW.md),
+and [roadmap](docs/project/ROADMAP.md) before opening an issue. Report vulnerabilities privately
+using the [Security Policy](docs/community/SECURITY.md). Please also read the
+[Code of Conduct](docs/community/CODE_OF_CONDUCT.md). The full bilingual documentation index is in
+[docs/README.md](docs/README.md).
 
 ---
 

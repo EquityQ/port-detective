@@ -5,7 +5,7 @@
 </p>
 
 > **发布状态：** 当前仓库处于 v1.1 开发主线。首个 `v1.1.0` 发布标签和正式构建产物
-> 仍需通过 [精品开源项目质量评估](QUALITY_REVIEW.md) 中的发布门禁后再发布。正式版本发布前，
+> 仍需通过 [精品开源项目质量评估](docs/project/QUALITY_REVIEW.md) 中的发布门禁后再发布。正式版本发布前，
 > 可以使用经过审核的源码提交自行构建。
 
 <p align="center">
@@ -27,8 +27,8 @@
   <a href="https://modelcontextprotocol.io/">
     <img src="https://img.shields.io/badge/MCP-Compatible-9cf?logo=openai" alt="MCP Compatible" />
   </a>
-  <a href="https://pypi.org/project/port-detective/">
-    <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python" alt="Python SDK" />
+  <a href="python/README.md">
+    <img src="https://img.shields.io/badge/Python%20SDK-source-3776AB?logo=python" alt="Python SDK source" />
   </a>
 </p>
 
@@ -41,6 +41,27 @@
   <a href="#-跨平台性能基准">性能基准</a> •
   <a href="#-安装与构建">安装与构建</a>
 </p>
+
+## 快速开始
+
+```bash
+# 从源码安装 CLI
+go install github.com/EquityQ/port-detective@master
+
+# 检查、扫描并预演安全清理
+port-detective check 3000
+port-detective scan --ports 3000,5173,8080
+port-detective clean --dry-run
+
+# 为 AI 客户端启动 MCP 服务
+port-detective mcp
+```
+
+Python SDK 安装：`python -m pip install ./python`。SDK 通过 CLI 工作，生产环境请保持两者使用同一个经过审核的版本。
+
+文档导航：[文档中心](docs/README.md) · [社区协作](docs/community/CONTRIBUTING.md) ·
+[项目规划](docs/project/ROADMAP.md) · [平台与状态](docs/operations/PLATFORM_SUPPORT.md) ·
+[发布记录](docs/releases/CHANGELOG.md)。
 
 ---
 
@@ -221,7 +242,7 @@ port-detective scan --json | jq '.[].project.framework'
 python -m pip install ./python
 ```
 
-正式 Python SDK 发布后，再使用 `pip install port-detective` 安装对应版本。
+当前 PyPI 包尚未发布；正式发布后，再使用 `python -m pip install port-detective` 安装对应版本。
 
 ### 同步调用示例
 ```python
@@ -348,9 +369,10 @@ go test -v -race ./...
 
 ## 🤝 参与贡献与获取支持
 
-提交问题前请查看[当前项目状态](STATUS.md)、[质量评估](QUALITY_REVIEW.md)、
-[路线图](ROADMAP.md)与[平台支持政策](PLATFORM_SUPPORT.md)。安全漏洞请按照[安全策略](SECURITY.md)
-通过 GitHub 私密通道报告，不要发布在公开 Issue 中。参与协作前请阅读[行为准则](CODE_OF_CONDUCT.md)。
+提交问题前请查看[当前项目状态](docs/operations/STATUS.md)、[质量评估](docs/project/QUALITY_REVIEW.md)、
+[路线图](docs/project/ROADMAP.md)与[平台支持政策](docs/operations/PLATFORM_SUPPORT.md)。安全漏洞请按照[安全策略](docs/community/SECURITY.md)
+通过 GitHub 私密通道报告，不要发布在公开 Issue 中。参与协作前请阅读[行为准则](docs/community/CODE_OF_CONDUCT.md)。
+完整的中英文文档请进入[文档中心](docs/README.md)。
 
 ---
 

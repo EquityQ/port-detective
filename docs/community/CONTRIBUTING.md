@@ -2,8 +2,10 @@
 
 Thank you for your interest in contributing to **port-detective**! We welcome community contributions, bug reports, feature suggestions, and documentation improvements.
 
-Read the [Code of Conduct](CODE_OF_CONDUCT.md), [platform support policy](PLATFORM_SUPPORT.md),
-and [current quality review](QUALITY_REVIEW.md) before making a change.
+Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
+
+Read the [Code of Conduct](CODE_OF_CONDUCT.md), [platform support policy](../operations/PLATFORM_SUPPORT.md),
+and [current quality review](../project/QUALITY_REVIEW.md) before making a change.
 
 ---
 
@@ -101,9 +103,15 @@ published successfully.
 
 ## Community and Support
 
-- Review the [platform support policy](PLATFORM_SUPPORT.md) before filing a platform-specific report.
+- Review the [platform support policy](../operations/PLATFORM_SUPPORT.md) before filing a platform-specific report.
 - Use the repository's issue forms for reproducible bugs and focused feature requests.
 - Report security vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue.
-- Check [STATUS.md](STATUS.md) for the current maintenance focus and known limitations.
-- Use [QUALITY_REVIEW.md](QUALITY_REVIEW.md) and [ROADMAP.md](ROADMAP.md) to understand
+- Check [STATUS.md](../operations/STATUS.md) for the current maintenance focus and known limitations.
+- Use [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md) and [ROADMAP.md](../project/ROADMAP.md) to understand
   current priorities before proposing a broad refactor.
+
+## 中文摘要
+
+欢迎提交代码、问题、功能建议和文档改进。贡献前请阅读[行为准则](CODE_OF_CONDUCT.md)、[平台支持政策](../operations/PLATFORM_SUPPORT.md)和[质量评估](../project/QUALITY_REVIEW.md)。核心约束是：`internal/core` 不依赖 Cobra 或 MCP；MCP 模式下 stdout 只能输出 JSON-RPC；跨平台逻辑不得调用 `netstat`、`lsof` 或 `kill` 等外部命令。
+
+本地验证至少运行 `go test -race ./...`、`go vet ./...`、`gofmt -l .`；Python 变更还需运行 `python -m unittest discover -s python/tests -v`。提交信息遵循 Conventional Commits，文档、CI 和发布变更需说明兼容性影响。

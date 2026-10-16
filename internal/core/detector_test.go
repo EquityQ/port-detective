@@ -5,11 +5,30 @@ import (
 	"errors"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestProjectPathsMatchUsesPlatformCaseRules(t *testing.T) {
+	dir := t.TempDir()
+	canonical := filepath.Clean(dir)
+	variant := filepath.Clean(dir + "_different")
+	if runtime.GOOS == "windows" {
+		variant = filepath.Clean(strings.ToUpper(dir))
+		if !projectPathsMatch(canonical, variant) {
+			t.Fatalf("Windows path comparison should ignore case: %q vs %q", canonical, variant)
+		}
+		return
+	}
+	if projectPathsMatch(canonical, variant) {
+		t.Fatalf("Unix path comparison should reject different paths: %q vs %q", canonical, variant)
+	}
+}
 
 var testHelperPID = int32(os.Getpid())
 

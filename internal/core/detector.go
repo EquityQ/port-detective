@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -411,14 +412,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 	for _, diag := range occupied {
 		if diag.Project != nil && diag.Project.Path != "" {
 			targetPath := filepath.Clean(diag.Project.Path)
-			matched := false
-			if strings.EqualFold(targetPath, cleanCwd) {
-				matched = true
-			} else if fi1, err1 := os.Stat(targetPath); err1 == nil {
-				if fi2, err2 := os.Stat(cleanCwd); err2 == nil && os.SameFile(fi1, fi2) {
-					matched = true
-				}
-			}
+			matched := projectPathsMatch(targetPath, cleanCwd)
 
 			if matched {
 				targets = append(targets, diag)
@@ -446,4 +440,18 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 	}
 
 	return cleaned, nil
+}
+
+// projectPathsMatch applies the filesystem's path semantics before cleanup.
+// Windows paths are case-insensitive; Unix paths remain case-sensitive.
+func projectPathsMatch(targetPath, currentPath string) bool {
+	if runtime.GOOS == "windows" && strings.EqualFold(targetPath, currentPath) {
+		return true
+	}
+	if targetPath == currentPath {
+		return true
+	}
+	fi1, err1 := os.Stat(targetPath)
+	fi2, err2 := os.Stat(currentPath)
+	return err1 == nil && err2 == nil && os.SameFile(fi1, fi2)
 }
