@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   goreleaser:
@@ -40,6 +42,10 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Prepare matching Python release version
+        shell: bash
+        run: python scripts/release/prepare_python_release.py --root python --version "${GITHUB_REF_NAME#v}"
+
       - name: Validate Python SDK
         working-directory: python
         run: |
@@ -49,7 +55,14 @@ jobs:
 
       - name: Build release candidate for MCP acceptance
         shell: bash
-        run: go build -o port-detective ./
+        run: |
+          release_version="${GITHUB_REF_NAME#v}"
+          go build -ldflags "-s -w -X github.com/EquityQ/port-detective/internal/version.Value=${release_version}" -o port-detective ./
+          python scripts/release/verify_artifacts.py \
+            --expected-version "${release_version}" \
+            --cli ./port-detective \
+            --python-root python \
+            --wheel-dir python/dist
 
       - name: Run MCP acceptance checks
         shell: bash
@@ -75,3 +88,60 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify release archives and checksums
+        shell: bash
+        run: |
+          python scripts/release/verify_artifacts.py \
+            --expected-version "${GITHUB_REF_NAME#v}" \
+            --dist dist \
+            --checksums dist/checksums.txt
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: port-detective_${{ github.ref_name }}.spdx.json
+          upload-artifact: false
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign release artifacts and SBOM
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/*.tar.gz dist/*.zip dist/checksums.txt python/dist/*.whl python/dist/*.tar.gz "port-detective_${GITHUB_REF_NAME}.spdx.json")
+          test "${#artifacts[@]}" -gt 0
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes \
+              --output-signature "${artifact}.sig" \
+              --output-certificate "${artifact}.pem" \
+              "${artifact}"
+          done
+
+      - name: Attest Go release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/**
+
+      - name: Attest Python distributions
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: python/dist/*
+
+      - name: Attest SBOM
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: port-detective_${{ github.ref_name }}.spdx.json
+
+      - name: Upload Python distributions, SBOM, and signatures
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          assets=(python/dist/*.whl python/dist/*.tar.gz dist/*.sig dist/*.pem python/dist/*.sig python/dist/*.pem "port-detective_${GITHUB_REF_NAME}.spdx.json")
+          assets+=("port-detective_${GITHUB_REF_NAME}.spdx.json.sig" "port-detective_${GITHUB_REF_NAME}.spdx.json.pem")
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber

@@ -31,6 +31,7 @@ users usually have.
 ## Releases / 发布记录
 
 - [Changelog / 变更记录](releases/CHANGELOG.md)
+- [Release checklist / 发布验收](releases/RELEASE_CHECKLIST.md)
 
 ## Language policy / 文档语言策略
 

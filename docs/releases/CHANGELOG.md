@@ -17,6 +17,8 @@ The repository currently contains the v1.1 feature-complete development line. A
 - Community security policy, platform support policy, status page, issue forms, and
   pull request template.
 - Quality review and staged open-source maturity roadmap.
+- Release artifact verification, SPDX SBOM generation, Cosign signatures, and
+  GitHub provenance attestation workflow.
 
 ### Changed
 
@@ -34,7 +36,7 @@ implementation record.
 
 ### [未发布]
 
-当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估和开源成熟度路线图；同时校正源码构建、发布产物和 CLI/MCP/Python 示例的说明。
+当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名和 GitHub 来源证明工作流；同时校正源码构建、发布产物和 CLI/MCP/Python 示例的说明。
 
 ### [0.1.0-assignment]
 

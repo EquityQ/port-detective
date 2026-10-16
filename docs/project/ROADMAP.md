@@ -8,8 +8,8 @@ project.
 
 ## Now: Release Readiness
 
-- Publish the first signed `v1.1.0` CLI and matching Python SDK release.
-- Attach checksums, SBOM, provenance, and acceptance-test evidence to the release.
+- Review the automated release checklist, then publish the first signed `v1.1.0` CLI and matching Python SDK release.
+- Retain checksums, SBOM, provenance, signatures, and acceptance-test evidence with the release.
 - Keep the CLI and SDK version numbers synchronized.
 - Publish a short release note with supported platforms and known permission limits.
 
@@ -38,8 +38,8 @@ prevention always take precedence over feature work.
 
 ### 当前：发布准备
 
-- 发布签名的 `v1.1.0` CLI 和匹配版本的 Python SDK。
-- 附带校验和、SBOM、来源证明和 MCP 验收证据。
+- 审查自动化发布清单后，发布签名的 `v1.1.0` CLI 和匹配版本的 Python SDK。
+- 在发布记录中保留校验和、SBOM、来源证明、签名和 MCP 验收证据。
 - 保持 CLI 与 SDK 版本同步，并公开支持平台和权限限制。
 
 ### 下一步：跨环境可信度

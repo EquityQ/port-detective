@@ -94,6 +94,7 @@ occupied = scan_ports([3000, 8080])
 - [质量评估](docs/project/QUALITY_REVIEW.md)
 - [路线图](docs/project/ROADMAP.md)
 - [变更记录](docs/releases/CHANGELOG.md)
+- [发布验收清单](docs/releases/RELEASE_CHECKLIST.md)
 
 ## 许可证
 

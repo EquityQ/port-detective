@@ -105,6 +105,7 @@ See the [Python SDK guide](python/README.md) for synchronous and asyncio APIs.
 - [Quality review](docs/project/QUALITY_REVIEW.md)
 - [Roadmap](docs/project/ROADMAP.md)
 - [Changelog](docs/releases/CHANGELOG.md)
+- [Release checklist](docs/releases/RELEASE_CHECKLIST.md)
 
 ## License
 
