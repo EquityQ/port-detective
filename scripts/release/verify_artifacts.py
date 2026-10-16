@@ -42,7 +42,7 @@ def read_declared_version(path: Path, pattern: str) -> str:
     return match.group(1)
 
 
-def verify_python(root: Path, wheel_dir: Path | None, expected: str) -> None:
+def verify_python(root: Path, distribution_dir: Path | None, expected: str) -> None:
     pyproject_version = read_declared_version(
         root / "pyproject.toml", r'^version\s*=\s*["\']([^"\']+)["\']$'
     )
@@ -53,16 +53,32 @@ def verify_python(root: Path, wheel_dir: Path | None, expected: str) -> None:
     check(pyproject_version == expected, f"pyproject version is {pyproject_version}, expected {expected}")
     check(init_version == expected, f"__version__ is {init_version}, expected {expected}")
 
-    if wheel_dir is None:
+    if distribution_dir is None:
         return
-    wheels = sorted(wheel_dir.glob("*.whl"))
-    check(len(wheels) == 1, f"expected one release wheel in {wheel_dir}, found {len(wheels)}")
+    wheels = sorted(distribution_dir.glob("*.whl"))
+    check(len(wheels) == 1, f"expected one release wheel in {distribution_dir}, found {len(wheels)}")
     with zipfile.ZipFile(wheels[0]) as archive:
         metadata_names = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
         check(len(metadata_names) == 1, f"wheel metadata is ambiguous: {metadata_names}")
         metadata = archive.read(metadata_names[0]).decode("utf-8")
     wheel_version = read_declared_version_from_text(metadata, r"^Version:[ \t]*(\S+)[ \t]*$")
     check(wheel_version == expected, f"wheel version is {wheel_version}, expected {expected}")
+
+    sdists = sorted(distribution_dir.glob("*.tar.gz"))
+    check(len(sdists) == 1, f"expected one release sdist in {distribution_dir}, found {len(sdists)}")
+    with tarfile.open(sdists[0], mode="r:gz") as archive:
+        metadata_members = [
+            member
+            for member in archive.getmembers()
+            if Path(member.name).name == "PKG-INFO"
+            and len(Path(member.name).parts) == 2
+        ]
+        check(len(metadata_members) == 1, f"sdist metadata is ambiguous: {metadata_members}")
+        metadata_file = archive.extractfile(metadata_members[0])
+        check(metadata_file is not None, f"could not read sdist metadata: {sdists[0]}")
+        sdist_metadata = metadata_file.read().decode("utf-8")
+    sdist_version = read_declared_version_from_text(sdist_metadata, r"^Version:[ \t]*(\S+)[ \t]*$")
+    check(sdist_version == expected, f"sdist version is {sdist_version}, expected {expected}")
 
 
 def read_declared_version_from_text(text: str, pattern: str) -> str:
@@ -117,7 +133,7 @@ def main() -> int:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--cli", type=Path)
     parser.add_argument("--python-root", type=Path)
-    parser.add_argument("--wheel-dir", type=Path)
+    parser.add_argument("--wheel-dir", type=Path, help="Python wheel and sdist directory")
     parser.add_argument("--dist", type=Path)
     parser.add_argument("--checksums", type=Path)
     args = parser.parse_args()

@@ -25,8 +25,10 @@ project.
 
 ## Next: Packaging and measurable quality
 
-- Publish the Python SDK with PyPI Trusted Publishing after the first signed CLI
-  release and verify installation from the published wheel.
+- The tag workflow is configured to publish the Python wheel and source distribution
+  with PyPI Trusted Publishing, then install the exact version from PyPI and exercise
+  it against the matching CLI. Configure the `pypi` environment and publisher before
+  creating the first release.
 - Add a small dependency-free npm/Node.js wrapper around the CLI JSON contract when
   Node consumers are part of the supported audience.
 - Publish coverage reports and enforce reviewed minimum thresholds without weakening
@@ -57,10 +59,14 @@ prevention always take precedence over feature work.
 - 增加受保护进程、PID 复用、IPv4/IPv6、WSL 和容器集成夹具。
 - 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考。
 
+### 打包与质量门槛
+
+- Tag 工作流已配置为通过 PyPI Trusted Publishing 发布 Python SDK，并从 PyPI 安装相同版本对匹配 CLI 做真实验证；首次发布前仍需配置 `pypi` 环境和 Trusted Publisher。
+- 下一步是在确认 Node 用户需求后增加轻量 npm/Node.js CLI 包装器，并为各语言设置可执行的覆盖率门槛。
+
 ### 后续：社区规模化
 
 - 明确维护者、响应目标和发布节奏。
 - 增加故障排查、Shell 补全和可复现演示。
 - 按系统、架构和权限记录兼容性与基准数据。
-- 通过 PyPI Trusted Publishing 发布 Python SDK；在确认 Node 用户需求后增加轻量 npm/Node.js CLI 包装器，并为各语言设置可执行的覆盖率门槛。
 - 发布流程已改为先校验、签名验真和生成来源证明，最后创建 GitHub Release；GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪更新。

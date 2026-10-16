@@ -70,12 +70,17 @@ The server exposes `inspect_port`, `scan_dev_ports`, `free_port`, and
 The SDK wraps the CLI and does not bundle a Go binary:
 
 ```bash
+# After the v1.1.0 release is published:
+python -m pip install port-detective
+
+# Or install the SDK from this checkout:
 python -m pip install ./python
 ```
 
 Keep the SDK and CLI on the same reviewed commit or release. Set
-`PORT_DETECTIVE_BIN` when the executable is not on `PATH`. The package is not yet
-published to PyPI.
+`PORT_DETECTIVE_BIN` when the executable is not on `PATH`. The tag workflow uses
+PyPI Trusted Publishing and verifies the installed package before creating the
+matching GitHub Release. The v1.1.0 package is not published yet.
 
 ```python
 from port_detective import inspect_port, scan_ports

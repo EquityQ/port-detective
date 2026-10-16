@@ -5,10 +5,12 @@ on:
     branches: [main, master]
     paths:
       - "python/**"
+      - "scripts/release/**"
       - ".github/workflows/python.yml"
   pull_request:
     paths:
       - "python/**"
+      - "scripts/release/**"
       - ".github/workflows/python.yml"
 
 permissions:
@@ -44,6 +46,10 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Test release artifact validators
+        working-directory: .
+        run: python -m unittest discover -s scripts/release -p "test_*.py" -v
 
       - name: Build wheel and source distribution
         run: python -m build

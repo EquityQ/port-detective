@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 13 complete; ready for Step 14
+- **当前状态指针**: Step 14 complete; ready for Step 15
 - **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**59 个用例**：core 17 + cli 19 + mcpserver 14 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**、字节码编译和 wheel/sdist 构建通过；发布校验器、MCP 三项验收和 Markdown 链接检查通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **88/100**；真实 CLI/Python 集成矩阵和原子化发布门禁已加入 Windows、macOS、Linux 以及 Python 3.9/3.13，v1.1.0 尚未发布，下一步重点是 PyPI Trusted Publishing、npm 客户端和覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python 集成矩阵、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13，v1.1.0 尚未发布，下一步重点是 npm 客户端和覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -86,9 +86,15 @@
   - Pin third-party Actions to immutable commit SHAs and add dependency update
     automation.
 
-- [ ] **Step 14: Publish the Python SDK through a trusted PyPI workflow**
+- [x] **Step 14: Publish the Python SDK through a trusted PyPI workflow**
   - Keep Go CLI, Python metadata, wheel, and source distribution versions aligned.
   - Add PyPI Trusted Publishing and verify installation from the published package.
+  - Validation: release metadata checks wheel and sdist versions; focused verifier
+    tests cover matching and mismatching metadata. The tag workflow stages only Python
+    distributions for the pinned PyPI Trusted Publisher action, supports safe retries
+    of an existing version, and exercises the installed SDK against the matching CLI.
+    No v1.1.0 package has been published until the maintainer configures the `pypi`
+    environment and creates the tag.
 
 - [ ] **Step 15: Add a dependency-free npm/Node.js client**
   - Provide a small Node.js wrapper around the CLI JSON contract with sync and async
@@ -312,6 +318,7 @@ port-detective
 - **[Step-11 done]**: Added release version injection and verification for the Go CLI, Python metadata, and wheel; added GoReleaser checksum/archive validation, SPDX SBOM generation, keyless Cosign signatures, and GitHub provenance attestations to the tag workflow. Python wheel/sdist artifacts are now signed, attested, and uploaded with the release. Added a concise bilingual release checklist and updated the quality review to 86/100 while keeping `v1.1.0` explicitly unreleased. The verifier handles CRLF wheel metadata and passes positive/negative checksum self-checks; full local quality gates, MCP acceptance, and Markdown link checks pass.
 - **[Step-12 done]**: Added a real Python SDK and CLI integration workflow across Windows, macOS, and Linux for Python 3.9/3.13. The fixture builds the matching CLI, holds a temporary TCP listener, verifies synchronous inspect/scan/dry-run calls and an asyncio inspect call, and never performs destructive cleanup. Local Windows integration, Go validation, Python compilation, workflow YAML parsing, and formatting checks pass; the hosted matrix remains the required cross-platform evidence.
 - **[Step-13 done]**: Changed the tag workflow to build GoReleaser artifacts without publishing, verify archives and checksums, generate the SBOM, sign and verify every release file with keyless Cosign, and emit provenance attestations before `gh release create` publishes the verified assets. Pinned all GitHub Actions to immutable commit SHAs and added monthly Dependabot updates for Actions, Go modules, and Python packaging. Workflow YAML, action pinning, Go/Python tests, race, vet, formatting, and diff checks pass; no `v1.1.0` release has been created yet.
+- **[Step-14 done]**: Added pinned PyPI Trusted Publishing with the `pypi` GitHub environment, staged only wheel/sdist files for upload, made same-version reruns idempotent, extended release verification to wheel and source distribution metadata, and added a retrying post-publish installer that runs the installed SDK against the matching CLI. Focused tests cover matching and mismatching metadata. Updated bilingual installation, release checklist, status, roadmap, changelog, and quality review documents to keep the package unreleased until the first tag is created. Local script compilation, workflow parsing, Go/Python quality gates, MCP acceptance, real CLI/SDK integration, and documentation link checks pass; PyPI publication remains a maintainer action after configuring the Trusted Publisher.
 
 ---
 

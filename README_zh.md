@@ -64,10 +64,14 @@ port-detective mcp
 SDK 通过子进程调用 CLI，不内置 Go 二进制：
 
 ```bash
+# v1.1.0 发布后：
+python -m pip install port-detective
+
+# 或从当前源码安装 SDK：
 python -m pip install ./python
 ```
 
-SDK 与 CLI 应使用同一个经过审核的提交或版本。可执行文件不在 `PATH` 时，设置 `PORT_DETECTIVE_BIN`。当前尚未发布 PyPI 包。
+SDK 与 CLI 应使用同一个经过审核的提交或版本。可执行文件不在 `PATH` 时，设置 `PORT_DETECTIVE_BIN`。Tag 工作流使用 PyPI Trusted Publishing，并在创建对应 GitHub Release 前验证已安装的包；v1.1.0 目前尚未发布。
 
 ```python
 from port_detective import inspect_port, scan_ports

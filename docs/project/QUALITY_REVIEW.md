@@ -15,15 +15,15 @@ not exist yet. A real CLI/Python integration matrix now covers Windows, macOS, a
 Linux, while its first hosted run remains release evidence rather than a local
 assumption.
 
-**Current score: 88/100**
+**Current score: 89/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 13/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks, and a real CLI/SDK integration matrix | API reference, PyPI publication, and a reproducible demo environment |
-| Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
+| Developer experience | 14/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks, a real CLI/SDK integration matrix, and a post-publish PyPI install check | API reference and a reproducible demo environment |
+| Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
 ## Strengths
@@ -38,10 +38,12 @@ assumption.
   each OS installs a built wheel.
 - The integration workflow builds the matching CLI on all three operating systems
   and verifies synchronous and asyncio SDK calls against a real temporary listener.
-- The tag workflow builds without publishing, verifies and signs all assets, checks
-  Cosign signatures, emits provenance attestations, and only then creates the GitHub
-  Release. GitHub Actions are pinned to immutable commits and Dependabot tracks
-  updates.
+- The tag workflow is configured to verify and sign all assets, check Cosign
+  signatures, emit provenance attestations, publish Python distributions through
+  PyPI Trusted Publishing, install that version from PyPI, and check it against the
+  matching CLI before creating the GitHub Release. GitHub Actions are pinned to
+  immutable commits and Dependabot tracks updates; the first hosted release remains
+  the evidence for the external publishing configuration.
 - Scan input validation, TCP listener filtering, stable empty MCP arrays, and
   aggregate project-cleanup failures are covered by focused regression tests.
 - The project explains permission-limited process metadata instead of presenting
@@ -64,8 +66,8 @@ assumption.
    non-English paths.
 2. Generate a versioned CLI/MCP schema reference from the implementation or tests so
    tool arguments cannot drift from the README.
-3. Publish the Python SDK through PyPI Trusted Publishing and add a post-publish
-   installation check against the matching CLI release.
+3. Configure the PyPI Trusted Publisher and create the first release so the
+   post-publish installation check has public artifact evidence.
 
 ### P2: Maturity and Adoption
 
@@ -88,4 +90,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **88/100**。真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；发布工作流现在会先完成制品校验、签名验真和来源证明，再创建 GitHub Release，且所有 GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪。仍需实际创建 `v1.1.0` Tag、发布匹配的 Python SDK，并补充版本化 CLI/MCP API 参考。
+当前质量基线为 **89/100**。真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；发布工作流现在会先完成制品校验、签名验真和来源证明，通过 PyPI Trusted Publishing 发布 wheel/sdist，从 PyPI 安装相同版本并对匹配 CLI 做真实验证，最后创建 GitHub Release。所有 GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪。仍需实际创建 `v1.1.0` Tag、保留公开制品证据，并补充版本化 CLI/MCP API 参考。

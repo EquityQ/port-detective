@@ -13,8 +13,10 @@ The repository's latest Git tag is `v0.1.0-assignment`; a signed and published
 - GoReleaser configuration targeting Windows, macOS, and Linux on `amd64` and
   `arm64`; the release workflow builds artifacts without publishing, verifies
   versions/checksums, generates an SPDX SBOM, signs and verifies release files,
-  emits GitHub provenance attestations, and creates the Release only at the end.
-  No v1.1.0 archives have been published yet.
+  emits GitHub provenance attestations, and is configured to publish Python
+  distributions through PyPI Trusted Publishing, verify the public installation
+  against the matching CLI, and create the GitHub Release only at the end. No v1.1.0
+  archives or PyPI package have been published yet.
 
 The project is in active maintenance. Current priorities are the first tagged release,
 end-to-end compatibility reports, and careful security fixes. Go and Python CI now
@@ -33,4 +35,4 @@ in [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md), with execution order in [R
 
 项目当前处于 v1.1 功能完成开发阶段，最新 Git 标签仍是 `v0.1.0-assignment`，签名并正式发布的 `v1.1.0` 尚未创建。现有能力包括并发端口诊断、Node/Python/Go 项目指纹、CLI/MCP 清理功能、双语 CLI、MCP Stdio 服务和 Python 3.9+ SDK。
 
-当前重点是首个正式 Tag、真实 CLI 兼容性报告及安全修复。发布工作流会先构建并校验版本、归档和校验和，生成 SBOM、签名并验证签名、发布来源证明，最后才创建 GitHub Release。Go 和 Python CI 已覆盖 Windows、macOS 和 Linux；标准 Python 矩阵使用 mock 以快速验证 SDK，独立集成矩阵会在三类系统上构建并调用真实 CLI。受保护进程的元数据可能不可用，工具会将其标记为权限受限诊断，不会据此判断端口空闲。
+当前重点是首个正式 Tag、真实 CLI 兼容性报告及安全修复。发布工作流已配置为先构建并校验版本、归档和校验和，生成 SBOM、签名并验证签名、发布来源证明，通过 PyPI Trusted Publishing 发布 Python 分发包，从 PyPI 安装相同版本并对匹配 CLI 做真实验证，最后才创建 GitHub Release。Go 和 Python CI 已覆盖 Windows、macOS 和 Linux；标准 Python 矩阵使用 mock 以快速验证 SDK，独立集成矩阵会在三类系统上构建并调用真实 CLI。受保护进程的元数据可能不可用，工具会将其标记为权限受限诊断，不会据此判断端口空闲。
