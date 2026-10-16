@@ -94,7 +94,7 @@ See the [Python SDK guide](python/README.md) for synchronous and asyncio APIs.
 - Process metadata and termination can be limited by permissions, services,
   containers, WSL, and sandboxing.
 - The CLI release matrix targets Windows, macOS, and Ubuntu on amd64 and arm64.
-  Python SDK CI currently covers Ubuntu; see the [platform policy](docs/operations/PLATFORM_SUPPORT.md).
+  Python SDK CI covers Ubuntu, macOS, and Windows; see the [platform policy](docs/operations/PLATFORM_SUPPORT.md).
 
 ## Documentation
 

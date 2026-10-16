@@ -83,7 +83,7 @@ occupied = scan_ports([3000, 8080])
 - 清理操作匹配进程的项目路径，不判断进程是否真正成为孤儿进程。
 - 使用 `--yes` 或 `dry_run=false` 前，请先查看 `--dry-run` 结果。
 - 权限、系统服务、容器、WSL 和沙箱可能限制进程信息读取或终止。
-- CLI 发布矩阵覆盖 Windows、macOS、Ubuntu 的 amd64 和 arm64；Python SDK CI 当前覆盖 Ubuntu，详见[平台支持政策](docs/operations/PLATFORM_SUPPORT.md)。
+- CLI 发布矩阵覆盖 Windows、macOS、Ubuntu 的 amd64 和 arm64；Python SDK CI 覆盖 Ubuntu、macOS 和 Windows，详见[平台支持政策](docs/operations/PLATFORM_SUPPORT.md)。
 
 ## 文档
 

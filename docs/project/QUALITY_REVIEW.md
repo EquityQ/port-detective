@@ -14,15 +14,15 @@ fully mature release project because the v1.1.0 tag and published artifact trail
 not exist yet, and supply-chain metadata and cross-platform SDK validation are still
 limited.
 
-**Current score: 79/100**
+**Current score: 83/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
-| Correctness and safety | 18/20 | 52 Go tests, race tests, PID identity revalidation, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 11/15 | Bilingual README, examples, issue forms, CI | API reference and a reproducible demo environment |
-| Release and supply chain | 8/15 | Pinned GoReleaser, checksums, release preflight, matrix Go CI | Signed artifacts, SBOM, provenance, actual release tag |
+| Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
+| Developer experience | 12/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks | API reference and a reproducible demo environment |
+| Release and supply chain | 10/15 | Pinned GoReleaser, checksums, release preflight, three-OS CI, `govulncheck`, and `pip-audit` | Signed artifacts, SBOM, provenance, actual release tag |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
 ## Strengths
@@ -32,8 +32,11 @@ limited.
   process identity checks, and a second ownership check immediately before termination.
 - MCP Stdio keeps stdout reserved for JSON-RPC. Handshake, tool schema, tool calls,
   and stdout purity are covered by executable acceptance scripts.
-- Go CI covers Windows, macOS, and Linux with Go 1.23 and 1.25. Python tests cover
-  the synchronous and asynchronous wrapper APIs.
+- Go and Python CI cover Windows, macOS, and Linux with Go 1.23/1.25 and Python
+  3.9/3.13. Python tests cover the synchronous and asynchronous wrapper APIs, and
+  each OS installs a built wheel.
+- Scan input validation, TCP listener filtering, stable empty MCP arrays, and
+  aggregate project-cleanup failures are covered by focused regression tests.
 - The project explains permission-limited process metadata instead of presenting
   incomplete data as certainty.
 
@@ -49,18 +52,14 @@ limited.
 
 ### P1: Next Development Cycle
 
-1. Add release provenance (for example, GitHub artifact attestations) and dependency
-   vulnerability scanning (`govulncheck` and a Python dependency audit).
-2. Add Python CI on Windows and macOS, then document the tested SDK matrix separately
-   from the Go CLI matrix.
-3. Add integration fixtures for protected processes, PID reuse, IPv4/IPv6 listeners,
+1. Add release provenance (for example, GitHub artifact attestations), signed archives,
+   and a generated SBOM.
+2. Add integration fixtures for protected processes, PID reuse, IPv4/IPv6 listeners,
    WSL/containers, and non-English paths.
-4. Generate a versioned CLI/MCP schema reference from the implementation or tests so
+3. Generate a versioned CLI/MCP schema reference from the implementation or tests so
    tool arguments cannot drift from the README.
-5. Make `scan_dev_ports` return one stable JSON shape for empty and occupied results,
-   validate every batch port consistently, and filter the process index to listeners.
-6. Surface aggregate cleanup failures instead of encoding per-target failures only in
-   diagnostic status strings.
+4. Add an end-to-end Python SDK job that builds the matching CLI binary on each OS;
+   current Python CI intentionally mocks subprocess calls.
 
 ### P2: Maturity and Adoption
 
@@ -83,6 +82,6 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **79/100**。项目已经具备清晰的 core/CLI/MCP 分层、并发扫描、进程安全校验、MCP 协议验收、跨平台 Go CI 和 Python SDK，但仍属于 v1.1 开发线，尚未达到成熟发布项目的完整闭环。
+当前质量基线为 **83/100**。项目已经具备清晰的 core/CLI/MCP 分层、并发扫描、进程安全校验、MCP 协议验收、跨平台 Go/Python CI 和依赖安全检查，但仍属于 v1.1 开发线，尚未达到成熟发布项目的完整发布闭环。
 
-发布前必须完成：正式 `v1.1.0` 标签、签名归档、校验和、SBOM、来源证明、MCP 发布包验收，以及与 CLI 版本匹配的 Python wheel 验证。下一阶段应补充 Python 在 Windows/macOS 的 CI、权限和 PID 复用集成夹具、依赖漏洞扫描、版本化 CLI/MCP API 参考。
+发布前必须完成：正式 `v1.1.0` 标签、签名归档、校验和、SBOM、来源证明、MCP 发布包验收，以及与 CLI 版本匹配的 Python wheel 验证。下一阶段应补充真实 CLI 集成夹具、权限和 PID 复用场景、版本化 CLI/MCP API 参考。

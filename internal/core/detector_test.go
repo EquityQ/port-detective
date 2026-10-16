@@ -205,6 +205,35 @@ func TestScanPortsConcurrentContextCancel(t *testing.T) {
 	}
 }
 
+func TestScanPortsConcurrentRejectsInvalidPort(t *testing.T) {
+	for _, port := range []int{0, -1, 65536, 100000} {
+		results, err := ScanPortsConcurrent(context.Background(), []int{port})
+		if err == nil {
+			t.Errorf("ScanPortsConcurrent(%d) expected an error", port)
+		}
+		if results == nil {
+			t.Errorf("ScanPortsConcurrent(%d) should return an empty result slice", port)
+		}
+	}
+}
+
+func TestIsTCPListenerFiltersConnectionStates(t *testing.T) {
+	for _, test := range []struct {
+		status string
+		want   bool
+	}{
+		{status: "LISTEN", want: true},
+		{status: "listen", want: true},
+		{status: "ESTABLISHED", want: false},
+		{status: "TIME_WAIT", want: false},
+		{status: "", want: false},
+	} {
+		if got := isTCPListener(test.status); got != test.want {
+			t.Errorf("isTCPListener(%q) = %v, want %v", test.status, got, test.want)
+		}
+	}
+}
+
 // TestKillPortProcessDryRun verifies dry-run behavior and process safety guards.
 func TestKillPortProcessDryRun(t *testing.T) {
 	ctx := context.Background()
@@ -399,8 +428,8 @@ func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
 	defer RegisterProjectDetector(nil)
 
 	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
-	if err != nil {
-		t.Fatalf("CleanCurrentProjectPorts 失败: %v", err)
+	if err == nil {
+		t.Fatal("项目路径变化时应返回聚合清理错误")
 	}
 	if len(cleaned) != 1 || !strings.HasPrefix(cleaned[0].Status, "kill_failed:") {
 		t.Fatalf("项目路径变化时应保留失败诊断而不执行清理: %+v", cleaned)

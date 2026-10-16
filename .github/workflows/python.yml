@@ -16,11 +16,12 @@ permissions:
 
 jobs:
   test-and-build:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.9", "3.13"]
 
     defaults:
@@ -48,9 +49,5 @@ jobs:
         run: python -m build
 
       - name: Install wheel smoke test
-        shell: bash
-        run: |
-          python -m venv .smoke-venv
-          . .smoke-venv/bin/activate
-          python -m pip install dist/*.whl
-          python -c "import port_detective; print(port_detective.__version__)"
+        run: >-
+          python -c "import glob, os, subprocess, sys, tempfile; wheels = glob.glob('dist/*.whl'); assert len(wheels) == 1, wheels; target = tempfile.mkdtemp(prefix='port-detective-smoke-'); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--quiet', '--target', target, wheels[0]]); env = os.environ.copy(); env['PYTHONPATH'] = target; subprocess.check_call([sys.executable, '-c', 'import port_detective; print(port_detective.__version__)'], cwd=target, env=env)"

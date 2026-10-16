@@ -42,6 +42,7 @@ const (
 	terminationGracePeriod = 2 * time.Second
 	// terminationPollInterval controls process and port release polling.
 	terminationPollInterval = 25 * time.Millisecond
+	tcpListenStatus         = "LISTEN"
 )
 
 // DefaultDevPorts lists ten commonly used development ports.
@@ -148,12 +149,21 @@ func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 	}
 	index := make(map[connKey]int32, len(conns))
 	for _, c := range conns {
-		if c.Pid <= 0 || c.Laddr.Port == 0 {
+		if c.Pid <= 0 || c.Laddr.Port == 0 || !isTCPListener(c.Status) {
 			continue
 		}
-		index[connKey{port: c.Laddr.Port, sockTyp: c.Type}] = c.Pid
+		key := connKey{port: c.Laddr.Port, sockTyp: c.Type}
+		if current, exists := index[key]; !exists || c.Pid < current {
+			// Multiple listeners can share a port on some systems. Pick a stable
+			// owner instead of allowing connection-table order to decide.
+			index[key] = c.Pid
+		}
 	}
 	return index, nil
+}
+
+func isTCPListener(status string) bool {
+	return strings.EqualFold(status, tcpListenStatus)
 }
 
 // fillProcessDetail collects the process name, command line, resident memory, and CPU usage.
@@ -232,8 +242,8 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("invalid port %d: valid range is 1-65535", port)
+	if err := validatePort(port); err != nil {
+		return nil, err
 	}
 
 	diag := inspectPortInternal(ctx, port, nil)
@@ -254,8 +264,16 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 //	                                 │                          │
 //	              sync.WaitGroup closes the channel after workers exit; results are sorted.
 func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(ports) == 0 {
 		return []PortDiagnostic{}, nil
+	}
+	for _, port := range ports {
+		if err := validatePort(port); err != nil {
+			return []PortDiagnostic{}, err
+		}
 	}
 
 	// Cap the worker pool to the number of ports being scanned.
@@ -268,7 +286,15 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	}
 
 	// Build the process index once and share it read-only across all workers.
-	index, _ := buildProcIndex(ctx)
+	index, indexErr := buildProcIndex(ctx)
+	if indexErr != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// Keep a non-nil empty index so workers degrade to permission_required
+		// without rebuilding the system connection table for every port.
+		index = make(map[connKey]int32)
+	}
 
 	var wg sync.WaitGroup
 	portsChan := make(chan int, workers)
@@ -294,9 +320,6 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		go func() {
 			defer wg.Done()
 			for port := range portsChan {
-				if port < 1 || port > 65535 {
-					continue
-				}
 				diag := inspectPortInternal(ctx, port, index)
 				// Collect open ports only.
 				if diag.IsOpen {
@@ -317,7 +340,7 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	}()
 
 	// Collect open-port results from the workers.
-	var occupied []PortDiagnostic
+	occupied := make([]PortDiagnostic, 0)
 	for res := range resultsChan {
 		occupied = append(occupied, res)
 	}
@@ -400,6 +423,13 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 
 	msg := fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)", port, diag.ProcessName, diag.PID)
 	return diag, msg, nil
+}
+
+func validatePort(port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("invalid port %d: valid range is 1-65535", port)
+	}
+	return nil
 }
 
 // verifyTerminationTarget rechecks the observable port owner and process identity
@@ -551,12 +581,14 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 		return []PortDiagnostic{}, nil
 	}
 
-	var cleaned []PortDiagnostic
+	cleaned := make([]PortDiagnostic, 0, len(targets))
+	var failures []error
 	for _, target := range targets {
 		diag, _, err := cleanProjectTarget(ctx, target, cleanCwd, dryRun)
 		if err != nil {
 			target.Status = fmt.Sprintf("kill_failed: %v", err)
 			cleaned = append(cleaned, target)
+			failures = append(failures, fmt.Errorf("port %d: %w", target.Port, err))
 			continue
 		}
 		if diag != nil {
@@ -566,7 +598,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 		}
 	}
 
-	return cleaned, nil
+	return cleaned, errors.Join(failures...)
 }
 
 // cleanProjectTarget validates the original scan result again before a project

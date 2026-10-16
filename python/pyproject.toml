@@ -37,6 +37,10 @@ dev = [
     "pytest-asyncio>=0.21.0"
 ]
 
+[tool.setuptools.packages.find]
+include = ["port_detective*"]
+exclude = ["tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

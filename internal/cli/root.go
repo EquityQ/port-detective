@@ -957,13 +957,13 @@ func newCleanCommand(opts *options) *cobra.Command {
 				}
 			}
 
-			cleaned, err := core.CleanCurrentProjectPorts(cmd.Context(), cwd, dryRun)
-			if err != nil {
-				return err
-			}
+			cleaned, cleanErr := core.CleanCurrentProjectPorts(cmd.Context(), cwd, dryRun)
 
 			if opts.jsonOutput {
-				return writeJSON(out, cleaned)
+				if err := writeJSON(out, cleaned); err != nil {
+					return err
+				}
+				return cleanErr
 			}
 
 			title := "项目端口清理"
@@ -986,7 +986,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 				}
 				fmt.Fprintf(out, "  %s\n\n", p.paint(p.dim, emptyMsg))
 				fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
-				return nil
+				return cleanErr
 			}
 
 			fmt.Fprintf(out, "\n")
@@ -999,7 +999,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 			}
 			summaryLine(out, p, summaryMsg)
 			fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
-			return nil
+			return cleanErr
 		},
 	}
 

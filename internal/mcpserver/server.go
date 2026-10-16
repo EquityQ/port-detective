@@ -229,10 +229,6 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return mcp.NewToolResultErrorf("扫描端口失败：%v", err), nil
 	}
-
-	if len(results) == 0 {
-		return mcp.NewToolResultText("扫描完成：未发现被占用的端口。"), nil
-	}
 	return jsonResult(results)
 }
 
@@ -266,10 +262,7 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultErrorf("无法获取当前工作目录：%v", err), nil
 	}
 
-	cleaned, err := core.CleanCurrentProjectPorts(ctx, cwd, dryRun)
-	if err != nil {
-		return mcp.NewToolResultErrorf("清理当前项目端口失败：%v", err), nil
-	}
+	cleaned, cleanErr := core.CleanCurrentProjectPorts(ctx, cwd, dryRun)
 
 	result := map[string]any{
 		"cwd":     cwd,
@@ -277,7 +270,15 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 		"count":   len(cleaned),
 		"cleaned": cleaned,
 	}
-	return jsonResult(result)
+	if cleanErr != nil {
+		result["error"] = cleanErr.Error()
+	}
+	response, err := jsonResult(result)
+	if err != nil {
+		return nil, err
+	}
+	response.IsError = cleanErr != nil
+	return response, nil
 }
 
 // ============================ Shared Helpers ============================

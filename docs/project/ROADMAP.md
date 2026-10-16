@@ -15,10 +15,12 @@ project.
 
 ## Next: Confidence Across Environments
 
-- Expand Python CI to Windows and macOS.
+- Add an end-to-end Python SDK job that builds and exercises the matching CLI binary
+  on Windows, macOS, and Linux. The current Python matrix covers mocked SDK calls
+  and wheel installation on all three operating systems.
 - Add integration fixtures for protected processes, PID reuse, IPv4/IPv6, WSL, and
   containers.
-- Add automated dependency vulnerability checks and scheduled test runs.
+- Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
 - Generate CLI and MCP reference tables from tests or machine-readable schemas.
 
 ## Later: Community Scale
@@ -42,9 +44,9 @@ prevention always take precedence over feature work.
 
 ### 下一步：跨环境可信度
 
-- 将 Python CI 扩展到 Windows 和 macOS。
+- 增加在 Windows、macOS 和 Linux 构建匹配 CLI 并执行 Python SDK 的端到端任务；当前 Python 矩阵已覆盖三类系统的 mock 逻辑和 wheel 安装。
 - 增加受保护进程、PID 复用、IPv4/IPv6、WSL 和容器集成夹具。
-- 增加依赖漏洞扫描、定时测试和版本化 CLI/MCP 参考。
+- 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考。
 
 ### 后续：社区规模化
 

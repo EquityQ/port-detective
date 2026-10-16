@@ -189,11 +189,6 @@ func TestScanDevPortsToolDefaultScope(t *testing.T) {
 	}
 
 	text := resultText(t, res)
-	if strings.HasPrefix(text, "扫描完成：未发现") {
-		t.Log("本机开发常用端口均未被占用")
-		return
-	}
-
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(text), &diags); err != nil {
 		t.Fatalf("返回内容不是合法 JSON 数组：%v", err)
@@ -209,6 +204,29 @@ func TestScanDevPortsToolDefaultScope(t *testing.T) {
 		}
 	}
 	t.Logf("开发常用端口命中 %d 个", len(diags))
+}
+
+// TestScanDevPortsToolEmptyResultIsArray verifies that empty scans keep the
+// same machine-readable shape as scans that find occupied ports.
+func TestScanDevPortsToolEmptyResultIsArray(t *testing.T) {
+	port := freeLoopbackPort(t)
+	res := callTool(t, handleScanDevPorts, map[string]any{
+		"ports": fmt.Sprintf("%d", port),
+	})
+	if res.IsError {
+		t.Fatalf("scan_dev_ports 返回错误：%s", resultText(t, res))
+	}
+
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, res)), &diags); err != nil {
+		t.Fatalf("空扫描结果不是合法 JSON 数组：%v", err)
+	}
+	if diags == nil {
+		t.Fatal("空扫描结果应编码为 []，不能编码为 null")
+	}
+	if len(diags) != 0 {
+		t.Fatalf("空闲端口不应出现在扫描结果中：%+v", diags)
+	}
 }
 
 // TestScanDevPortsToolExplicitPorts verifies the explicit ports argument.
