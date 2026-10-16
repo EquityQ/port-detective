@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 12 complete; ready for Step 13
+- **当前状态指针**: Step 13 complete; ready for Step 14
 - **构建/测试状态**: `go build ./...`、`go test -v ./...` 全部通过（**59 个用例**：core 17 + cli 19 + mcpserver 14 + fingerprint 含子测试 9）；`go test -race ./...`、`go vet ./...`、`gofmt -l .` 均通过；Python SDK **15 个用例**、字节码编译和 wheel/sdist 构建通过；发布校验器、MCP 三项验收和 Markdown 链接检查通过。工具链 go1.25.13，`go.mod` 声明 `go 1.23.0`。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **87/100**；真实 CLI/Python 集成矩阵已加入 Windows、macOS、Linux 和 Python 3.9/3.13，v1.1.0 尚未发布，下一步重点是原子化发布、PyPI Trusted Publishing、npm 客户端和覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **88/100**；真实 CLI/Python 集成矩阵和原子化发布门禁已加入 Windows、macOS、Linux 以及 Python 3.9/3.13，v1.1.0 尚未发布，下一步重点是 PyPI Trusted Publishing、npm 客户端和覆盖率门槛，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -81,7 +81,7 @@
   - Validation: local Windows integration pass, Python bytecode compilation,
     workflow YAML parsing, Go build/tests, race tests, vet, and formatting.
 
-- [ ] **Step 13: Make release publication atomic and reproducible**
+- [x] **Step 13: Make release publication atomic and reproducible**
   - Verify, sign, and attest all artifacts before publishing the GitHub Release.
   - Pin third-party Actions to immutable commit SHAs and add dependency update
     automation.
@@ -311,6 +311,7 @@ port-detective
 - **[Step-10 done]**: Hardened scan validation and listener indexing, made MCP scan results consistently JSON arrays, aggregated project cleanup failures, expanded Python CI and dependency security workflows, and fixed setuptools package discovery so wheel/sdist builds are reproducible. Focused Go regressions, Go race/vet/format checks, 15 Python tests, bytecode compilation, Python package builds, MCP acceptance scripts, and Markdown link checks pass.
 - **[Step-11 done]**: Added release version injection and verification for the Go CLI, Python metadata, and wheel; added GoReleaser checksum/archive validation, SPDX SBOM generation, keyless Cosign signatures, and GitHub provenance attestations to the tag workflow. Python wheel/sdist artifacts are now signed, attested, and uploaded with the release. Added a concise bilingual release checklist and updated the quality review to 86/100 while keeping `v1.1.0` explicitly unreleased. The verifier handles CRLF wheel metadata and passes positive/negative checksum self-checks; full local quality gates, MCP acceptance, and Markdown link checks pass.
 - **[Step-12 done]**: Added a real Python SDK and CLI integration workflow across Windows, macOS, and Linux for Python 3.9/3.13. The fixture builds the matching CLI, holds a temporary TCP listener, verifies synchronous inspect/scan/dry-run calls and an asyncio inspect call, and never performs destructive cleanup. Local Windows integration, Go validation, Python compilation, workflow YAML parsing, and formatting checks pass; the hosted matrix remains the required cross-platform evidence.
+- **[Step-13 done]**: Changed the tag workflow to build GoReleaser artifacts without publishing, verify archives and checksums, generate the SBOM, sign and verify every release file with keyless Cosign, and emit provenance attestations before `gh release create` publishes the verified assets. Pinned all GitHub Actions to immutable commit SHAs and added monthly Dependabot updates for Actions, Go modules, and Python packaging. Workflow YAML, action pinning, Go/Python tests, race, vet, formatting, and diff checks pass; no `v1.1.0` release has been created yet.
 
 ---
 

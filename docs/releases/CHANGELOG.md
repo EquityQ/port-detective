@@ -19,6 +19,10 @@ The repository currently contains the v1.1 feature-complete development line. A
 - Quality review and staged open-source maturity roadmap.
 - Release artifact verification, SPDX SBOM generation, Cosign signatures, and
   GitHub provenance attestation workflow.
+- Atomic release publication: artifacts are built, verified, signed, signature-
+  verified, and attested before the GitHub Release is created.
+- Immutable GitHub Action references and Dependabot update configuration for Go,
+  Python, and workflow dependencies.
 
 ### Changed
 
@@ -36,7 +40,7 @@ implementation record.
 
 ### [未发布]
 
-当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名和 GitHub 来源证明工作流；同时校正源码构建、发布产物和 CLI/MCP/Python 示例的说明。
+当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名、签名验真和 GitHub 来源证明工作流；发布会在所有门禁通过后最后创建。工作流动作已固定到不可变提交，Dependabot 负责依赖更新；同时校正源码构建、发布产物和 CLI/MCP/Python 示例的说明。
 
 ### [0.1.0-assignment]
 

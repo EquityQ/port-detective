@@ -15,7 +15,7 @@ not exist yet. A real CLI/Python integration matrix now covers Windows, macOS, a
 Linux, while its first hosted run remains release evidence rather than a local
 assumption.
 
-**Current score: 87/100**
+**Current score: 88/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
@@ -23,7 +23,7 @@ assumption.
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout | Large legacy modules should be split when contracts allow |
 | Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
 | Developer experience | 13/15 | Bilingual README, examples, issue forms, three-OS Go/Python CI, wheel smoke checks, and a real CLI/SDK integration matrix | API reference, PyPI publication, and a reproducible demo environment |
-| Release and supply chain | 13/15 | Pinned GoReleaser, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
+| Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
 
 ## Strengths
@@ -38,6 +38,10 @@ assumption.
   each OS installs a built wheel.
 - The integration workflow builds the matching CLI on all three operating systems
   and verifies synchronous and asyncio SDK calls against a real temporary listener.
+- The tag workflow builds without publishing, verifies and signs all assets, checks
+  Cosign signatures, emits provenance attestations, and only then creates the GitHub
+  Release. GitHub Actions are pinned to immutable commits and Dependabot tracks
+  updates.
 - Scan input validation, TCP listener filtering, stable empty MCP arrays, and
   aggregate project-cleanup failures are covered by focused regression tests.
 - The project explains permission-limited process metadata instead of presenting
@@ -84,4 +88,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **87/100**。新增的真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；仍需保留首次托管矩阵运行证据，并补充受保护进程、PID 复用等系统夹具。发布工作流仍需实际创建 `v1.1.0` Tag、发布匹配的 Python SDK，并补充版本化 CLI/MCP API 参考。
+当前质量基线为 **88/100**。真实 CLI/Python 集成工作流已覆盖 Windows、macOS、Linux 及 Python 3.9/3.13；发布工作流现在会先完成制品校验、签名验真和来源证明，再创建 GitHub Release，且所有 GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪。仍需实际创建 `v1.1.0` Tag、发布匹配的 Python SDK，并补充版本化 CLI/MCP API 参考。

@@ -8,7 +8,7 @@ project.
 
 ## Now: Release Readiness
 
-- Review the automated release checklist, then publish the first signed `v1.1.0` CLI and matching Python SDK release.
+- Review the automated release checklist, then publish the first signed `v1.1.0` CLI and matching Python SDK release. The workflow now creates the GitHub Release only after all artifact gates pass.
 - Retain checksums, SBOM, provenance, signatures, and acceptance-test evidence with the release.
 - Keep the CLI and SDK version numbers synchronized.
 - Publish a short release note with supported platforms and known permission limits.
@@ -63,3 +63,4 @@ prevention always take precedence over feature work.
 - 增加故障排查、Shell 补全和可复现演示。
 - 按系统、架构和权限记录兼容性与基准数据。
 - 通过 PyPI Trusted Publishing 发布 Python SDK；在确认 Node 用户需求后增加轻量 npm/Node.js CLI 包装器，并为各语言设置可执行的覆盖率门槛。
+- 发布流程已改为先校验、签名验真和生成来源证明，最后创建 GitHub Release；GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪更新。
