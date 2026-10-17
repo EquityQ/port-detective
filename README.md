@@ -8,8 +8,8 @@ identifying owning processes, and cleaning project-scoped listeners safely.
 
 ## Quick Start
 
-Requirements: Go 1.25+ for the CLI, Python 3.9+ for the Python SDK, and Node.js 22+
-for the Node.js client.
+Requirements: Go 1.25+ only when building the CLI from source, Python 3.9+ for the
+Python SDK, and Node.js 22+ for the Node.js client and npm-based MCP setup.
 
 ```bash
 git clone https://github.com/EquityQ/port-detective.git
@@ -38,30 +38,60 @@ Run the test suite with:
 go test -race ./...
 ```
 
-## MCP
+## Set Up with an AI Agent
 
-Start the Stdio server:
+The MCP server runs on the same computer as your AI client. The npm package starts
+it without Go or a local build; Node.js 22+ and network access are needed the first
+time the package is downloaded. Python installs the SDK, not the MCP server.
 
-```bash
-port-detective mcp
-```
+Add a `port-detective` server to your AI client's MCP configuration. Client config
+formats and locations vary; use the matching client instructions and adapt this
+standard `mcpServers` example:
 
-Example client configuration:
+macOS and Linux:
 
 ```json
 {
   "mcpServers": {
     "port-detective": {
-      "command": "port-detective",
-      "args": ["mcp"]
+      "command": "npx",
+      "args": ["--yes", "--package=port-detective", "port-detective", "mcp"]
     }
   }
 }
 ```
 
-The server exposes `inspect_port`, `scan_dev_ports`, `free_port`, and
-`clean_current_project`. Read-only tools return diagnostics; destructive tools use
-`dry_run=true` by default. MCP stdout is reserved for JSON-RPC.
+Windows:
+
+```json
+{
+  "mcpServers": {
+    "port-detective": {
+      "command": "cmd.exe",
+      "args": ["/d", "/s", "/c", "npx --yes --package=port-detective port-detective mcp"]
+    }
+  }
+}
+```
+
+If you want your AI agent to do the setup, send it this request and name your MCP
+client if it is not obvious:
+
+> Set up the port-detective MCP server for this AI client. Detect my operating
+> system and client, use the official client-specific configuration format, and
+> start the published npm package with Node.js 22+ so I do not need to build Go
+> from source. Make the smallest appropriate config change, then tell me what you
+> changed and how to reload the client. After I reconnect, verify the read-only
+> `inspect_port` and `scan_dev_ports` tools. Show a dry-run preview before any
+> process action, and ask me before using `dry_run=false`.
+
+Reload or reconnect the AI client after saving its configuration. The server
+provides `inspect_port`, `scan_dev_ports`, `free_port`, and
+`clean_current_project`; the last tool uses the server's working directory.
+Process actions default to dry-run. Review the target and get user confirmation
+before terminating a process. MCP stdout is reserved for JSON-RPC.
+
+To run the server from a locally built CLI instead, use `port-detective mcp`.
 
 ## Python SDK
 
