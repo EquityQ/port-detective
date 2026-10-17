@@ -3,6 +3,7 @@
 Read the [Code of Conduct](CODE_OF_CONDUCT.md), [platform support policy](../operations/PLATFORM_SUPPORT.md),
 and [quality review](../project/QUALITY_REVIEW.md) before changing the project. Use
 the [troubleshooting guide](../operations/TROUBLESHOOTING.md) for environment-specific failures.
+For compatibility, benchmark, or maintenance evidence, follow the [community submission guide](COMMUNITY_SUBMISSIONS.md).
 
 ## Architecture
 

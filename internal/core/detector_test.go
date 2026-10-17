@@ -398,6 +398,24 @@ func TestRegisterProjectDetectorPanicIsRecovered(t *testing.T) {
 	}
 }
 
+func TestDetectProjectSafeSkipsProtectedPIDs(t *testing.T) {
+	var calls atomic.Int32
+	RegisterProjectDetector(func(context.Context, int32) *ProjectInfo {
+		calls.Add(1)
+		return &ProjectInfo{Name: "unexpected"}
+	})
+	defer RegisterProjectDetector(nil)
+
+	for _, pid := range []int32{-1, 0, 1} {
+		if info := detectProjectSafe(context.Background(), pid); info != nil {
+			t.Fatalf("protected PID %d must not return project metadata: %+v", pid, info)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("protected PID detector hook was called %d times", calls.Load())
+	}
+}
+
 // TestCleanCurrentProjectPorts verifies project-scoped port cleanup.
 func TestCleanCurrentProjectPorts(t *testing.T) {
 	ln, port := listenLoopback(t)
@@ -478,7 +496,7 @@ func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
 }
 
 func TestCleanProjectTargetRejectsSystemPIDs(t *testing.T) {
-	for _, pid := range []int32{0, 1} {
+	for _, pid := range []int32{-1, 0, 1} {
 		t.Run(strconv.Itoa(int(pid)), func(t *testing.T) {
 			target := PortDiagnostic{
 				Port:        8080,
@@ -491,5 +509,58 @@ func TestCleanProjectTargetRejectsSystemPIDs(t *testing.T) {
 				t.Fatalf("system PID %d must be rejected", pid)
 			}
 		})
+	}
+}
+
+func TestVerifyTerminationTargetRejectsPIDReuse(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	diag, err := InspectPort(context.Background(), port)
+	if err != nil {
+		t.Fatalf("InspectPort failed: %v", err)
+	}
+	if diag.Status == StatusPermissionRequired || diag.PID <= 1 || diag.processCreated <= 0 {
+		t.Skipf("process identity metadata unavailable on this host: status=%q pid=%d created=%d",
+			diag.Status, diag.PID, diag.processCreated)
+	}
+
+	expected := *diag
+	expected.processCreated++
+	latest, proc, err := verifyTerminationTarget(context.Background(), port, &expected, "")
+	if err == nil || !strings.Contains(err.Error(), "was reused") {
+		t.Fatalf("expected PID reuse rejection, got latest=%+v process=%v err=%v", latest, proc, err)
+	}
+	if proc != nil {
+		t.Fatalf("PID reuse rejection must not return a termination handle: %v", proc)
+	}
+	if !checkTCPOpen(port, DefaultDialTimeout) {
+		t.Fatal("PID reuse validation must leave the listener alive")
+	}
+}
+
+func TestVerifyTerminationTargetRequiresCreationTime(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	diag, err := InspectPort(context.Background(), port)
+	if err != nil {
+		t.Fatalf("InspectPort failed: %v", err)
+	}
+	if diag.Status == StatusPermissionRequired || diag.PID <= 1 {
+		t.Skipf("process identity metadata unavailable on this host: status=%q pid=%d", diag.Status, diag.PID)
+	}
+
+	expected := *diag
+	expected.processCreated = 0
+	latest, proc, err := verifyTerminationTarget(context.Background(), port, &expected, "")
+	if err == nil || !strings.Contains(err.Error(), "unable to confirm the process creation time") {
+		t.Fatalf("expected missing creation-time rejection, got latest=%+v process=%v err=%v", latest, proc, err)
+	}
+	if proc != nil {
+		t.Fatalf("missing creation-time rejection must not return a termination handle: %v", proc)
+	}
+	if !checkTCPOpen(port, DefaultDialTimeout) {
+		t.Fatal("creation-time validation must leave the listener alive")
 	}
 }

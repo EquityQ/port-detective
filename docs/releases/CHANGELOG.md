@@ -19,6 +19,8 @@ pass.
 - Reviewed coverage thresholds for Go, Python, and Node.js packages.
 - CLI and MCP API reference with a CI drift checker.
 - IPv6, Unicode-path, and protected-PID regression coverage.
+- PID-reuse and restricted-environment diagnostic checks with safe capability skips.
+- Community guidance for compatibility, benchmark, and maintenance submissions.
 - Bash, Zsh, Fish, and PowerShell completion plus a safe listener-based demo.
 
 ### Changed

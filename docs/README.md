@@ -14,6 +14,7 @@ project.
 ## Community
 
 - [Contributing guide](community/CONTRIBUTING.md)
+- [Community submissions](community/COMMUNITY_SUBMISSIONS.md)
 - [Code of Conduct](community/CODE_OF_CONDUCT.md)
 - [Security policy](community/SECURITY.md)
 

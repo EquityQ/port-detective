@@ -12,7 +12,8 @@ This roadmap tracks the remaining work needed for a dependable public release.
 ## Cross-environment confidence
 
 - Keep the real CLI/Python integration matrix required on Windows, macOS, and Linux.
-- Add disposable fixtures for protected processes, PID reuse, WSL, and containers.
+- Keep deterministic protected-process and PID-reuse guards; run the opt-in restricted-environment
+  diagnostic when WSL, container, or sandbox evidence is available.
 - Keep IPv4/IPv6 loopback, Unicode path, and PID 0/1 guard coverage.
 - Keep `govulncheck`, `pip-audit`, and API drift checks green.
 

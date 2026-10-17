@@ -117,6 +117,7 @@ from the checkout and has not been published to npm. See the [Node.js client gui
 - [Documentation index](docs/README.md)
 - [Node.js client guide](npm/port-detective/README.md)
 - [Contributing](docs/community/CONTRIBUTING.md)
+- [Community submissions](docs/community/COMMUNITY_SUBMISSIONS.md)
 - [Security policy](docs/community/SECURITY.md)
 - [Project status](docs/operations/STATUS.md)
 - [Quality review](docs/project/QUALITY_REVIEW.md)
