@@ -8,7 +8,8 @@ CI/release automation, documentation, and community files.
 `port-detective` is a feature-complete v1.1 development line with clear layering and
 strong safety coverage for a local process tool. It is ready for careful use from source
 or a locally built binary. It is not a finished public release because the v1.1.0 tag
-and published artifact trail do not exist yet.
+and published artifact trail do not exist yet. npm has only the `1.1.0-bootstrap.0`
+staging packages; PyPI has no published project.
 
 **Current score: 91/100**
 
@@ -23,7 +24,7 @@ and published artifact trail do not exist yet.
 
 ## Required before v1.1.0
 
-1. Create the tag only after the release workflow succeeds.
+1. Configure both Trusted Publishers, then create the tag only after the release workflow is ready.
 2. Review checksums, signatures, SBOM, and provenance attestation.
 3. Run MCP acceptance scripts against the release binary.
 4. Verify the matching Python package installation from the published release.

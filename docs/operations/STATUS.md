@@ -1,7 +1,9 @@
 # Project Status
 
-`port-detective` is at the v1.1 feature-complete development milestone. The latest Git
-tag is `v0.1.0-assignment`; no signed or published `v1.1.0` release exists.
+`port-detective` is at the v1.1 feature-complete development milestone. The repository
+has no public `v1.1.0` tag or GitHub Release yet. The seven npm packages currently
+expose only the `1.1.0-bootstrap.0` staging version; the matching PyPI project has not
+been published.
 
 Current capabilities:
 
@@ -14,7 +16,7 @@ Current capabilities:
 - Focused CLI modules, generated API inventory checks, and cross-platform CI.
 
 Go, Python, and Node.js CI cover Windows, macOS, and Linux. The Node.js package and
-platform binary workflow are available from the checkout but are not published to npm. Process metadata can be
+platform binary workflow are ready for the first formal npm release. Process metadata can be
 unavailable for protected or system-owned processes; the CLI reports that limitation
 instead of treating it as proof that a port is free.
 

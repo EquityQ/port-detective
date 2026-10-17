@@ -4,7 +4,7 @@ This roadmap tracks the remaining work needed for a dependable public release.
 
 ## Release readiness
 
-- Create the signed `v1.1.0` CLI and matching Python SDK only after all release gates pass.
+- Configure PyPI and npm Trusted Publishers, then create the signed `v1.1.0` CLI and matching Python SDK only after all release gates pass.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Publish supported platforms and known permission limits in the release notes.

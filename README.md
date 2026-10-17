@@ -3,9 +3,10 @@
 Cross-platform CLI, MCP server, and Python SDK for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 
-> **Release status:** The repository is on the v1.1 development line. No v1.1.0
-> binary, PyPI package, or npm package has been published yet. Use a reviewed source
-> commit until a release is available.
+> **Release status:** The repository is on the v1.1 development line. No public
+> `v1.1.0` tag or release exists yet. npm currently contains only the
+> `1.1.0-bootstrap.0` staging packages; the PyPI project is not published. Use a
+> reviewed source commit until the formal release is available.
 
 ## Quick Start
 
@@ -101,8 +102,9 @@ npm install port-detective
 
 Source checkouts do not contain generated platform packages, so local development still
 requires a built CLI on `PATH` or `PORT_DETECTIVE_BIN`. Process actions default to dry-run;
-set `dryRun: false` only after reviewing the target. The package is not published to npm
-yet. See the [Node.js client guide](npm/port-detective/README.md).
+set `dryRun: false` only after reviewing the target. The formal `1.1.0` package is not
+published to npm yet; only the `1.1.0-bootstrap.0` staging packages are available. See
+the [Node.js client guide](npm/port-detective/README.md).
 
 ## Safety and Platform Notes
 

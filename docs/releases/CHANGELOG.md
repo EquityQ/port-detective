@@ -5,9 +5,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-The repository contains the v1.1 feature-complete development line. A `v1.1.0`
+The repository contains the v1.1 feature-complete development line. A public `v1.1.0`
 release is planned after the release gates in [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md)
-pass.
+pass. npm currently has only the `1.1.0-bootstrap.0` staging packages.
 
 ### Added
 
