@@ -67,6 +67,10 @@ jobs:
             --python-root python \
             --wheel-dir python/dist
 
+      - name: Restore source metadata before GoReleaser
+        shell: bash
+        run: git checkout -- python/pyproject.toml python/port_detective/__init__.py
+
       - name: Run MCP acceptance checks
         shell: bash
         env:
