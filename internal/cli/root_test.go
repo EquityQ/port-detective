@@ -26,7 +26,7 @@ func captureRun(t *testing.T, args ...string) (string, string, error) {
 	return out.String(), errOut.String(), err
 }
 
-func TestDisplayWidthHandlesCJK(t *testing.T) {
+func TestDisplayWidthHandlesWideUnicode(t *testing.T) {
 	cases := []struct {
 		in   string
 		want int
@@ -34,17 +34,16 @@ func TestDisplayWidthHandlesCJK(t *testing.T) {
 		{"", 0},
 		{"abc", 3},
 		{"port-detective", 14},
-		{"端口", 4},           // Two Chinese characters occupy four terminal columns.
-		{"进程名", 6},          // Three Chinese characters occupy six terminal columns.
-		{"可执行文件", 10},       // Five Chinese characters occupy ten terminal columns.
+		{"🙂", 2},            // The emoji occupies two terminal columns.
+		{"🙂🙂", 4},           // Two wide runes occupy four terminal columns.
+		{"wide🙂", 6},        // ASCII and wide runes can be mixed.
 		{"PID", 3},          // ASCII text occupies one column per character.
-		{"中文abc", 7},        // 4 + 3
 		{"<no-access>", 11}, // ASCII placeholder.
 	}
 
 	for _, c := range cases {
 		if got := displayWidth(c.in); got != c.want {
-			t.Errorf("displayWidth(%q) = %d，期望 %d", c.in, got, c.want)
+			t.Errorf("displayWidth(%q) = %d, want %d", c.in, got, c.want)
 		}
 	}
 }
@@ -76,14 +75,14 @@ func TestCompletionCommandRejectsUnknownShell(t *testing.T) {
 }
 
 func TestPadRightUsesDisplayWidth(t *testing.T) {
-	got := padRight("端口", 10)
-	if want := "端口" + strings.Repeat(" ", 6); got != want {
-		t.Errorf("padRight(%q, 10) = %q，期望 %q", "端口", got, want)
+	got := padRight("🙂", 10)
+	if want := "🙂" + strings.Repeat(" ", 8); got != want {
+		t.Errorf("padRight(%q, 10) = %q, want %q", "🙂", got, want)
 	}
 
-	got = padRight("可执行文件", 4)
-	if got != "可执行文件" {
-		t.Errorf("padRight 超宽时应原样返回，实际 %q", got)
+	got = padRight("🙂🙂", 3)
+	if got != "🙂🙂" {
+		t.Errorf("padRight should preserve over-wide values, got %q", got)
 	}
 }
 
@@ -96,20 +95,20 @@ func TestRenderTableAlignsMixedWidthColumns(t *testing.T) {
 	}
 	rows := [][]string{
 		{"135", "<no-access>", "-"},
-		{"8080", "微信", "120.5 MB"},
+		{"8080", "server", "120.5 MB"},
 		{"19387", "DeepSeek Harness.exe", "206.2 MB"},
 	}
 	renderTable(&buf, palette{}, columns, rows)
 
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	if len(lines) != len(rows)+1 {
-		t.Fatalf("表格行数 = %d，期望 %d（含表头）", len(lines), len(rows)+1)
+		t.Fatalf("table rows = %d, want %d including the header", len(lines), len(rows)+1)
 	}
 
 	dataWidth := displayWidth(lines[1])
 	for i := 1; i < len(lines); i++ {
 		if got := displayWidth(lines[i]); got != dataWidth {
-			t.Errorf("第 %d 行显示宽度 = %d，期望 %d（与其他数据行不一致）\n  该行内容: %q",
+			t.Errorf("row %d display width = %d, want %d\n  row: %q",
 				i, got, dataWidth, lines[i])
 		}
 	}
@@ -127,7 +126,7 @@ func TestRenderTableColorDoesNotBreakAlignment(t *testing.T) {
 
 	stripped := stripANSI(colored.String())
 	if stripped != plain.String() {
-		t.Errorf("着色后文本内容发生变化：\n  无色: %q\n  着色: %q", plain.String(), stripped)
+		t.Errorf("coloring changed the text:\n  plain: %q\n  colored: %q", plain.String(), stripped)
 	}
 }
 
@@ -136,17 +135,17 @@ func TestParsePort(t *testing.T) {
 	for in, want := range valid {
 		got, err := parsePort(in)
 		if err != nil {
-			t.Errorf("parsePort(%q) 返回错误：%v", in, err)
+			t.Errorf("parsePort(%q) returned an error: %v", in, err)
 			continue
 		}
 		if got != want {
-			t.Errorf("parsePort(%q) = %d，期望 %d", in, got, want)
+			t.Errorf("parsePort(%q) = %d, want %d", in, got, want)
 		}
 	}
 
 	for _, in := range []string{"0", "-1", "65536", "abc", "", "80a"} {
 		if _, err := parsePort(in); err == nil {
-			t.Errorf("parsePort(%q) 期望返回错误，实际返回 nil", in)
+			t.Errorf("parsePort(%q) should return an error, got nil", in)
 		}
 	}
 }
@@ -154,43 +153,43 @@ func TestParsePort(t *testing.T) {
 func TestParsePortsList(t *testing.T) {
 	ports, err := parsePortsList("3000, 8080, 5432")
 	if err != nil {
-		t.Fatalf("parsePortsList 返回意外错误: %v", err)
+		t.Fatalf("parsePortsList returned an unexpected error: %v", err)
 	}
 	if len(ports) != 3 || ports[0] != 3000 || ports[1] != 8080 || ports[2] != 5432 {
-		t.Errorf("parsePortsList 解析结果不符: %+v", ports)
+		t.Errorf("parsePortsList returned unexpected values: %+v", ports)
 	}
 
 	if _, err := parsePortsList("3000,abc"); err == nil {
-		t.Error("含非法端口时期望报错，实际返回 nil")
+		t.Error("invalid port list should return an error")
 	}
 }
 
 func TestTruncateRespectsRuneBoundary(t *testing.T) {
 	if got := truncate("abcdef", 4); got != "abc…" {
-		t.Errorf("truncate(abcdef, 4) = %q，期望 %q", got, "abc…")
+		t.Errorf("truncate(abcdef, 4) = %q, want %q", got, "abc…")
 	}
 	if got := truncate("abc", 4); got != "abc" {
-		t.Errorf("未超长时不应截断，实际 %q", got)
+		t.Errorf("truncate should preserve short values, got %q", got)
 	}
-	if got := truncate("这是一个测试", 3); got != "这是…" {
-		t.Errorf("truncate 中文 = %q，期望 %q", got, "这是…")
+	if got := truncate("testing", 3); got != "te…" {
+		t.Errorf("truncate(testing, 3) = %q, want %q", got, "te…")
 	}
 }
 
 func TestCheckJSONIsPristine(t *testing.T) {
 	out, _, err := captureRun(t, "check", "1", "--json")
 	if err != nil {
-		t.Fatalf("check --json 执行失败：%v", err)
+		t.Fatalf("check --json failed: %v", err)
 	}
 
 	var diag core.PortDiagnostic
 	if err := json.Unmarshal([]byte(out), &diag); err != nil {
-		t.Fatalf("输出不是合法 JSON：%v\n原始输出：%q", err, out)
+		t.Fatalf("output is not valid JSON: %v\nraw output: %q", err, out)
 	}
 
-	for _, forbidden := range []string{"端口体检", "─────", "\x1b["} {
+	for _, forbidden := range []string{"PORT", "─────", "\x1b["} {
 		if strings.Contains(out, forbidden) {
-			t.Errorf("JSON 输出中混入了装饰内容 %q：\n%s", forbidden, out)
+			t.Errorf("JSON output contains presentation text %q:\n%s", forbidden, out)
 		}
 	}
 }
@@ -198,12 +197,12 @@ func TestCheckJSONIsPristine(t *testing.T) {
 func TestScanJSONIsArray(t *testing.T) {
 	out, _, err := captureRun(t, "scan", "--json", "--ports", "80,443")
 	if err != nil {
-		t.Fatalf("scan --json 执行失败：%v", err)
+		t.Fatalf("scan --json failed: %v", err)
 	}
 
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(out), &diags); err != nil {
-		t.Fatalf("输出不是合法 JSON 数组：%v\n原始输出：%q", err, out)
+		t.Fatalf("output is not a valid JSON array: %v\nraw output: %q", err, out)
 	}
 }
 
@@ -211,7 +210,7 @@ func TestKillDryRunCLI(t *testing.T) {
 	// Test an idle port.
 	out, _, err := captureRun(t, "kill", "65432", "--dry-run")
 	if err == nil {
-		t.Errorf("针对空闲端口期望报错，实际返回: %s", out)
+		t.Errorf("an idle port should return an error, got: %s", out)
 	}
 }
 
@@ -242,10 +241,10 @@ func TestCleanJSONRequiresExplicitConfirmation(t *testing.T) {
 func TestMCPCommandKeepsStdoutClean(t *testing.T) {
 	out, _, err := captureRun(t, "mcp")
 	if err != nil {
-		t.Fatalf("mcp 子命令执行失败：%v", err)
+		t.Fatalf("mcp command failed: %v", err)
 	}
 	if strings.TrimSpace(out) != "" {
-		t.Errorf("mcp 子命令不应向 stdout 写入内容，实际输出：%q", out)
+		t.Errorf("mcp command must not write to stdout, got: %q", out)
 	}
 }
 
@@ -254,61 +253,63 @@ func TestNoColorEnforcedByEnv(t *testing.T) {
 
 	var buf bytes.Buffer
 	if p := newPalette(&buf); p.title != "" || p.dim != "" || p.accent != "" {
-		t.Errorf("NO_COLOR 已设置时不应启用颜色，实际 palette=%+v", p)
+		t.Errorf("NO_COLOR should disable colors, got palette=%+v", p)
 	}
 }
 
 func TestDegradedMarkerIsASCII(t *testing.T) {
 	for _, r := range degradedMarker {
 		if r > 0x7f {
-			t.Fatalf("降级占位符必须为纯 ASCII，发现非 ASCII 字符 %q", r)
+			t.Fatalf("degraded marker must be ASCII, found %q", r)
 		}
 	}
 	if displayWidth(degradedMarker) != len(degradedMarker) {
-		t.Errorf("纯 ASCII 占位符的显示宽度应等于字节长度")
+		t.Errorf("ASCII marker width should equal its byte length")
 	}
 }
 
-func TestScanTableHeadersBilingual(t *testing.T) {
-	// Test English output.
-	outEn, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "en")
+func TestScanTableHeadersEnglish(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("scan --lang en 执行失败：%v", err)
+		t.Fatalf("failed to create disposable listener: %v", err)
 	}
-	t.Logf("outEn: %s", outEn)
-
-	// Test Chinese output.
-	outZh, _, err := captureRun(t, "scan", "--ports", "65534", "--lang", "zh")
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	out, _, err := captureRun(t, "scan", "--ports", strconv.Itoa(port))
 	if err != nil {
-		t.Fatalf("scan --lang zh 执行失败：%v", err)
+		t.Fatalf("scan failed: %v", err)
 	}
-	t.Logf("outZh: %s", outZh)
+	for _, header := range []string{"PORT", "PID", "PROCESS", "STATUS"} {
+		if !strings.Contains(out, header) {
+			t.Errorf("English scan output is missing %q: %s", header, out)
+		}
+	}
 }
 
 func TestCleanCommandDryRun(t *testing.T) {
 	out, _, err := captureRun(t, "clean", "--dry-run")
 	if err != nil {
-		t.Fatalf("clean --dry-run 执行失败：%v", err)
+		t.Fatalf("clean --dry-run failed: %v", err)
 	}
-	if !strings.Contains(out, "Clean") && !strings.Contains(out, "清理") {
-		t.Errorf("输出未包含清理标题: %s", out)
+	if !strings.Contains(out, "Clean") {
+		t.Errorf("output does not contain the Clean heading: %s", out)
 	}
 }
 
 func TestCleanCommandJSON(t *testing.T) {
 	out, _, err := captureRun(t, "clean", "--dry-run", "--json")
 	if err != nil {
-		t.Fatalf("clean --dry-run --json 执行失败：%v", err)
+		t.Fatalf("clean --dry-run --json failed: %v", err)
 	}
 
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(out), &diags); err != nil {
-		t.Fatalf("clean --json 输出不是有效 JSON 数组: %v\n原始输出: %s", err, out)
+		t.Fatalf("clean --json output is not a valid JSON array: %v\nraw output: %s", err, out)
 	}
 }
 
 func TestRenderPortTableHeaders(t *testing.T) {
-	var bufEn, bufZh bytes.Buffer
+	var buf bytes.Buffer
 	diag := []core.PortDiagnostic{
 		{
 			Port:        3000,
@@ -327,27 +328,15 @@ func TestRenderPortTableHeaders(t *testing.T) {
 		},
 	}
 
-	renderPortTable(&bufEn, palette{}, diag, "en")
-	renderPortTable(&bufZh, palette{}, diag, "zh")
-
-	outEn := bufEn.String()
-	outZh := bufZh.String()
+	renderPortTable(&buf, palette{}, diag)
+	out := buf.String()
 
 	for _, header := range []string{"PORT", "PID", "PROCESS", "FRAMEWORK", "PROJECT", "RSS", "CPU", "STATUS"} {
-		if !strings.Contains(outEn, header) {
-			t.Errorf("英文表头缺少 %q: %s", header, outEn)
+		if !strings.Contains(out, header) {
+			t.Errorf("English table is missing %q: %s", header, out)
 		}
 	}
-	if !strings.Contains(outEn, "Next.js") || !strings.Contains(outEn, "web-app") {
-		t.Errorf("英文表缺少项目数据: %s", outEn)
-	}
-
-	for _, header := range []string{"端口", "PID", "进程", "开发框架", "所属项目", "内存", "CPU", "状态"} {
-		if !strings.Contains(outZh, header) {
-			t.Errorf("中文表头缺少 %q: %s", header, outZh)
-		}
-	}
-	if !strings.Contains(outZh, "Next.js") || !strings.Contains(outZh, "web-app") {
-		t.Errorf("中文表缺少项目数据: %s", outZh)
+	if !strings.Contains(out, "Next.js") || !strings.Contains(out, "web-app") {
+		t.Errorf("English table is missing project data: %s", out)
 	}
 }

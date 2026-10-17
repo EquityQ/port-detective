@@ -17,12 +17,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Generate CLI and MCP API manifest
-        run: python scripts/quality/generate_api_reference.py
-
-      - name: Fail on stale generated API manifest
-        shell: bash
-        run: git diff --exit-code -- docs/project/API_REFERENCE.generated.json docs/project/API_REFERENCE.generated.md
+      - name: Generate CLI and MCP API inventory
+        run: python scripts/quality/generate_api_reference.py --output "$RUNNER_TEMP/api-reference.json"
 
       - name: Check CLI and MCP API reference
         run: python scripts/quality/verify_api_reference.py

@@ -344,11 +344,8 @@ func buildRow(info core.PortDiagnostic) portRow {
 	}
 }
 
-func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic, lang string) {
+func renderPortTable(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	headers := []string{"PORT", "PID", "PROCESS", "FRAMEWORK", "PROJECT", "RSS", "CPU", "STATUS"}
-	if isZh(lang) {
-		headers = []string{"端口", "PID", "进程", "开发框架", "所属项目", "内存", "CPU", "状态"}
-	}
 
 	columns := []tableColumn{
 		{header: headers[0], align: alignRight},
@@ -387,7 +384,7 @@ func summaryLine(w io.Writer, p palette, parts ...string) {
 	fmt.Fprintf(w, "  %s\n", p.paint(p.dim, strings.Join(parts, "  ·  ")))
 }
 
-func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic, lang string) {
+func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	degraded := 0
 	for _, info := range infos {
 		if info.Status == core.StatusPermissionRequired {
@@ -397,11 +394,6 @@ func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic, lang stri
 	if degraded == 0 {
 		return
 	}
-	if isZh(lang) {
-		hint(w, p, fmt.Sprintf("其中 %d 个端口的归属进程属系统保护进程，当前权限无法读取详情。", degraded))
-		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "以管理员（Windows）或 root（Linux/macOS）身份运行可查看完整信息。"))
-	} else {
-		hint(w, p, fmt.Sprintf("%d port(s) belong to protected processes inaccessible with current privileges.", degraded))
-		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
-	}
+	hint(w, p, fmt.Sprintf("%d port(s) belong to protected processes inaccessible with current privileges.", degraded))
+	fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
 }

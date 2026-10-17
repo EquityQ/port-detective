@@ -1,4 +1,4 @@
-# ===== 编译产物（二进制文件不入库）=====
+# ===== Build artifacts =====
 /port-detective
 /port-detective.exe
 *.exe
@@ -7,17 +7,17 @@
 *.dylib
 *.test
 
-# ===== 系统与磁盘文件 =====
+# ===== OS files =====
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ===== 编辑器 / IDE =====
+# ===== Editors and IDEs =====
 .idea/
 .vscode/
 *.swp
 
-# ===== Go 构建与工作区缓存 =====
+# ===== Go build and workspace cache =====
 *.out
 coverage.txt
 /coverage/
@@ -26,14 +26,14 @@ coverage.txt
 .coverage.*
 vendor/
 
-# ===== Local AI prompts and process notes (not project deliverables) =====
+# ===== Local prompts and process notes (not project deliverables) =====
 AGENTS.md
 AICANTREAD.md
 process.md
 PROCESS.md
 *.local.md
 
-# ===== Python 产物与缓存 =====
+# ===== Python artifacts and cache =====
 __pycache__/
 *.py[cod]
 *$py.class
@@ -49,4 +49,11 @@ python/uv.lock
 # ===== Node.js package artifacts =====
 node_modules/
 *.tgz
+
+# ===== Generated or local-only repository files =====
+README_zh.md
+docs/project/API_REFERENCE.generated.json
+docs/project/API_REFERENCE.generated.md
+docs/community/MAINTAINERS.md
+docs/operations/COMPATIBILITY_REPORT.md
 

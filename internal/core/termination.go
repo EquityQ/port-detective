@@ -47,26 +47,26 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return nil, "", err
 	}
 	if !diag.IsOpen {
-		return diag, "", fmt.Errorf("端口 %d 当前未被占用，无需释放", port)
+		return diag, "", fmt.Errorf("port %d is currently free; no process to terminate", port)
 	}
 	// Never terminate protected system processes.
 	if diag.PID <= 1 {
-		return diag, "", fmt.Errorf("禁止终止系统保护进程 (PID %d)", diag.PID)
+		return diag, "", fmt.Errorf("refusing to terminate protected system process (PID %d)", diag.PID)
 	}
 	if diag.PID <= 0 || diag.Status == StatusPermissionRequired {
-		return diag, "", errors.New("端口已被占用，但当前权限不足以读取或终止目标进程（请以管理员/root 身份运行）")
+		return diag, "", errors.New("port is occupied, but current privileges cannot inspect or terminate the process")
 	}
 
 	// Preview the action without terminating the process.
 	if dryRun {
-		msg := fmt.Sprintf("预演成功：将终止占用端口 %d 的进程 %q (PID: %d)，当前物理内存占用 %.1f MB",
-			port, diag.ProcessName, diag.PID, diag.MemoryMB)
+		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying port %d with %.1f MB RSS",
+			diag.ProcessName, diag.PID, port, diag.MemoryMB)
 		return diag, msg, nil
 	}
 
 	_, created, err := processIdentity(ctx, diag.PID)
 	if err != nil {
-		return diag, "", fmt.Errorf("无法确认目标进程 %d 的身份（可能需要管理员/root 权限）：%w", diag.PID, err)
+		return diag, "", fmt.Errorf("unable to confirm identity of process %d: %w", diag.PID, err)
 	}
 
 	latest, latestProc, err := verifyTerminationTarget(ctx, port, &PortDiagnostic{
@@ -78,13 +78,13 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 		return latest, "", err
 	}
 	if err := terminateProcess(ctx, latestProc); err != nil {
-		return latest, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", diag.PID, err)
+		return latest, "", fmt.Errorf("failed to terminate process %d: %w", diag.PID, err)
 	}
 	if err := waitForPortRelease(ctx, port, terminationGracePeriod); err != nil {
-		return latest, "", fmt.Errorf("进程 %d 已收到终止请求，但端口 %d 尚未确认释放：%w", diag.PID, port, err)
+		return latest, "", fmt.Errorf("process %d received a termination request, but port %d is still occupied: %w", diag.PID, port, err)
 	}
 
-	msg := fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)", port, diag.ProcessName, diag.PID)
+	msg := fmt.Sprintf("terminated process %q (PID: %d) occupying port %d", diag.ProcessName, diag.PID, port)
 	return diag, msg, nil
 }
 
@@ -101,31 +101,31 @@ func validatePort(port int) error {
 func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagnostic, projectPath string) (*PortDiagnostic, *process.Process, error) {
 	latest, err := InspectPort(ctx, port)
 	if err != nil {
-		return expected, nil, fmt.Errorf("终止前重新检查端口 %d 失败：%w", port, err)
+		return expected, nil, fmt.Errorf("pre-termination port %d recheck failed: %w", port, err)
 	}
 	if !latest.IsOpen {
-		return latest, nil, fmt.Errorf("端口 %d 在终止前已释放", port)
+		return latest, nil, fmt.Errorf("port %d was released before termination", port)
 	}
 	if latest.PID != expected.PID {
-		return latest, nil, fmt.Errorf("端口 %d 的归属进程已变化（原 PID %d，当前 PID %d），已取消终止", port, expected.PID, latest.PID)
+		return latest, nil, fmt.Errorf("port %d ownership changed from PID %d to PID %d; termination canceled", port, expected.PID, latest.PID)
 	}
 	if expected.processCreated <= 0 || latest.processCreated <= 0 {
-		return latest, nil, fmt.Errorf("无法确认端口 %d 的进程启动时间，已取消终止", port)
+		return latest, nil, fmt.Errorf("unable to confirm the process creation time for port %d; termination canceled", port)
 	}
 	if latest.processCreated != expected.processCreated {
-		return latest, nil, fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
+		return latest, nil, fmt.Errorf("PID %d for port %d was reused; termination canceled", latest.PID, port)
 	}
 	if projectPath != "" {
 		if latest.Project == nil || latest.Project.Path == "" || !projectPathsMatch(latest.Project.Path, projectPath) {
-			return latest, nil, fmt.Errorf("端口 %d 的项目路径已变化或无法确认，已取消终止", port)
+			return latest, nil, fmt.Errorf("project path for port %d changed or could not be confirmed; termination canceled", port)
 		}
 	}
 	proc, created, err := processIdentity(ctx, latest.PID)
 	if err != nil {
-		return latest, nil, fmt.Errorf("无法在终止前确认目标进程 %d：%w", latest.PID, err)
+		return latest, nil, fmt.Errorf("unable to confirm target process %d before termination: %w", latest.PID, err)
 	}
 	if created != expected.processCreated {
-		return latest, nil, fmt.Errorf("端口 %d 的 PID %d 已被复用，已取消终止", port, latest.PID)
+		return latest, nil, fmt.Errorf("PID %d for port %d was reused; termination canceled", latest.PID, port)
 	}
 	if err := ctx.Err(); err != nil {
 		return latest, nil, err
@@ -217,7 +217,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 		var err error
 		cwd, err = os.Getwd()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取当前工作目录：%w", err)
+			return nil, fmt.Errorf("unable to get the current working directory: %w", err)
 		}
 	}
 
@@ -225,7 +225,7 @@ func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]P
 	// Scan commonly used development ports concurrently.
 	occupied, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
 	if err != nil {
-		return nil, fmt.Errorf("扫描开发端口失败：%w", err)
+		return nil, fmt.Errorf("development port scan failed: %w", err)
 	}
 
 	var targets []PortDiagnostic
@@ -272,13 +272,13 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 		return &target, "", err
 	}
 	if !target.IsOpen {
-		return &target, "", fmt.Errorf("端口 %d 当前未被占用，无需释放", target.Port)
+		return &target, "", fmt.Errorf("port %d is currently free; no process to terminate", target.Port)
 	}
 	if target.PID <= 1 {
-		return &target, "", fmt.Errorf("禁止终止系统保护进程 (PID %d)", target.PID)
+		return &target, "", fmt.Errorf("refusing to terminate protected system process (PID %d)", target.PID)
 	}
 	if target.Status == StatusPermissionRequired || target.processCreated <= 0 {
-		return &target, "", fmt.Errorf("无法确认端口 %d 的目标进程身份，已取消清理", target.Port)
+		return &target, "", fmt.Errorf("unable to confirm the target process for port %d; cleanup canceled", target.Port)
 	}
 
 	latest, proc, err := verifyTerminationTarget(ctx, target.Port, &target, cwd)
@@ -286,18 +286,18 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 		return latest, "", err
 	}
 	if dryRun {
-		msg := fmt.Sprintf("预演成功：将终止占用端口 %d 的进程 %q (PID: %d)",
-			target.Port, latest.ProcessName, latest.PID)
+		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying port %d",
+			latest.ProcessName, latest.PID, target.Port)
 		return latest, msg, nil
 	}
 	if err := terminateProcess(ctx, proc); err != nil {
-		return latest, "", fmt.Errorf("终止进程 %d 失败（可能需要管理员/root 权限）：%w", latest.PID, err)
+		return latest, "", fmt.Errorf("failed to terminate process %d: %w", latest.PID, err)
 	}
 	if err := waitForPortRelease(ctx, target.Port, terminationGracePeriod); err != nil {
-		return latest, "", fmt.Errorf("进程 %d 已收到终止请求，但端口 %d 尚未确认释放：%w", latest.PID, target.Port, err)
+		return latest, "", fmt.Errorf("process %d received a termination request, but port %d is still occupied: %w", latest.PID, target.Port, err)
 	}
-	return latest, fmt.Sprintf("已成功终止占用端口 %d 的进程 %q (PID: %d)",
-		target.Port, latest.ProcessName, latest.PID), nil
+	return latest, fmt.Sprintf("terminated process %q (PID: %d) occupying port %d",
+		latest.ProcessName, latest.PID, target.Port), nil
 }
 
 // projectPathsMatch applies the filesystem's path semantics before cleanup.

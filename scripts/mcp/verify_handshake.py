@@ -17,8 +17,8 @@ _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
 if not os.path.exists(_BIN):
     sys.stderr.write(
-        "找不到二进制 %s\n请先执行 `go build -o port-detective .`，"
-        "或用环境变量 PORT_DETECTIVE_BIN 指定路径。\n" % _BIN)
+        "Binary not found: %s\nRun `go build -o port-detective .` first, "
+        "or set PORT_DETECTIVE_BIN.\n" % _BIN)
     sys.exit(2)
 BIN = _BIN
 
@@ -51,8 +51,8 @@ out_lines = [l for l in proc.stdout.decode("utf-8", "replace").splitlines() if l
 err_text = proc.stderr.decode("utf-8", "replace")
 
 print(f"exit code      : {proc.returncode}")
-print(f"stdout 行数    : {len(out_lines)}")
-print(f"stderr 行数    : {len(err_text.splitlines())}")
+print(f"stdout lines   : {len(out_lines)}")
+print(f"stderr lines   : {len(err_text.splitlines())}")
 
 # ---- Assertion 1: every stdout line is valid JSON ----
 bad = []
@@ -63,22 +63,22 @@ for line in out_lines:
     except json.JSONDecodeError as e:
         bad.append((line[:120], str(e)))
 
-print("\n--- stdout 纯净性检查 ---")
+print("\n--- stdout protocol check ---")
 if bad:
-    print(f"  失败：{len(bad)} 行不是合法 JSON（说明 stdout 被日志污染）")
+    print(f"  FAIL: {len(bad)} lines are not valid JSON (stdout is polluted)")
     for line, e in bad:
         print(f"    {line!r} -> {e}")
 else:
-    print(f"  通过：{len(out_lines)} 行全部是合法 JSON-RPC")
+    print(f"  PASS: all {len(out_lines)} lines are valid JSON-RPC")
 
 # ---- Assertion 2: initialize returns server information ----
 init = next((r for r in responses if r.get("id") == 1), None)
 print("\n--- initialize ---")
 if init and "result" in init:
     si = init["result"].get("serverInfo", {})
-    print(f"  通过：serverInfo = {si}")
+    print(f"  PASS: serverInfo = {si}")
 else:
-    print(f"  失败：{init}")
+    print(f"  FAIL: {init}")
 
 # ---- Assertion 3: tools/list returns the expected tools ----
 tools_resp = next((r for r in responses if r.get("id") == 2), None)
@@ -87,24 +87,24 @@ expected = {"inspect_port", "scan_dev_ports", "free_port", "clean_current_projec
 if tools_resp and "result" in tools_resp:
     tools = tools_resp["result"].get("tools", [])
     names = {t["name"] for t in tools}
-    print(f"  返回工具数：{len(tools)}")
+    print(f"  tool count: {len(tools)}")
     for t in tools:
         ann = t.get("annotations", {})
         print(
             f"    - {t['name']:<16} title={ann.get('title')!r} "
             f"readOnly={ann.get('readOnlyHint')} destructive={ann.get('destructiveHint')}"
         )
-    print(f"  期望工具齐全：{expected == names}")
+    print(f"  expected tools present: {expected == names}")
     if expected != names:
-        print(f"    缺失 {expected - names}，多出 {names - expected}")
+        print(f"    missing {expected - names}, extra {names - expected}")
 else:
-    print(f"  失败：{tools_resp}")
+    print(f"  FAIL: {tools_resp}")
 
 # ---- Assertion 4: startup messages on stderr do not affect the protocol ----
-print("\n--- stderr（允许存在，属于正常诊断输出）---")
+print("\n--- stderr (allowed diagnostics) ---")
 for line in err_text.splitlines()[:4]:
     print(f"  {line}")
 
 ok = (not bad) and init and tools_resp and expected == {t["name"] for t in (tools_resp.get("result", {}).get("tools", []))}
-print(f"\n=== 总体结论: {'PASS' if ok else 'FAIL'} ===")
+print(f"\n=== Result: {'PASS' if ok else 'FAIL'} ===")
 sys.exit(0 if ok else 1)

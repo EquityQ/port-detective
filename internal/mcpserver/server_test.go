@@ -18,12 +18,12 @@ func listenLoopback(t *testing.T) (net.Listener, int) {
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("无法创建本地临时监听端口：%v", err)
+		t.Fatalf("failed to create loopback listener: %v", err)
 	}
 	addr, ok := ln.Addr().(*net.TCPAddr)
 	if !ok {
 		_ = ln.Close()
-		t.Fatalf("监听地址类型异常：%T", ln.Addr())
+		t.Fatalf("unexpected listener address type: %T", ln.Addr())
 	}
 	return ln, addr.Port
 }
@@ -33,7 +33,7 @@ func freeLoopbackPort(t *testing.T) int {
 
 	ln, port := listenLoopback(t)
 	if err := ln.Close(); err != nil {
-		t.Fatalf("关闭临时监听端口失败：%v", err)
+		t.Fatalf("failed to close loopback listener: %v", err)
 	}
 	return port
 }
@@ -47,10 +47,10 @@ func callTool(t *testing.T, handler func(context.Context, mcp.CallToolRequest) (
 
 	res, err := handler(context.Background(), req)
 	if err != nil {
-		t.Fatalf("工具处理函数返回 Go 错误（应改为返回 CallToolResult 错误）：%v", err)
+		t.Fatalf("tool handler returned a Go error; it should return a CallToolResult error: %v", err)
 	}
 	if res == nil {
-		t.Fatal("工具处理函数返回 nil 结果")
+		t.Fatal("tool handler returned a nil result")
 	}
 	return res
 }
@@ -59,11 +59,11 @@ func resultText(t *testing.T, res *mcp.CallToolResult) string {
 	t.Helper()
 
 	if len(res.Content) == 0 {
-		t.Fatal("工具结果没有任何内容")
+		t.Fatal("tool result has no content")
 	}
 	text, ok := res.Content[0].(mcp.TextContent)
 	if !ok {
-		t.Fatalf("首个内容不是文本类型：%T", res.Content[0])
+		t.Fatalf("first content item is not text: %T", res.Content[0])
 	}
 	return text.Text
 }
@@ -72,7 +72,7 @@ func resultText(t *testing.T, res *mcp.CallToolResult) string {
 func TestDescribeListsAllTools(t *testing.T) {
 	info := Describe()
 	if info.Name != "port-detective" {
-		t.Errorf("服务端名称 = %q，期望 %q", info.Name, "port-detective")
+		t.Errorf("server name = %q, want %q", info.Name, "port-detective")
 	}
 
 	want := map[string]bool{
@@ -83,17 +83,17 @@ func TestDescribeListsAllTools(t *testing.T) {
 	}
 	for _, tool := range info.Tools {
 		if _, ok := want[tool.Name]; !ok {
-			t.Errorf("出现了未约定的工具 %q", tool.Name)
+			t.Errorf("unexpected tool %q", tool.Name)
 			continue
 		}
 		want[tool.Name] = true
 		if tool.Description == "" {
-			t.Errorf("工具 %q 缺少描述", tool.Name)
+			t.Errorf("tool %q has no description", tool.Name)
 		}
 	}
 	for name, found := range want {
 		if !found {
-			t.Errorf("缺少约定工具 %q", name)
+			t.Errorf("missing expected tool %q", name)
 		}
 	}
 }
@@ -109,26 +109,26 @@ func TestToolAnnotationsAreHonest(t *testing.T) {
 	for _, name := range []string{"inspect_port", "scan_dev_ports"} {
 		tool, ok := lookup[name]
 		if !ok {
-			t.Fatalf("未找到工具 %q", name)
+			t.Fatalf("tool %q was not found", name)
 		}
 		if !tool.ReadOnly {
-			t.Errorf("工具 %q 应为只读（ReadOnly=true），实际为 false", name)
+			t.Errorf("tool %q should be read-only, got false", name)
 		}
 		if tool.Destructive {
-			t.Errorf("工具 %q 不应标为破坏性操作（Destructive=false），实际为 true", name)
+			t.Errorf("tool %q should not be destructive, got true", name)
 		}
 	}
 
 	for _, name := range []string{"free_port", "clean_current_project"} {
 		tool, ok := lookup[name]
 		if !ok {
-			t.Fatalf("未找到工具 %q", name)
+			t.Fatalf("tool %q was not found", name)
 		}
 		if tool.ReadOnly {
-			t.Errorf("%s 会终止进程，不应标为只读（期望 ReadOnly=false）", name)
+			t.Errorf("%s terminates processes and must not be read-only", name)
 		}
 		if !tool.Destructive {
-			t.Errorf("%s 会终止进程，必须如实标为破坏性操作（期望 Destructive=true）", name)
+			t.Errorf("%s terminates processes and must be marked destructive", name)
 		}
 	}
 }
@@ -137,12 +137,12 @@ func TestToolAnnotationsAreHonest(t *testing.T) {
 func TestNewServerRegistersWithoutPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("NewServer 发生 panic：%v", r)
+			t.Fatalf("NewServer panicked: %v", r)
 		}
 	}()
 	s := NewServer()
 	if s == nil {
-		t.Fatal("NewServer 返回了 nil")
+		t.Fatal("NewServer returned nil")
 	}
 }
 
@@ -153,18 +153,18 @@ func TestInspectPortToolFindsOwnListener(t *testing.T) {
 
 	res := callTool(t, handleInspectPort, map[string]any{"port": float64(port)})
 	if res.IsError {
-		t.Fatalf("inspect_port 返回错误：%s", resultText(t, res))
+		t.Fatalf("inspect_port returned an error: %s", resultText(t, res))
 	}
 
 	var diag core.PortDiagnostic
 	if err := json.Unmarshal([]byte(resultText(t, res)), &diag); err != nil {
-		t.Fatalf("返回内容不是合法 JSON：%v\n原始内容：%s", err, resultText(t, res))
+		t.Fatalf("response is not valid JSON: %v\nraw response: %s", err, resultText(t, res))
 	}
 	if !diag.IsOpen {
-		t.Errorf("端口 %d 正在监听，但 inspect_port 返回 is_open=false", port)
+		t.Errorf("port %d is listening, but inspect_port returned is_open=false", port)
 	}
 	if diag.Port != port {
-		t.Errorf("端口号 = %d，期望 %d", diag.Port, port)
+		t.Errorf("port = %d, want %d", diag.Port, port)
 	}
 }
 
@@ -172,12 +172,12 @@ func TestInspectPortToolFindsOwnListener(t *testing.T) {
 func TestInspectPortToolValidatesInput(t *testing.T) {
 	res := callTool(t, handleInspectPort, map[string]any{})
 	if !res.IsError {
-		t.Error("缺少 port 参数时应返回错误结果")
+		t.Error("missing port should return an error result")
 	}
 
 	res = callTool(t, handleInspectPort, map[string]any{"port": float64(70000)})
 	if !res.IsError {
-		t.Error("越界端口应返回错误结果")
+		t.Error("out-of-range port should return an error result")
 	}
 }
 
@@ -185,13 +185,13 @@ func TestInspectPortToolValidatesInput(t *testing.T) {
 func TestScanDevPortsToolDefaultScope(t *testing.T) {
 	res := callTool(t, handleScanDevPorts, map[string]any{})
 	if res.IsError {
-		t.Fatalf("scan_dev_ports 返回错误：%s", resultText(t, res))
+		t.Fatalf("scan_dev_ports returned an error: %s", resultText(t, res))
 	}
 
 	text := resultText(t, res)
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(text), &diags); err != nil {
-		t.Fatalf("返回内容不是合法 JSON 数组：%v", err)
+		t.Fatalf("response is not a valid JSON array: %v", err)
 	}
 
 	allowed := make(map[int]bool, len(core.DefaultDevPorts))
@@ -200,10 +200,10 @@ func TestScanDevPortsToolDefaultScope(t *testing.T) {
 	}
 	for _, d := range diags {
 		if !allowed[d.Port] {
-			t.Errorf("默认扫描返回了清单外的端口 %d（清单应仅含 DefaultDevPorts）", d.Port)
+			t.Errorf("default scan returned port %d outside DefaultDevPorts", d.Port)
 		}
 	}
-	t.Logf("开发常用端口命中 %d 个", len(diags))
+	t.Logf("default development ports found: %d", len(diags))
 }
 
 // TestScanDevPortsToolEmptyResultIsArray verifies that empty scans keep the
@@ -214,18 +214,18 @@ func TestScanDevPortsToolEmptyResultIsArray(t *testing.T) {
 		"ports": fmt.Sprintf("%d", port),
 	})
 	if res.IsError {
-		t.Fatalf("scan_dev_ports 返回错误：%s", resultText(t, res))
+		t.Fatalf("scan_dev_ports returned an error: %s", resultText(t, res))
 	}
 
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(resultText(t, res)), &diags); err != nil {
-		t.Fatalf("空扫描结果不是合法 JSON 数组：%v", err)
+		t.Fatalf("empty scan result is not a valid JSON array: %v", err)
 	}
 	if diags == nil {
-		t.Fatal("空扫描结果应编码为 []，不能编码为 null")
+		t.Fatal("empty scan result must encode as [] rather than null")
 	}
 	if len(diags) != 0 {
-		t.Fatalf("空闲端口不应出现在扫描结果中：%+v", diags)
+		t.Fatalf("free ports must not appear in scan results: %+v", diags)
 	}
 }
 
@@ -238,15 +238,15 @@ func TestScanDevPortsToolExplicitPorts(t *testing.T) {
 		"ports": fmt.Sprintf("%d", port),
 	})
 	if res.IsError {
-		t.Fatalf("scan_dev_ports 返回错误：%s", resultText(t, res))
+		t.Fatalf("scan_dev_ports returned an error: %s", resultText(t, res))
 	}
 
 	var diags []core.PortDiagnostic
 	if err := json.Unmarshal([]byte(resultText(t, res)), &diags); err != nil {
-		t.Fatalf("返回内容不是合法 JSON 数组：%v", err)
+		t.Fatalf("response is not a valid JSON array: %v", err)
 	}
 	if len(diags) != 1 || diags[0].Port != port {
-		t.Errorf("扫描结果异常：%+v（期望命中端口 %d）", diags, port)
+		t.Errorf("unexpected scan result: %+v (expected port %d)", diags, port)
 	}
 }
 
@@ -254,12 +254,12 @@ func TestScanDevPortsToolExplicitPorts(t *testing.T) {
 func TestScanDevPortsToolRejectsInvalidPort(t *testing.T) {
 	res := callTool(t, handleScanDevPorts, map[string]any{"ports": "abc"})
 	if !res.IsError {
-		t.Error("ports 包含非数字时应返回错误结果")
+		t.Error("non-numeric ports should return an error result")
 	}
 
 	res = callTool(t, handleScanDevPorts, map[string]any{"ports": "70000"})
 	if !res.IsError {
-		t.Error("ports 越界时应返回错误结果")
+		t.Error("out-of-range ports should return an error result")
 	}
 }
 
@@ -269,10 +269,10 @@ func TestFreePortToolOnIdlePort(t *testing.T) {
 
 	res := callTool(t, handleFreePort, map[string]any{"port": float64(port)})
 	if !res.IsError {
-		t.Error("端口空闲时 free_port 应返回错误结果")
+		t.Error("free_port should return an error for an idle port")
 	}
-	if !strings.Contains(resultText(t, res), "未被占用") {
-		t.Errorf("错误信息不够明确：%s", resultText(t, res))
+	if !strings.Contains(resultText(t, res), "currently free") {
+		t.Errorf("error message is not specific enough: %s", resultText(t, res))
 	}
 }
 
@@ -280,7 +280,7 @@ func TestFreePortToolOnIdlePort(t *testing.T) {
 func TestFreePortToolRequiresPort(t *testing.T) {
 	res := callTool(t, handleFreePort, map[string]any{})
 	if !res.IsError {
-		t.Error("缺少 port 参数时应返回错误结果")
+		t.Error("missing port should return an error result")
 	}
 }
 
@@ -294,7 +294,7 @@ func TestFreePortToolDryRun(t *testing.T) {
 		"dry_run": true,
 	})
 	if res.IsError {
-		t.Fatalf("free_port dry_run 期望成功，实际报错: %s", resultText(t, res))
+		t.Fatalf("free_port dry_run should succeed: %s", resultText(t, res))
 	}
 
 	var resp struct {
@@ -304,31 +304,31 @@ func TestFreePortToolDryRun(t *testing.T) {
 		Message    string              `json:"message"`
 	}
 	if err := json.Unmarshal([]byte(resultText(t, res)), &resp); err != nil {
-		t.Fatalf("解析响应 JSON 失败: %v", err)
+		t.Fatalf("failed to parse response JSON: %v", err)
 	}
 	if !resp.DryRun {
-		t.Errorf("响应中的 dry_run 应为 true")
+		t.Errorf("response dry_run should be true")
 	}
 	if resp.Port != port {
-		t.Errorf("响应端口 %d 不匹配 %d", resp.Port, port)
+		t.Errorf("response port %d does not match %d", resp.Port, port)
 	}
-	if !strings.Contains(resp.Message, "预演") {
-		t.Errorf("消息应包含预演提示，实际为: %s", resp.Message)
+	if !strings.Contains(resp.Message, "dry run") {
+		t.Errorf("message should include a dry-run notice: %s", resp.Message)
 	}
 }
 
 // TestDevPortsAreUniqueAndSorted ensures the development port list has ten valid unique ports.
 func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 	if len(core.DefaultDevPorts) != 10 {
-		t.Errorf("DefaultDevPorts 长度应为 10，实际为 %d", len(core.DefaultDevPorts))
+		t.Errorf("DefaultDevPorts should contain 10 ports, got %d", len(core.DefaultDevPorts))
 	}
 	seen := make(map[int]bool, len(core.DefaultDevPorts))
 	for _, p := range core.DefaultDevPorts {
 		if p < 1 || p > 65535 {
-			t.Errorf("开发端口清单含非法端口 %d", p)
+			t.Errorf("development port list contains invalid port %d", p)
 		}
 		if seen[p] {
-			t.Errorf("开发端口清单含重复端口 %d", p)
+			t.Errorf("development port list contains duplicate port %d", p)
 		}
 		seen[p] = true
 	}
@@ -338,7 +338,7 @@ func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 func TestCleanCurrentProjectTool(t *testing.T) {
 	res := callTool(t, handleCleanCurrentProject, map[string]any{"dry_run": true})
 	if res.IsError {
-		t.Fatalf("clean_current_project 工具返回错误: %s", resultText(t, res))
+		t.Fatalf("clean_current_project returned an error: %s", resultText(t, res))
 	}
 
 	var resp struct {
@@ -348,12 +348,12 @@ func TestCleanCurrentProjectTool(t *testing.T) {
 		Cleaned []core.PortDiagnostic `json:"cleaned"`
 	}
 	if err := json.Unmarshal([]byte(resultText(t, res)), &resp); err != nil {
-		t.Fatalf("解析响应 JSON 失败: %v", err)
+		t.Fatalf("failed to parse response JSON: %v", err)
 	}
 	if !resp.DryRun {
-		t.Errorf("响应中的 dry_run 应为 true")
+		t.Errorf("response dry_run should be true")
 	}
 	if resp.Cwd == "" {
-		t.Errorf("响应中的 cwd 不应为空")
+		t.Errorf("response cwd must not be empty")
 	}
 }

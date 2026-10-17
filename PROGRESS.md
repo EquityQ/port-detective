@@ -4,7 +4,7 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 22 complete; ready for next user priority
+- **当前状态指针**: Step 23 complete; ready for next user priority
 - **构建/测试状态**: Go 覆盖率门槛通过（core 66.0%/60%、CLI 51.1%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。Go 与 Python CI 保留 HTML/XML 报告为工作流产物。常规构建、竞态、vet、多平台集成和依赖安全门禁保留。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
@@ -173,6 +173,15 @@
   - Make CI regenerate both outputs and fail when either checked-in file is stale.
   - Validation: generator, drift checker, Go build/tests/race/vet/gofmt, Python and
     Node.js tests, MCP acceptance, Markdown links, YAML parsing, and `git diff --check`.
+
+- [x] **Step 23: Audit tracked content and simplify the public repository**
+  - Keep committed user-facing content in English and remove redundant translated mirrors,
+    placeholder compatibility/maintainer pages, and derived API output files.
+  - Translate runtime CLI/MCP diagnostics and test harness output to English while
+    preserving JSON field names and safety behavior.
+  - Keep API generation as a CI-time validation step without committing generated files.
+  - Validation: repository-wide tracked-text language scan, Markdown links, Go build/tests/
+    race/vet/gofmt, Python/Node tests, MCP acceptance, workflow YAML parsing, and diff checks.
 
 ---
 
@@ -393,7 +402,8 @@ port-detective
 - **[Step-19 done]**: Added a portable IPv6 loopback inspection fixture with a capability-based skip, Unicode project-path coverage, and PID 0/1 cleanup guard tests. Split process termination/project cleanup from `detector.go` into `internal/core/termination.go`; public core signatures and behavior remain unchanged. Go build/tests, race, vet, formatting, and Windows/macOS/Linux core test cross-compilation pass. The local Windows IPv6 fixture skipped because the OS denied loopback connections; WSL/container/protected-process integration remains environment-dependent.
 - **[Step-20 done]**: Added `completion` generation for Bash, Zsh, Fish, and PowerShell, with shell-specific output assertions. Added a listener-based CLI demo that validates `check`, `scan`, and `kill --dry-run` without terminating an external process; documented troubleshooting, compatibility reports, and maintainer response/release goals. Linked the bilingual documentation entry points and included `completion` in the API drift gate. All Go, Python, Node.js coverage gates, MCP acceptance scripts, Linux/macOS/Windows cross-builds, YAML parsing, demo, and 27-file Markdown link checks pass. Remaining work is release publication, external compatibility evidence, a named maintainer roster, and further CLI decomposition.
 - **[Step-21 done]**: Split the 1,126-line `internal/cli/root.go` into focused root, output, inspect/scan, cleanup, MCP, and port parsing files; the root entry is now about 110 lines. Kept command contracts and output behavior unchanged. Full Go tests/race/vet/gofmt and coverage thresholds pass, as do real Python/Node.js CLI integration, all MCP acceptance scripts, and Linux/macOS/Windows cross-builds. Updated the architecture assessment to 18/20; remaining priorities include release publication, external compatibility evidence, generated API reference output, and a named maintainer roster.
-- **[Step-22 done]**: Added the standard-library `generate_api_reference.py` generator and checked-in bilingual `API_REFERENCE.generated.json` and `API_REFERENCE.generated.md`. The outputs are built from all implementation files in the split CLI/core packages and the MCP tool definitions; the drift checker now validates both generated outputs against implementation and the bilingual reference. CI regenerates both files and fails on stale output. Go build/tests/race/vet/gofmt, Python/Node tests, MCP acceptance, Markdown links, workflow YAML parsing, and `git diff --check` pass. Quality score updated to 91/100; release publication, npm publication, external compatibility evidence, and named maintainers remain open.
+- **[Step-22 done]**: Added the standard-library `generate_api_reference.py` generator and CI drift check for the split CLI/core packages and MCP tool definitions. The generator now supports CI-only JSON or Markdown output, while the committed API reference remains the stable contract. Go build/tests/race/vet/gofmt, Python/Node tests, MCP acceptance, Markdown links, workflow YAML parsing, and `git diff --check` pass. Quality score updated to 91/100; release publication, npm publication, external compatibility evidence, and named maintainers remain open.
+- **[Step-23 done]**: Audited tracked public content and kept it English-only. Removed the translated README, placeholder maintainer and compatibility pages, compatibility issue form, and derived API output files; added ignore rules for local or generated copies. Removed obsolete release references, updated GoReleaser/archive verification, and reduced the documentation index, SDK guides, API reference, status, roadmap, quality review, release checklist, and changelog to concise user-facing English. Runtime diagnostics, tests, and MCP acceptance scripts are English-only while JSON contracts remain unchanged. CI now validates API generation without committing derived output. Public language scan, links, YAML parsing, API drift, Go build/tests/race/vet/gofmt, Python/Node tests, MCP acceptance, release verifier tests, and `git diff --check` pass.
 
 ---
 

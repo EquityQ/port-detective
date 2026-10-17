@@ -33,7 +33,7 @@ func TestProjectPathsMatchUsesPlatformCaseRules(t *testing.T) {
 }
 
 func TestProjectPathsMatchUnicodePath(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "项目-服务")
+	path := filepath.Join(t.TempDir(), "project-service")
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatalf("create Unicode project directory: %v", err)
 	}
@@ -49,12 +49,12 @@ func listenLoopback(t *testing.T) (net.Listener, int) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("无法创建本地临时监听端口：%v", err)
+		t.Fatalf("failed to create loopback listener: %v", err)
 	}
 	addr, ok := ln.Addr().(*net.TCPAddr)
 	if !ok {
 		_ = ln.Close()
-		t.Fatalf("监听地址类型异常：%T", ln.Addr())
+		t.Fatalf("unexpected listener address type: %T", ln.Addr())
 	}
 	return ln, addr.Port
 }
@@ -64,7 +64,7 @@ func freeLoopbackPort(t *testing.T) int {
 	t.Helper()
 	ln, port := listenLoopback(t)
 	if err := ln.Close(); err != nil {
-		t.Fatalf("关闭临时监听端口失败：%v", err)
+		t.Fatalf("failed to close loopback listener: %v", err)
 	}
 	return port
 }
@@ -78,31 +78,31 @@ func TestInspectPortOpenAndIdentifyProcess(t *testing.T) {
 	ctx := context.Background()
 	diag, err := InspectPort(ctx, port)
 	if err != nil {
-		t.Fatalf("InspectPort(%d) 返回意外错误：%v", port, err)
+		t.Fatalf("InspectPort(%d) returned an unexpected error: %v", port, err)
 	}
 	if diag == nil {
-		t.Fatalf("InspectPort(%d) 返回了 nil 结果", port)
+		t.Fatalf("InspectPort(%d) returned a nil result", port)
 	}
 
 	if !diag.IsOpen {
-		t.Fatalf("端口 %d 正在监听，但 IsOpen = false", port)
+		t.Fatalf("port %d is listening, but IsOpen = false", port)
 	}
 	if diag.Port != port {
-		t.Errorf("Port = %d，期望 %d", diag.Port, port)
+		t.Errorf("Port = %d, want %d", diag.Port, port)
 	}
 	if diag.Protocol != ProtocolTCP {
-		t.Errorf("Protocol = %q，期望 %q", diag.Protocol, ProtocolTCP)
+		t.Errorf("Protocol = %q, want %q", diag.Protocol, ProtocolTCP)
 	}
 	if diag.PID != testHelperPID {
-		t.Errorf("PID = %d，期望 %d（测试进程自身）", diag.PID, testHelperPID)
+		t.Errorf("PID = %d, want %d (the test process)", diag.PID, testHelperPID)
 	}
 	if diag.ProcessName == "" {
-		t.Errorf("进程名 ProcessName 为空，未能补全进程详情")
+		t.Errorf("ProcessName is empty; process details were not populated")
 	}
 	if diag.Status != StatusOccupied && diag.Status != StatusPermissionRequired {
-		t.Errorf("状态异常：%q", diag.Status)
+		t.Errorf("unexpected status: %q", diag.Status)
 	}
-	t.Logf("端口 %d -> PID=%d ProcessName=%q MemoryMB=%.2f CPU=%.2f%% Status=%s",
+	t.Logf("port %d -> PID=%d ProcessName=%q MemoryMB=%.2f CPU=%.2f%% Status=%s",
 		diag.Port, diag.PID, diag.ProcessName, diag.MemoryMB, diag.CPUPercent, diag.Status)
 }
 
@@ -139,16 +139,16 @@ func TestInspectPortClosed(t *testing.T) {
 
 	diag, err := InspectPort(context.Background(), port)
 	if err != nil {
-		t.Fatalf("InspectPort(%d) 返回意外错误：%v", port, err)
+		t.Fatalf("InspectPort(%d) returned an unexpected error: %v", port, err)
 	}
 	if diag.IsOpen {
-		t.Fatalf("端口 %d 已关闭，但 IsOpen = true", port)
+		t.Fatalf("port %d is closed, but IsOpen = true", port)
 	}
 	if diag.Status != StatusFree {
-		t.Errorf("空闲端口 Status = %q，期望 %q", diag.Status, StatusFree)
+		t.Errorf("free port Status = %q, want %q", diag.Status, StatusFree)
 	}
 	if diag.PID != 0 {
-		t.Errorf("空闲端口的 PID 应为 0，实际为 %d", diag.PID)
+		t.Errorf("free port PID should be 0, got %d", diag.PID)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestInspectPortRejectsInvalidPort(t *testing.T) {
 	ctx := context.Background()
 	for _, port := range []int{0, -1, 65536, 100000} {
 		if _, err := InspectPort(ctx, port); err == nil {
-			t.Errorf("InspectPort(%d) 期望返回错误，实际返回 nil", port)
+			t.Errorf("InspectPort(%d) should return an error, got nil", port)
 		}
 	}
 }
@@ -170,10 +170,10 @@ func TestInspectPortContextCancel(t *testing.T) {
 
 	diag, err := InspectPort(ctx, freeLoopbackPort(t))
 	if diag != nil {
-		t.Fatalf("取消的检查不应返回诊断报告：%+v", diag)
+		t.Fatalf("a canceled inspection must not return a diagnostic: %+v", diag)
 	}
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("期望返回 context.Canceled，实际为 %v", err)
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
 
@@ -203,12 +203,12 @@ func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 
 	results, err := ScanPortsConcurrent(ctx, testPorts)
 	if err != nil {
-		t.Fatalf("ScanPortsConcurrent 返回错误：%v", err)
+		t.Fatalf("ScanPortsConcurrent returned an error: %v", err)
 	}
 
 	// Results must be sorted in ascending order.
 	if !sort.SliceIsSorted(results, func(i, j int) bool { return results[i].Port < results[j].Port }) {
-		t.Errorf("扫描结果未按端口号升序排序：%+v", results)
+		t.Errorf("scan results are not sorted by port: %+v", results)
 	}
 
 	// Verify that every test listener is included.
@@ -216,16 +216,16 @@ func TestScanPortsConcurrentDetectsAllListeners(t *testing.T) {
 	for _, r := range results {
 		found[r.Port] = true
 		if !r.IsOpen {
-			t.Errorf("结果中包含非开启端口：%d", r.Port)
+			t.Errorf("results contain a closed port: %d", r.Port)
 		}
 	}
 	for _, p := range ports {
 		if !found[p] {
-			t.Errorf("端口 %d 处于监听，但并发扫描未返回", p)
+			t.Errorf("port %d is listening but was not returned by the concurrent scan", p)
 		}
 	}
 	if found[freePort] {
-		t.Errorf("空闲端口 %d 不应出现在扫描结果中", freePort)
+		t.Errorf("free port %d must not appear in scan results", freePort)
 	}
 }
 
@@ -236,10 +236,10 @@ func TestScanPortsConcurrentContextCancel(t *testing.T) {
 
 	_, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
 	if err == nil {
-		t.Fatal("上下文已取消，期望返回错误，实际返回 nil")
+		t.Fatal("a canceled context should return an error, got nil")
 	}
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("错误未包装 context.Canceled：%v", err)
+		t.Errorf("error does not wrap context.Canceled: %v", err)
 	}
 }
 
@@ -280,7 +280,7 @@ func TestKillPortProcessDryRun(t *testing.T) {
 	idle := freeLoopbackPort(t)
 	_, _, err := KillPortProcess(ctx, idle, true)
 	if err == nil {
-		t.Errorf("空闲端口 %d 执行 KillPortProcess 期望报错，实际返回 nil", idle)
+		t.Errorf("KillPortProcess on idle port %d should return an error, got nil", idle)
 	}
 
 	// Verify dry-run succeeds for a listener owned by this test process.
@@ -289,19 +289,19 @@ func TestKillPortProcessDryRun(t *testing.T) {
 
 	diag, msg, err := KillPortProcess(ctx, port, true)
 	if err != nil {
-		t.Fatalf("dry-run 预演失败：%v", err)
+		t.Fatalf("dry-run failed: %v", err)
 	}
 	if diag == nil || !diag.IsOpen {
-		t.Fatalf("预演返回的诊断报告异常：%+v", diag)
+		t.Fatalf("dry-run returned an unexpected diagnostic: %+v", diag)
 	}
 	if msg == "" {
-		t.Errorf("预演应返回明确的提示消息")
+		t.Errorf("dry-run should return an explanatory message")
 	}
-	t.Logf("dry-run 预演消息: %s", msg)
+	t.Logf("dry-run message: %s", msg)
 
 	// Ensure the listener is still alive; dry-run must never terminate it.
 	if !checkTCPOpen(port, DefaultDialTimeout) {
-		t.Errorf("dry-run 不应结束进程，但端口 %d 已无法连接", port)
+		t.Errorf("dry-run must not terminate the process; port %d is no longer reachable", port)
 	}
 }
 
@@ -309,7 +309,7 @@ func TestKillPortProcessDryRun(t *testing.T) {
 func TestKillPortProcessRejectsInvalidPort(t *testing.T) {
 	ctx := context.Background()
 	if _, _, err := KillPortProcess(ctx, 0, true); err == nil {
-		t.Error("端口 0 非法，期望返回错误，实际返回 nil")
+		t.Error("port 0 is invalid; expected an error, got nil")
 	}
 }
 
@@ -368,13 +368,13 @@ func TestRegisterProjectDetectorHook(t *testing.T) {
 
 	diag, err := InspectPort(context.Background(), port)
 	if err != nil {
-		t.Fatalf("InspectPort 失败: %v", err)
+		t.Fatalf("InspectPort failed: %v", err)
 	}
 	if diag.Project == nil {
-		t.Fatal("期望 diag.Project 不为空")
+		t.Fatal("diag.Project should not be nil")
 	}
 	if diag.Project.Framework != "Gin" || diag.Project.Name != "test-app" {
-		t.Errorf("Project 信息不符合预期: %+v", diag.Project)
+		t.Errorf("unexpected project information: %+v", diag.Project)
 	}
 }
 
@@ -391,10 +391,10 @@ func TestRegisterProjectDetectorPanicIsRecovered(t *testing.T) {
 
 	diag, err := InspectPort(context.Background(), port)
 	if err != nil {
-		t.Fatalf("InspectPort 失败: %v", err)
+		t.Fatalf("InspectPort failed: %v", err)
 	}
 	if diag.Project != nil {
-		t.Fatalf("panic 的项目探测器不应返回项目结果: %+v", diag.Project)
+		t.Fatalf("a panicking project detector must not return project data: %+v", diag.Project)
 	}
 }
 
@@ -425,22 +425,22 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 	// Preview cleanup for a matching project directory.
 	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
 	if err != nil {
-		t.Fatalf("CleanCurrentProjectPorts dry-run 失败: %v", err)
+		t.Fatalf("CleanCurrentProjectPorts dry-run failed: %v", err)
 	}
 	if len(cleaned) != 1 {
-		t.Fatalf("期望预演清理 1 个端口，实际清理 %d 个", len(cleaned))
+		t.Fatalf("expected one dry-run cleanup result, got %d", len(cleaned))
 	}
 	if cleaned[0].Port != port {
-		t.Errorf("清理端口为 %d，期望 %d", cleaned[0].Port, port)
+		t.Errorf("cleaned port = %d, want %d", cleaned[0].Port, port)
 	}
 
 	// A non-matching directory should return an empty list.
 	cleanedEmpty, err := CleanCurrentProjectPorts(context.Background(), "/non-existent-dir-12345", true)
 	if err != nil {
-		t.Fatalf("CleanCurrentProjectPorts 失败: %v", err)
+		t.Fatalf("CleanCurrentProjectPorts failed: %v", err)
 	}
 	if len(cleanedEmpty) != 0 {
-		t.Errorf("非匹配目录期望返回 0 个端口，实际为 %d", len(cleanedEmpty))
+		t.Errorf("non-matching directory should return zero ports, got %d", len(cleanedEmpty))
 	}
 }
 
@@ -467,13 +467,13 @@ func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
 
 	cleaned, err := CleanCurrentProjectPorts(context.Background(), testDir, true)
 	if err == nil {
-		t.Fatal("项目路径变化时应返回聚合清理错误")
+		t.Fatal("a project path change should return an aggregated cleanup error")
 	}
 	if len(cleaned) != 1 || !strings.HasPrefix(cleaned[0].Status, "kill_failed:") {
-		t.Fatalf("项目路径变化时应保留失败诊断而不执行清理: %+v", cleaned)
+		t.Fatalf("a project path change should preserve the failure diagnostic: %+v", cleaned)
 	}
 	if !checkTCPOpen(port, DefaultDialTimeout) {
-		t.Fatal("项目路径变化时监听端口必须保持开启")
+		t.Fatal("the listener must remain open after a project path change")
 	}
 }
 

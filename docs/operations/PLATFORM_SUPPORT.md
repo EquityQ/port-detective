@@ -1,11 +1,7 @@
 # Platform Support
 
-Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
-
-`port-detective` is built with Go and uses `gopsutil` plus the standard library for
-network and process inspection. The Go, Python, and Node.js CI matrices validate
-Windows, macOS, and Linux. The release configuration
-targets the following CLI platforms, but no v1.1.0 archives are published yet:
+`port-detective` uses Go, `gopsutil`, and the standard library for local network and
+process inspection. CI validates Windows, macOS, and Linux. Release builds target:
 
 | Platform | Architectures | Support level |
 | --- | --- | --- |
@@ -13,35 +9,15 @@ targets the following CLI platforms, but no v1.1.0 archives are published yet:
 | macOS 13+ | `amd64`, `arm64` | CLI Tier 1 |
 | Ubuntu 22.04+ | `amd64`, `arm64` | CLI Tier 1 |
 
-The source is expected to work on other recent Linux distributions and supported Go
-platforms, but those combinations are not part of the release validation matrix.
-Go builds require Go 1.23 or newer. The Python SDK supports Python 3.9 or newer, and
-the Node.js client supports Node.js 22 or newer. Both require a separately installed
-CLI from the same release.
+Go builds require Go 1.23+. The Python SDK requires Python 3.9+ and the Node.js client
+requires Node.js 22+. Both SDKs use a separately installed CLI from the same release.
 
-## Platform-specific behavior
+## Known limits
 
-- Process ownership and command-line metadata may be incomplete without elevated
-  permissions. The CLI reports this as a degraded diagnostic instead of failing the
-  complete scan.
-- Windows services, macOS protected processes, containers, WSL, and sandboxed
-  environments can hide process details or deny termination.
-- Port probing covers local TCP listeners. Firewall rules, namespace isolation, and
-  IPv4/IPv6 binding choices can make a port appear different across environments.
-- `clean` and `kill` are local process operations. Review `--dry-run` output and
-  grant elevated permissions only when the target is understood.
+- Protected processes and services may hide metadata or deny termination.
+- Containers, WSL, sandboxes, firewall rules, and network namespaces can change results.
+- Port probing covers local TCP listeners and may differ for IPv4 and IPv6 bindings.
+- Review `--dry-run` output before using `--yes` or `dry_run=false`.
 
-Please include the OS version, architecture, Go/Python version, CLI version, and
-whether elevated permissions or a container were involved when reporting a
-platform-specific issue.
-
-See [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md) for the remaining integration
-fixtures and release work. Python CI validates SDK logic and wheel installation on all
-three operating systems; separate Python and Node.js integration matrices exercise
-both clients against the platform-specific CLI binary.
-
-## 中文摘要
-
-正式验证矩阵覆盖 Windows 10/11、macOS 13+ 和 Ubuntu 22.04+，CLI 提供 `amd64` 与 `arm64` 构建；Go 要求 1.23+，Python SDK 要求 3.9+，Node.js 客户端要求 22+，且均需使用单独安装的匹配版本 CLI。Go、Python 和 Node.js CI 均覆盖三类操作系统；Python SDK 逻辑与 wheel 安装检查使用 mock，另有独立的真实 CLI 集成矩阵。
-
-受保护进程、Windows 服务、容器、WSL 和沙箱环境可能无法读取完整进程信息或拒绝终止操作。端口探测面向本机 TCP 监听，防火墙、网络命名空间及 IPv4/IPv6 绑定方式可能导致结果差异。报告平台问题时，请附操作系统、架构、Go/Python 和 CLI 版本，以及是否使用提权或容器。
+When reporting a platform issue, include OS, architecture, runtime versions, CLI version,
+and whether elevated permissions or a container were involved.

@@ -1,59 +1,39 @@
 # CLI and MCP API Reference
 
-API revision / 接口修订：**v1.1 development line** · CLI build default: `1.1.0-dev`
+Revision: **v1.1 development line**. The CLI build default is `1.1.0-dev`.
 
-This is the concise public contract for the CLI JSON interface and MCP tools. Keep
-the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
-
-The command, flag, tool, and core API inventory is generated in
-[`API_REFERENCE.generated.md`](API_REFERENCE.generated.md); the machine-readable
-manifest is available as [`API_REFERENCE.generated.json`](API_REFERENCE.generated.json).
-CI checks both generated files for drift.
-
-这是 CLI JSON 接口和 MCP 工具的简明公开契约。CLI、Python SDK 和 Node.js 客户端应使用同一个经过审核的提交或版本。
+Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
+The implementation inventory is generated during CI; this page is the stable behavior
+contract.
 
 ## CLI
 
-Global flags apply before or after a subcommand:
+Global flags may appear before or after a subcommand:
 
 | Flag | Meaning |
 | --- | --- |
 | `--json` | Emit machine-readable JSON for `check`, `scan`, `kill`, or `clean`. |
-| `--lang en\|zh` | Select human-readable output language; JSON is language-neutral. |
 | `--version` | Print the build version. |
+| `--dry-run` | Preview process actions without terminating a process. |
+| `--yes` | Skip interactive confirmation for destructive actions. |
+| `--ports` | Provide a comma-separated scan list. |
 
-全局参数可放在子命令前或后：`--json` 输出机器可读 JSON，`--lang en|zh` 选择终端语言，`--version` 输出构建版本。
+| Command | Behavior and result |
+| --- | --- |
+| `check <port>` | Inspect TCP port `1-65535`; returns one `PortDiagnostic`. |
+| `scan` | Scan `DefaultDevPorts` or `--ports`; returns a sorted `PortDiagnostic[]`. |
+| `kill <port>` | Preview by default; real termination requires disabled dry-run and `--yes` for JSON. |
+| `clean` | Operate on listeners belonging to the current project; preview by default. |
+| `mcp` | Start the Stdio MCP server with JSON-RPC only on stdout. |
+| `completion <shell>` | Write a Bash, Zsh, Fish, or PowerShell completion script to stdout. |
 
-### Commands
+Process identity and listener ownership are revalidated immediately before termination.
+PID 0 and 1 are never eligible targets. Permission-limited metadata is reported as a
+degraded diagnostic rather than treated as proof that a port is free.
 
-| Command | Arguments and flags | JSON result |
-| --- | --- | --- |
-| `check <port>` | TCP port `1-65535` | One `PortDiagnostic` object. |
-| `scan` | Optional `--ports 3000,8080`; defaults to `DefaultDevPorts` | `PortDiagnostic[]`, sorted by port. |
-| `kill <port>` | `--dry-run` previews; `--yes` skips interactive confirmation | `{port, dry_run, diagnostic, message}`. |
-| `clean` | Operates on the current project; `--dry-run` previews; `--yes` skips confirmation | `PortDiagnostic[]`. |
-| `mcp` | Starts the Stdio MCP server | JSON-RPC only on stdout. |
-| `completion <shell>` | `bash`, `zsh`, `fish`, or `powershell` | Writes the generated shell script to stdout. |
+## JSON result
 
-`kill` and `clean` perform real termination only when dry-run is disabled. A
-destructive JSON invocation also requires `--yes` (`-y`). Process identity and
-listener ownership are revalidated immediately before termination.
-
-`kill` 和 `clean` 只有在关闭预演模式时才会真实终止进程。破坏性 JSON 调用还必须显式添加 `--yes`（`-y`）。终止前会重新校验进程身份和监听归属。
-
-`completion <shell>` 支持 Bash、Zsh、Fish 和 PowerShell，直接向 stdout 输出补全脚本，不输出 JSON。安装示例见[Shell 补全指南](../operations/SHELL_COMPLETION.md)。
-
-## Core contract / 核心契约
-
-The frozen core API exposes `PortDiagnostic`, `DefaultDevPorts`,
-`InspectPort`, `ScanPortsConcurrent`, and `KillPortProcess`. The CLI and MCP
-layers consume these contracts without changing their field names or safety rules.
-
-核心 API 固定提供 `PortDiagnostic`、`DefaultDevPorts`、`InspectPort`、
-`ScanPortsConcurrent` 和 `KillPortProcess`。CLI 与 MCP 层直接使用这些契约，
-不得修改字段名称或安全规则。
-
-### `PortDiagnostic`
+`PortDiagnostic` is the shared result model:
 
 ```json
 {
@@ -75,33 +55,32 @@ layers consume these contracts without changing their field names or safety rule
 }
 ```
 
-`status` is normally `occupied`, `free`, or `permission_required`. Process fields
-can be empty or zero when the operating system denies access.
+`status` is normally `occupied`, `free`, or `permission_required`. Process
+fields can be empty or zero when the operating system denies access. `scan` and
+`scan_dev_ports` always return a JSON array, including an empty array.
 
 ## MCP tools
 
-The server is started with `port-detective mcp`. Stdio stdout is reserved for
+Start the server with `port-detective mcp`. Stdio stdout is reserved for
 JSON-RPC; diagnostics belong on stderr.
 
-服务通过 `port-detective mcp` 启动。Stdio 的 stdout 仅用于 JSON-RPC，诊断信息写入 stderr。
-
-| Tool | Input | Safety and result |
+| Tool | Input | Result and safety |
 | --- | --- | --- |
-| `inspect_port` | Required `port` number `1-65535` | Read-only; returns one diagnostic object. |
-| `scan_dev_ports` | Optional `ports` string such as `"3000,8080"` | Read-only; defaults to `DefaultDevPorts`; returns an array. |
-| `free_port` | Required `port`; optional `dry_run` boolean, default `true` | Destructive when false; returns `port`, `dry_run`, `diagnostic`, and `message`. |
-| `clean_current_project` | Optional `dry_run` boolean, default `true` | Destructive when false; scopes listeners to the current working directory. |
+| `inspect_port` | Required `port` number `1-65535` | Read-only diagnostic object. |
+| `scan_dev_ports` | Optional `ports` string such as `"3000,8080"` | Read-only array; defaults to `DefaultDevPorts`. |
+| `free_port` | Required `port`; optional `dry_run`, default `true` | Destructive when false; returns diagnostic and message. |
+| `clean_current_project` | Optional `dry_run`, default `true` | Destructive when false; scopes listeners to the current working directory. |
 
-All tool descriptions and annotations are verified by the MCP acceptance tests in
-`scripts/mcp/`. The Python and Node.js SDKs consume the CLI JSON contract rather
-than opening a second process-inspection implementation.
+The frozen core API exposes PortDiagnostic, DefaultDevPorts,
+InspectPort, ScanPortsConcurrent, and KillPortProcess. The CLI and MCP
+layers consume these contracts without changing field names or safety rules.
 
-所有工具的描述和注解由 `scripts/mcp/` 下的 MCP 验收测试校验。Python 和 Node.js SDK 消费 CLI JSON 契约，不重复实现进程探测逻辑。
+Tool descriptions and annotations are checked by the acceptance scripts in
+`scripts/mcp/`. SDKs consume the CLI JSON contract instead of reimplementing process
+inspection.
 
-## Compatibility policy / 兼容策略
+## Compatibility
 
-Fields are additive within the v1.1 development line. A release that changes
-field names, command flags, tool names, or safety defaults must update this page,
-the SDK models, acceptance tests, and the changelog together.
-
-v1.1 开发线内允许增加字段。若发布版本修改字段名、命令参数、工具名或安全默认值，必须同步更新本页、SDK 模型、验收测试和变更记录。
+Within the v1.1 development line, fields may be added. Changes to field names, command
+flags, tool names, or safety defaults require updates to this page, SDK models, acceptance
+tests, and the changelog.

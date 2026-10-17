@@ -20,20 +20,6 @@ import (
 
 type options struct {
 	jsonOutput bool
-	lang       string
-}
-
-func defaultLanguage() string {
-	env := strings.ToLower(os.Getenv("LANG") + " " + os.Getenv("LC_ALL") + " " + os.Getenv("LANGUAGE"))
-	if strings.Contains(env, "zh") {
-		return "zh"
-	}
-	return "en"
-}
-
-func isZh(lang string) bool {
-	l := strings.ToLower(strings.TrimSpace(lang))
-	return strings.HasPrefix(l, "zh")
 }
 
 func NewRootCommand() *cobra.Command {
@@ -42,7 +28,7 @@ func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "port-detective",
 		Version: version.Value,
-		Short:   "本地端口占用侦探与进程体检工具 / Local Port Detective & Process Diagnostic Tool",
+		Short:   "Local Port Detective and Process Diagnostic Tool",
 		Long: strings.Join([]string{
 			"port-detective —— Local Port Detective & Process Diagnostic CLI",
 			"",
@@ -54,8 +40,7 @@ func NewRootCommand() *cobra.Command {
 		SilenceErrors: true,
 	}
 
-	root.PersistentFlags().StringVar(&opts.lang, "lang", defaultLanguage(), "interface language / 界面语言 (en/zh)")
-	root.PersistentFlags().BoolVar(&opts.jsonOutput, "json", false, "output in pure JSON format / 以 JSON 格式输出")
+	root.PersistentFlags().BoolVar(&opts.jsonOutput, "json", false, "output machine-readable JSON")
 
 	root.AddCommand(
 		newCheckCommand(opts),
@@ -72,7 +57,7 @@ func Execute() {
 	root := NewRootCommand()
 	if err := root.Execute(); err != nil {
 		p := newPalette(os.Stderr)
-		fmt.Fprintf(os.Stderr, "%s %v\n", p.paint(p.warn, "错误:"), err)
+		fmt.Fprintf(os.Stderr, "%s %v\n", p.paint(p.warn, "Error:"), err)
 		os.Exit(1)
 	}
 }
@@ -82,16 +67,16 @@ func Execute() {
 func newCompletionCommand(root *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion <bash|zsh|fish|powershell>",
-		Short: "生成 Shell 补全脚本 / Generate shell completion script",
+		Short: "Generate a shell completion script",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("需要指定 shell：bash、zsh、fish 或 powershell")
+				return fmt.Errorf("a shell is required: bash, zsh, fish, or powershell")
 			}
 			switch strings.ToLower(args[0]) {
 			case "bash", "zsh", "fish", "powershell":
 				return nil
 			default:
-				return fmt.Errorf("不支持的 shell %q：可选 bash、zsh、fish 或 powershell", args[0])
+				return fmt.Errorf("unsupported shell %q: choose bash, zsh, fish, or powershell", args[0])
 			}
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {

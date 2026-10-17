@@ -1,7 +1,5 @@
 # port-detective
 
-[中文 README](README_zh.md)
-
 Cross-platform CLI, MCP server, and Python SDK for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 

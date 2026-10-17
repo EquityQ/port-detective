@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the checked-in machine-readable CLI/MCP API manifest."""
+"""Generate a machine-readable CLI/MCP API inventory for CI and reviews."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from pathlib import Path
@@ -12,9 +13,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 CLI_DIR = ROOT / "internal" / "cli"
 MCP_SOURCE = ROOT / "internal" / "mcpserver" / "server.go"
-OUTPUT = ROOT / "docs" / "project" / "API_REFERENCE.generated.json"
-MARKDOWN_OUTPUT = ROOT / "docs" / "project" / "API_REFERENCE.generated.md"
-
 SCHEMA_VERSION = 1
 EXPECTED_CORE_TYPES = ("PortDiagnostic",)
 EXPECTED_CORE_CONSTANTS = ("DefaultDevPorts",)
@@ -142,17 +140,14 @@ def build_manifest() -> dict[str, Any]:
 
 def render_markdown(manifest: dict[str, Any]) -> str:
     lines = [
-        "# Generated API Inventory / 自动生成的 API 清单",
+        "# Generated API Inventory",
         "",
         "Generated from the CLI, core, and MCP implementation. See",
         "[API_REFERENCE.md](API_REFERENCE.md) for behavior, result shapes, and safety rules.",
         "",
-        "根据 CLI、core 和 MCP 实现生成。行为、结果结构和安全规则见",
-        "[API_REFERENCE.md](API_REFERENCE.md)。",
+        "## CLI commands",
         "",
-        "## CLI commands / CLI 命令",
-        "",
-        "| Command / 命令 | Syntax / 用法 | Source / 源文件 |",
+        "| Command | Syntax | Source |",
         "| --- | --- | --- |",
     ]
     for command in manifest["cli"]["commands"]:
@@ -162,9 +157,9 @@ def render_markdown(manifest: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## CLI flags / CLI 参数",
+            "## CLI flags",
             "",
-            "| Flag / 参数 | Source / 源文件 |",
+            "| Flag | Source |",
             "| --- | --- |",
         ]
     )
@@ -174,9 +169,9 @@ def render_markdown(manifest: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## MCP tools / MCP 工具",
+            "## MCP tools",
             "",
-            "| Tool / 工具 | Arguments / 参数 | Source / 源文件 |",
+            "| Tool | Arguments | Source |",
             "| --- | --- | --- |",
         ]
     )
@@ -188,9 +183,9 @@ def render_markdown(manifest: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## Core API / 核心 API",
+            "## Core API",
             "",
-            "| Kind / 类型 | Names / 名称 |",
+            "| Kind | Names |",
             "| --- | --- |",
             f"| Types | {', '.join(f'`{name}`' for name in core['types'])} |",
             f"| Values | {', '.join(f'`{name}`' for name in core['constants'])} |",
@@ -202,13 +197,20 @@ def render_markdown(manifest: dict[str, Any]) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    parser.add_argument("--output", type=Path, help="write output to a file instead of stdout")
+    args = parser.parse_args()
+
     manifest = build_manifest()
-    OUTPUT.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    MARKDOWN_OUTPUT.write_text(render_markdown(manifest), encoding="utf-8")
-    print(f"Generated {relative(OUTPUT)} and {relative(MARKDOWN_OUTPUT)}")
+    if args.format == "json":
+        output = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    else:
+        output = render_markdown(manifest)
+    if args.output:
+        args.output.write_text(output, encoding="utf-8")
+    else:
+        print(output, end="")
     return 0
 
 

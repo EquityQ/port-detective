@@ -30,7 +30,6 @@ archives:
         format: zip
     files:
       - README.md
-      - README_zh.md
       - LICENSE
 
 checksum:

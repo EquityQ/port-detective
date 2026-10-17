@@ -1,102 +1,48 @@
 # Open Source Quality Review
 
-Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
+Review date: 2026-10-17. Scope: Go core, CLI, MCP server, Python and Node.js SDKs,
+CI/release automation, documentation, and community files.
 
-**Review date:** 2026-10-17
-**Review scope:** Go core, CLI, MCP server, Python and Node.js SDKs, CI/release automation, documentation, and community files.
+## Current assessment
 
-## Current Assessment
-
-`port-detective` is a strong feature-complete v1.1 development line with a clear
-architecture and unusually good safety coverage for a local process tool. It is
-ready for careful public use from source or a locally built binary. It is not yet a
-fully mature release project because the v1.1.0 tag and published artifact trail do
-not exist yet. A real CLI/Python integration matrix now covers Windows, macOS, and
-Linux, while its first hosted run remains release evidence rather than a local
-assumption.
+`port-detective` is a feature-complete v1.1 development line with clear layering and
+strong safety coverage for a local process tool. It is ready for careful use from source
+or a locally built binary. It is not a finished public release because the v1.1.0 tag
+and published artifact trail do not exist yet.
 
 **Current score: 91/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
-| Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
-| Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, a dedicated core termination module, and focused CLI root/output/command files | Shared private CLI helpers need continued contract-level regression coverage |
-| Correctness and safety | 19/20 | 60 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 15/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a generated versioned CLI/MCP API manifest with CI drift detection, four-shell completion, a safe CLI demo, and a post-publish PyPI install check | Published npm package and public release evidence |
-| Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
-| Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance, compatibility reports, troubleshooting, and documented maintainer response goals | Named maintainer ownership and evidence from actual support triage |
+| Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility evidence |
+| Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, focused CLI files | More contract-level regression coverage |
+| Correctness and safety | 19/20 | Race tests, PID checks, listener revalidation, dry-run and JSON confirmation guards | More OS-specific termination fixtures |
+| Developer experience | 15/15 | Concise quick start, issue forms, three-OS CI, typed Node client, wheel checks, API drift gate, shell completion | Published npm package and public release evidence |
+| Release and supply chain | 14/15 | Atomic verification, immutable Action SHAs, checksums, signatures, SBOM, provenance, PyPI workflow | Actual tag and artifact trail |
+| Community operations | 7/10 | Security, conduct, contribution, status, and PR guidance | Named ownership and support history |
 
-## Strengths
+## Required before v1.1.0
 
-- The core package does not depend on Cobra or MCP, keeping business logic testable.
-- Destructive operations have dry-run defaults at the MCP and SDK layers, PID guards,
-  process identity checks, and a second ownership check immediately before termination.
-- MCP Stdio keeps stdout reserved for JSON-RPC. Handshake, tool schema, tool calls,
-  and stdout purity are covered by executable acceptance scripts.
-- Go and Python CI cover Windows, macOS, and Linux with Go 1.23/1.25 and Python
-  3.9/3.13. Python tests cover the synchronous and asynchronous wrapper APIs, and
-  each OS installs a built wheel.
-- The integration workflow builds the matching CLI on all three operating systems
-  and verifies synchronous and asyncio SDK calls against a real temporary listener.
-- The Node.js client provides sync and Promise APIs, TypeScript declarations, safe
-  process-action defaults, timeout and abort handling, and a real CLI matrix on
-  Windows, macOS, and Linux with Node.js 22 and 24.
-- The tag workflow is configured to verify and sign all assets, check Cosign
-  signatures, emit provenance attestations, publish Python distributions through
-  PyPI Trusted Publishing, install that version from PyPI, and check it against the
-  matching CLI before creating the GitHub Release. GitHub Actions are pinned to
-  immutable commits and Dependabot tracks updates; the first hosted release remains
-  the evidence for the external publishing configuration.
-- Scan input validation, TCP listener filtering, stable empty MCP arrays, and
-  aggregate project-cleanup failures are covered by focused regression tests.
-- The core package now has a dedicated termination and project-cleanup module, and
-  the test suite includes an IPv6 loopback fixture that skips only when the host
-  cannot reach IPv6 loopback, plus Unicode path and system PID guard checks.
-- The project explains permission-limited process metadata instead of presenting
-  incomplete data as certainty.
+1. Create the tag only after the release workflow succeeds.
+2. Review checksums, signatures, SBOM, and provenance attestation.
+3. Run MCP acceptance scripts against the release binary.
+4. Verify the matching Python package installation from the published release.
+5. Decide whether to publish the Node.js client to npm.
 
-## Priority Improvements
+## Quality gates
 
-### P0: Before Calling v1.1.0 Released
+Every change should pass:
 
-1. Create and validate the `v1.1.0` tag only after the release workflow succeeds.
-2. Review the generated checksums, signatures, SBOM, and provenance attestation.
-3. Run the MCP acceptance scripts against the release binary and attach the output
-   to the release notes.
-4. Verify the Python wheel installation from the exact matching CLI release.
+```text
+go build ./...
+go test -race ./...
+go vet ./...
+gofmt -l .
+python -m unittest discover -s python/tests -v
+npm test --prefix npm/port-detective
+python scripts/quality/verify_api_reference.py
+```
 
-### P1: Next Development Cycle
-
-1. Keep the cross-platform CLI/SDK integration matrix required and add hosted or
-   disposable-environment fixtures for protected processes, PID reuse, WSL, and
-   containers. IPv4/IPv6 loopback, Unicode paths, and PID 0/1 guard checks are present.
-2. Configure the PyPI Trusted Publisher and create the first release so the
-   post-publish installation check has public artifact evidence.
-3. Decide whether to configure npm Trusted Publishing and publish the Node.js client
-   with the matching CLI release.
-
-### P2: Maturity and Adoption
-
-1. Track compatibility reports and benchmark results by OS, architecture, and
-   permission level instead of presenting one environment as universal.
-2. Establish a named maintainer roster and review response goals and release cadence
-   against actual community activity.
-
-## Quality Gates
-
-Every change should pass `go build ./...`, `go test -race ./...`, `go vet ./...`,
-`gofmt`, the API reference drift check, and the Python and Node.js test suites when applicable. Changes to MCP or CLI behavior
-must also run the scripts under `scripts/mcp/`. Release changes must validate the
-GoReleaser configuration, archive contents, checksums, and Python wheel smoke test.
-
-CI enforces Go statement coverage of 60% for core, 45% for CLI, 70% for MCP, and
-70% for fingerprinting. Python requires 60% for `core.py`, 85% for `models.py`,
-and 65% overall. Node.js requires 45% line, 65% branch, and 55% function coverage.
-Go and Python HTML reports are retained as workflow artifacts.
-
-See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
-[STATUS.md](../operations/STATUS.md) for the current release state.
-
-## 中文摘要
-
-当前质量基线为 **91/100**。CLI 根模块已拆分为根命令、输出、检查扫描、清理、MCP 和端口解析文件。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。API 参考由标准库生成双语 Markdown 清单和 JSON manifest，并纳入 CI 漂移检查；CLI 增加四种 Shell 补全，并提供安全可复现演示、故障排查及兼容性报告入口。仍需创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并建立具名维护者名单。
+CI enforces reviewed thresholds: Go core/CLI/MCP/fingerprint 60/45/70/70 percent;
+Python core/models/overall 60/85/65 percent; Node.js lines/branches/functions
+45/65/55 percent. Go and Python coverage reports remain CI artifacts.

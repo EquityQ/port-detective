@@ -21,24 +21,24 @@ func TestDetectNodeProject(t *testing.T) {
 		}
 	}`
 	if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
-		t.Fatalf("写入 package.json 失败: %v", err)
+		t.Fatalf("failed to write package.json: %v", err)
 	}
 
 	info := DetectFromDirAndCmdline(tempDir, "node server.js")
 	if info == nil {
-		t.Fatal("期望识别出项目信息，实际返回 nil")
+		t.Fatal("expected project information, got nil")
 	}
 	if info.Name != "my-next-app" {
-		t.Errorf("项目名称 = %q, 期望 %q", info.Name, "my-next-app")
+		t.Errorf("project name = %q, want %q", info.Name, "my-next-app")
 	}
 	if info.Framework != "Next.js" {
-		t.Errorf("框架 = %q, 期望 %q", info.Framework, "Next.js")
+		t.Errorf("framework = %q, want %q", info.Framework, "Next.js")
 	}
 	if info.Version != "14.2.3" {
-		t.Errorf("版本 = %q, 期望 %q", info.Version, "14.2.3")
+		t.Errorf("version = %q, want %q", info.Version, "14.2.3")
 	}
 	if info.Path != filepath.Clean(tempDir) {
-		t.Errorf("Path = %q, 期望 %q", info.Path, filepath.Clean(tempDir))
+		t.Errorf("Path = %q, want %q", info.Path, filepath.Clean(tempDir))
 	}
 }
 
@@ -55,18 +55,18 @@ require (
 )
 `
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644); err != nil {
-		t.Fatalf("写入 go.mod 失败: %v", err)
+		t.Fatalf("failed to write go.mod: %v", err)
 	}
 
 	info := DetectFromDirAndCmdline(tempDir, "./demo-service")
 	if info == nil {
-		t.Fatal("期望识别出 Go 项目，实际返回 nil")
+		t.Fatal("expected a Go project, got nil")
 	}
 	if info.Name != "github.com/user/demo-service" {
-		t.Errorf("Module Name = %q, 期望 %q", info.Name, "github.com/user/demo-service")
+		t.Errorf("module name = %q, want %q", info.Name, "github.com/user/demo-service")
 	}
 	if info.Framework != "Gin" {
-		t.Errorf("框架 = %q, 期望 %q", info.Framework, "Gin")
+		t.Errorf("framework = %q, want %q", info.Framework, "Gin")
 	}
 }
 
@@ -79,10 +79,10 @@ func TestDetectPythonProject(t *testing.T) {
 
 		info := DetectFromDirAndCmdline(tempDir, "python -m uvicorn main:app --port 8000")
 		if info == nil {
-			t.Fatal("期望识别出 FastAPI 项目")
+			t.Fatal("expected a FastAPI project")
 		}
 		if info.Framework != "FastAPI" {
-			t.Errorf("Framework = %q, 期望 %q", info.Framework, "FastAPI")
+			t.Errorf("framework = %q, want %q", info.Framework, "FastAPI")
 		}
 	})
 
@@ -90,10 +90,10 @@ func TestDetectPythonProject(t *testing.T) {
 		tempDir := t.TempDir()
 		info := DetectFromDirAndCmdline(tempDir, "python manage.py runserver 0.0.0.0:8000")
 		if info == nil {
-			t.Fatal("期望识别出 Django 项目")
+			t.Fatal("expected a Django project")
 		}
 		if info.Framework != "Django" {
-			t.Errorf("Framework = %q, 期望 %q", info.Framework, "Django")
+			t.Errorf("framework = %q, want %q", info.Framework, "Django")
 		}
 	})
 
@@ -101,10 +101,10 @@ func TestDetectPythonProject(t *testing.T) {
 		tempDir := t.TempDir()
 		info := DetectFromDirAndCmdline(tempDir, "streamlit run app.py")
 		if info == nil {
-			t.Fatal("期望识别出 Streamlit 项目")
+			t.Fatal("expected a Streamlit project")
 		}
 		if info.Framework != "Streamlit" {
-			t.Errorf("Framework = %q, 期望 %q", info.Framework, "Streamlit")
+			t.Errorf("framework = %q, want %q", info.Framework, "Streamlit")
 		}
 	})
 
@@ -122,16 +122,16 @@ dependencies = [
 
 		info := DetectFromDirAndCmdline(tempDir, "python main.py")
 		if info == nil {
-			t.Fatal("期望识别出 pyproject.toml 项目")
+			t.Fatal("expected a pyproject.toml project")
 		}
 		if info.Name != "ai-portal" {
-			t.Errorf("Name = %q, 期望 %q", info.Name, "ai-portal")
+			t.Errorf("Name = %q, want %q", info.Name, "ai-portal")
 		}
 		if info.Version != "0.2.1" {
-			t.Errorf("Version = %q, 期望 %q", info.Version, "0.2.1")
+			t.Errorf("Version = %q, want %q", info.Version, "0.2.1")
 		}
 		if info.Framework != "FastAPI" {
-			t.Errorf("Framework = %q, 期望 %q", info.Framework, "FastAPI")
+			t.Errorf("Framework = %q, want %q", info.Framework, "FastAPI")
 		}
 	})
 }
@@ -145,21 +145,21 @@ func TestDirectoryUpwardTraversal(t *testing.T) {
 	// Create a nested directory: root/a/b.
 	deepDir := filepath.Join(rootDir, "sub1", "sub2")
 	if err := os.MkdirAll(deepDir, 0755); err != nil {
-		t.Fatalf("创建子目录失败: %v", err)
+		t.Fatalf("failed to create nested directories: %v", err)
 	}
 
 	info := DetectFromDirAndCmdline(deepDir, "node deep.js")
 	if info == nil {
-		t.Fatal("向上回溯 2 层应成功命中 rootDir 的 package.json")
+		t.Fatal("the upward lookup should find rootDir/package.json two levels up")
 	}
 	if info.Name != "root-app" {
-		t.Errorf("Name = %q, 期望 %q", info.Name, "root-app")
+		t.Errorf("Name = %q, want %q", info.Name, "root-app")
 	}
 	if info.Framework != "Vite" {
-		t.Errorf("Framework = %q, 期望 %q", info.Framework, "Vite")
+		t.Errorf("Framework = %q, want %q", info.Framework, "Vite")
 	}
 	if info.Path != filepath.Clean(rootDir) {
-		t.Errorf("Path = %q, 期望 %q", info.Path, filepath.Clean(rootDir))
+		t.Errorf("Path = %q, want %q", info.Path, filepath.Clean(rootDir))
 	}
 
 	// Manifests more than three levels above the working directory should not be found.
@@ -167,7 +167,7 @@ func TestDirectoryUpwardTraversal(t *testing.T) {
 	_ = os.MkdirAll(tooDeepDir, 0755)
 	infoOver := DetectFromDirAndCmdline(tooDeepDir, "node deep.js")
 	if infoOver != nil && infoOver.Path == filepath.Clean(rootDir) {
-		t.Errorf("超过 3 层回溯上限不应命中 rootDir, 实际命中: %+v", infoOver)
+		t.Errorf("a lookup beyond three levels should not find rootDir, got: %+v", infoOver)
 	}
 }
 
@@ -177,26 +177,26 @@ func TestDetectProjectSafetyAndTimeout(t *testing.T) {
 
 	// PID <= 1 must return nil immediately.
 	if res := DetectProject(ctx, 0); res != nil {
-		t.Errorf("PID 0 期望返回 nil，实际返回 %+v", res)
+		t.Errorf("PID 0 should return nil, got %+v", res)
 	}
 	if res := DetectProject(ctx, 1); res != nil {
-		t.Errorf("PID 1 期望返回 nil，实际返回 %+v", res)
+		t.Errorf("PID 1 should return nil, got %+v", res)
 	}
 	if res := DetectProject(ctx, -100); res != nil {
-		t.Errorf("负数 PID 期望返回 nil，实际返回 %+v", res)
+		t.Errorf("negative PID should return nil, got %+v", res)
 	}
 
 	// Verify that the timeout context is propagated.
 	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel() // Cancel immediately.
 	if res := DetectProject(cancelCtx, int32(os.Getpid())); res != nil {
-		t.Logf("取消上下文中返回: %+v", res)
+		t.Logf("canceled context returned: %+v", res)
 	}
 
 	// Detect this test process, which runs from the repository containing go.mod.
 	selfInfo := DetectProject(ctx, int32(os.Getpid()))
 	if selfInfo != nil {
-		t.Logf("当前测试进程指纹: Name=%s, Framework=%s, Path=%s",
+		t.Logf("test process fingerprint: Name=%s, Framework=%s, Path=%s",
 			selfInfo.Name, selfInfo.Framework, selfInfo.Path)
 	}
 
@@ -205,6 +205,6 @@ func TestDetectProjectSafetyAndTimeout(t *testing.T) {
 	_ = DetectProject(ctx, 999999999) // Use a PID that does not exist.
 	elapsed := time.Since(start)
 	if elapsed > 100*time.Millisecond {
-		t.Errorf("探测耗时 %.2fms 超过 100ms", float64(elapsed.Microseconds())/1000)
+		t.Errorf("detection took %.2fms, exceeding 100ms", float64(elapsed.Microseconds())/1000)
 	}
 }

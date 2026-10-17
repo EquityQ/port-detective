@@ -15,8 +15,8 @@ _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
 if not os.path.exists(_BIN):
     sys.stderr.write(
-        "找不到二进制 %s\n请先执行 `go build -o port-detective .`，"
-        "或用环境变量 PORT_DETECTIVE_BIN 指定路径。\n" % _BIN)
+        "Binary not found: %s\nRun `go build -o port-detective .` first, "
+        "or set PORT_DETECTIVE_BIN.\n" % _BIN)
     sys.exit(2)
 BIN = _BIN
 
@@ -53,7 +53,7 @@ for line in proc.stdout.decode("utf-8", "replace").splitlines():
 def tool_text(resp_id):
     r = responses.get(resp_id, {}).get("result", {})
     content = r.get("content") or [{}]
-    return r.get("isError"), content[0].get("text", "<无>")
+    return r.get("isError"), content[0].get("text", "<empty>")
 
 
 out = []
@@ -63,22 +63,22 @@ def show(label, resp_id, limit=600):
     is_err, text = tool_text(resp_id)
     out.append(f"\n=== {label} ===")
     out.append(f"  isError={is_err}")
-    out.append("  " + (text if len(text) <= limit else text[:limit] + " …(截断)"))
+    out.append("  " + (text if len(text) <= limit else text[:limit] + " ...(truncated)"))
 
 
-show("① inspect_port(1)  受控系统端口探测 — 应返回合法诊断", 2)
-show("② scan_dev_ports()  默认仅覆盖开发常用端口", 3)
-show("③ inspect_port(70000)  越界端口 — 应 isError=True", 4)
-show("④ inspect_port(8080)  空闲端口 — 应 is_open=False", 5)
+show("inspect_port(1): controlled system port probe", 2)
+show("scan_dev_ports(): default development port set", 3)
+show("inspect_port(70000): invalid port, isError should be true", 4)
+show("inspect_port(8080): idle port, is_open should be false", 5)
 
-out.append("\n=== stdout 纯净性检查 ===")
-out.append(f"  非法 JSON 行数 = {len(bad)}  ->  {'通过' if not bad else '失败 ' + str(bad)}")
-out.append(f"  收到响应数 = {len(responses)} (期望 5)")
+out.append("\n=== stdout protocol check ===")
+out.append(f"  invalid JSON lines = {len(bad)} -> {'PASS' if not bad else 'FAIL ' + str(bad)}")
+out.append(f"  responses received = {len(responses)} (expected 5)")
 
 err4 = tool_text(4)[0]
 err_lines = [l for l in proc.stderr.decode("utf-8", "replace").splitlines() if l.strip()]
-out.append(f"\n=== stderr（诊断输出，允许存在）{len(err_lines)} 行 ===")
-out.append("  " + (err_lines[0] if err_lines else "<空>"))
+out.append(f"\n=== stderr (allowed diagnostics, {len(err_lines)} lines) ===")
+out.append("  " + (err_lines[0] if err_lines else "<empty>"))
 
 sys.stdout.buffer.write("\n".join(out).encode("utf-8"))
 sys.stdout.buffer.flush()

@@ -364,7 +364,7 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	})
 
 	if err := ctx.Err(); err != nil {
-		return occupied, fmt.Errorf("扫描被取消：%w", err)
+		return occupied, fmt.Errorf("scan canceled: %w", err)
 	}
 	return occupied, nil
 }

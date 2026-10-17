@@ -18,8 +18,8 @@ _BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
     _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
 if not os.path.exists(_BIN):
     sys.stderr.write(
-        "找不到二进制 %s\n请先执行 `go build -o port-detective .`，"
-        "或用环境变量 PORT_DETECTIVE_BIN 指定路径。\n" % _BIN)
+        "Binary not found: %s\nRun `go build -o port-detective .` first, "
+        "or set PORT_DETECTIVE_BIN.\n" % _BIN)
     sys.exit(2)
 BIN = _BIN
 
@@ -37,20 +37,20 @@ raw_stderr = proc.stderr.decode("utf-8", "replace")
 lines = [l for l in raw_stdout.splitlines() if l.strip()]
 
 out = []
-out.append(f"stdout 原始字节数 : {len(proc.stdout)}")
-out.append(f"stdout 非空行数   : {len(lines)}   (期望恰好 1)")
-out.append(f"stderr 行数       : {len([l for l in raw_stderr.splitlines() if l.strip()])}")
+out.append(f"stdout bytes     : {len(proc.stdout)}")
+out.append(f"non-empty lines  : {len(lines)} (expected exactly 1)")
+out.append(f"stderr lines     : {len([l for l in raw_stderr.splitlines() if l.strip()])}")
 
 ok = True
 
 # Assertion 1: stdout contains exactly one line.
 if len(lines) != 1:
     ok = False
-    out.append(f"\n[失败] stdout 行数应为 1，实际 {len(lines)}：")
+    out.append(f"\n[FAIL] stdout should contain one line, got {len(lines)}:")
     for l in lines[:10]:
         out.append(f"    {l[:160]}")
 else:
-    out.append("\n[通过] stdout 恰好 1 行")
+    out.append("\n[PASS] stdout contains exactly one line")
 
 # Assertion 2: the line is valid JSON-RPC and has the expected ID.
 if lines:
@@ -58,25 +58,25 @@ if lines:
         obj = json.loads(lines[0])
         if obj.get("id") != 1 or "result" not in obj:
             ok = False
-            out.append(f"[失败] 不是预期的 initialize 响应：{lines[0][:200]}")
+            out.append(f"[FAIL] unexpected initialize response: {lines[0][:200]}")
         else:
-            out.append(f"[通过] 合法 JSON-RPC 响应，serverInfo="
+            out.append(f"[PASS] valid JSON-RPC response, serverInfo="
                        f"{obj['result'].get('serverInfo')}")
     except json.JSONDecodeError as e:
         ok = False
-        out.append(f"[失败] 该行不是合法 JSON：{e}")
+        out.append(f"[FAIL] line is not valid JSON: {e}")
 
 # Assertion 3: stdout contains no human-readable text or ANSI escapes.
-for marker in ["已启动", "已注册工具", "\x1b[", "等待客户端", "port-detective 已"]:
+for marker in ["started", "Registered tools", "\x1b[", "waiting for a client", "port-detective MCP"]:
     if marker in raw_stdout:
         ok = False
-        out.append(f"[失败] stdout 中混入了文案标记 {marker!r}")
+        out.append(f"[FAIL] stdout contains human-readable marker {marker!r}")
 
 if ok:
-    out.append("[通过] stdout 中无任何人类可读文案或 ANSI 转义序列")
+    out.append("[PASS] stdout contains no human-readable text or ANSI escapes")
 
-out.append(f"\n=== 结论: {'PASS' if ok else 'FAIL'} ===")
-out.append("stderr 内容（允许，属正常诊断）：")
+out.append(f"\n=== Result: {'PASS' if ok else 'FAIL'} ===")
+out.append("stderr (allowed diagnostics):")
 for l in raw_stderr.splitlines()[:3]:
     out.append(f"    {l}")
 

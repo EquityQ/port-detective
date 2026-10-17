@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 
 
-REQUIRED_ARCHIVE_FILES = {"README.md", "README_zh.md", "LICENSE"}
+REQUIRED_ARCHIVE_FILES = {"README.md", "LICENSE"}
 
 
 def check(condition: bool, message: str) -> None:

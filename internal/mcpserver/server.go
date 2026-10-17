@@ -44,7 +44,7 @@ func NewServer() *server.MCPServer {
 	for _, tool := range serverTools() {
 		handler, ok := handlers[tool.Name]
 		if !ok {
-			panic(fmt.Sprintf("MCP 工具 %q 缺少对应的处理函数", tool.Name))
+			panic(fmt.Sprintf("MCP tool %q has no registered handler", tool.Name))
 		}
 		s.AddTool(tool, handler)
 	}
@@ -112,7 +112,7 @@ func inspectPortTool() mcp.Tool {
 		mcp.WithDescription(
 			"Check if a local port is occupied and get the owning process health metrics (PID, name, memory MB, CPU%, command line).",
 		),
-		mcp.WithTitleAnnotation("端口体检"),
+		mcp.WithTitleAnnotation("Inspect port"),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
@@ -132,7 +132,7 @@ func scanDevPortsTool() mcp.Tool {
 		mcp.WithDescription(
 			"Concurrently scan multiple development ports using Go goroutines and return all occupied ports with process diagnostics.",
 		),
-		mcp.WithTitleAnnotation("端口扫描"),
+		mcp.WithTitleAnnotation("Scan ports"),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
@@ -149,7 +149,7 @@ func freePortTool() mcp.Tool {
 		mcp.WithDescription(
 			"Terminate the local process occupying the specified port. Set dry_run=false to actually kill the process.",
 		),
-		mcp.WithTitleAnnotation("释放端口"),
+		mcp.WithTitleAnnotation("Free port"),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -173,7 +173,7 @@ func cleanCurrentProjectTool() mcp.Tool {
 		mcp.WithDescription(
 			"Concurrently scan development ports and process listeners belonging to the current working directory project. Set dry_run=false to actually kill processes.",
 		),
-		mcp.WithTitleAnnotation("清理当前项目端口"),
+		mcp.WithTitleAnnotation("Clean current project"),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -190,12 +190,12 @@ func cleanCurrentProjectTool() mcp.Tool {
 func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := request.RequireInt("port")
 	if err != nil {
-		return mcp.NewToolResultError("缺少必填参数 port（端口号，1-65535）"), nil
+		return mcp.NewToolResultError("required parameter port is missing (1-65535)"), nil
 	}
 
 	diag, err := core.InspectPort(ctx, port)
 	if err != nil {
-		return mcp.NewToolResultErrorf("体检端口 %d 失败：%v", port, err), nil
+		return mcp.NewToolResultErrorf("inspect port %d failed: %v", port, err), nil
 	}
 
 	return jsonResult(diag)
@@ -214,7 +214,7 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 			}
 			num, err := strconv.Atoi(trimmed)
 			if err != nil || num < 1 || num > 65535 {
-				return mcp.NewToolResultErrorf("非法端口号 %q：需为 1-65535 之间的整数", trimmed), nil
+				return mcp.NewToolResultErrorf("invalid port %q: expected an integer from 1 to 65535", trimmed), nil
 			}
 			targetPorts = append(targetPorts, num)
 		}
@@ -227,7 +227,7 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	results, err := core.ScanPortsConcurrent(ctx, targetPorts)
 	if err != nil {
-		return mcp.NewToolResultErrorf("扫描端口失败：%v", err), nil
+		return mcp.NewToolResultErrorf("scan failed: %v", err), nil
 	}
 	return jsonResult(results)
 }
@@ -235,14 +235,14 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := request.RequireInt("port")
 	if err != nil {
-		return mcp.NewToolResultError("缺少必填参数 port（端口号，1-65535）"), nil
+		return mcp.NewToolResultError("required parameter port is missing (1-65535)"), nil
 	}
 
 	dryRun := request.GetBool("dry_run", true)
 
 	diag, msg, err := core.KillPortProcess(ctx, port, dryRun)
 	if err != nil {
-		return mcp.NewToolResultErrorf("释放端口 %d 失败：%v", port, err), nil
+		return mcp.NewToolResultErrorf("free port %d failed: %v", port, err), nil
 	}
 
 	result := map[string]any{
@@ -259,7 +259,7 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return mcp.NewToolResultErrorf("无法获取当前工作目录：%v", err), nil
+		return mcp.NewToolResultErrorf("unable to get the current working directory: %v", err), nil
 	}
 
 	cleaned, cleanErr := core.CleanCurrentProjectPorts(ctx, cwd, dryRun)
@@ -286,7 +286,7 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 func jsonResult(v any) (*mcp.CallToolResult, error) {
 	payload, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return mcp.NewToolResultErrorf("结果序列化失败：%v", err), nil
+		return mcp.NewToolResultErrorf("result serialization failed: %v", err), nil
 	}
 	return mcp.NewToolResultText(string(payload)), nil
 }
