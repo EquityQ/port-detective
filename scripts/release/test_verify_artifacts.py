@@ -3,13 +3,30 @@
 from __future__ import annotations
 
 import io
+import subprocess
 import tarfile
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
-from verify_artifacts import verify_python
+from verify_artifacts import verify_cli, verify_python
+
+
+class VerifyCliTests(unittest.TestCase):
+    def test_resolves_relative_cli_path_before_execution(self) -> None:
+        relative = Path("port-detective")
+        result = subprocess.CompletedProcess(
+            args=[str(relative), "--version"],
+            returncode=0,
+            stdout="port-detective 1.1.0\n",
+            stderr="",
+        )
+        with patch("verify_artifacts.subprocess.run", return_value=result) as run:
+            verify_cli(relative, "1.1.0")
+
+        self.assertEqual(run.call_args.args[0], [str(relative.resolve()), "--version"])
 
 
 class VerifyPythonTests(unittest.TestCase):

@@ -20,8 +20,12 @@ def check(condition: bool, message: str) -> None:
 
 
 def verify_cli(path: Path, expected: str) -> None:
+    # Resolve the executable before invoking it. On Unix, subprocess does not
+    # search the current directory when a relative path is normalized to a bare
+    # filename such as `port-detective`.
+    executable = path.resolve()
     result = subprocess.run(
-        [str(path), "--version"],
+        [str(executable), "--version"],
         capture_output=True,
         text=True,
         encoding="utf-8",
