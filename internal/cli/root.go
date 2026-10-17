@@ -475,6 +475,7 @@ func NewRootCommand() *cobra.Command {
 		newCleanCommand(opts),
 		newMCPCommand(opts),
 	)
+	root.AddCommand(newCompletionCommand(root))
 	return root
 }
 
@@ -485,6 +486,41 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "%s %v\n", p.paint(p.warn, "错误:"), err)
 		os.Exit(1)
 	}
+}
+
+// newCompletionCommand generates shell completion scripts without requiring a
+// separate installation-time tool.
+func newCompletionCommand(root *cobra.Command) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "completion <bash|zsh|fish|powershell>",
+		Short: "生成 Shell 补全脚本 / Generate shell completion script",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("需要指定 shell：bash、zsh、fish 或 powershell")
+			}
+			switch strings.ToLower(args[0]) {
+			case "bash", "zsh", "fish", "powershell":
+				return nil
+			default:
+				return fmt.Errorf("不支持的 shell %q：可选 bash、zsh、fish 或 powershell", args[0])
+			}
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch strings.ToLower(args[0]) {
+			case "bash":
+				return root.GenBashCompletionV2(stdout(cmd), true)
+			case "zsh":
+				return root.GenZshCompletion(stdout(cmd))
+			case "fish":
+				return root.GenFishCompletion(stdout(cmd), true)
+			case "powershell":
+				return root.GenPowerShellCompletion(stdout(cmd))
+			default:
+				return fmt.Errorf("unreachable shell %q", args[0])
+			}
+		},
+	}
+	return cmd
 }
 
 // check inspects a single port.

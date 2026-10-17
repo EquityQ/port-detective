@@ -34,6 +34,9 @@ The repository currently contains the v1.1 feature-complete development line. A
 - Standard-library API drift checker wired into the required CI documentation gate.
 - IPv6 loopback inspection coverage and a dedicated core termination/cleanup module.
 - Unicode project-path and protected system PID guard regression tests.
+- Bash, Zsh, Fish, and PowerShell completion generation with CLI coverage.
+- A reproducible listener-based CLI demo that verifies `check`, `scan`, and `kill --dry-run` without terminating external processes.
+- Compatibility report form, troubleshooting guide, and maintainer response and release planning guidance.
 
 ### Changed
 
@@ -51,7 +54,7 @@ implementation record.
 
 ### [未发布]
 
-当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名、签名验真、GitHub 来源证明和 PyPI Trusted Publishing 工作流；发布会在所有门禁通过后最后创建。新增零依赖 Node.js 客户端、TypeScript 类型、同步和 Promise API、dry-run 安全默认值及三平台真实 CLI 集成。CI 已为 Go、Python 和 Node.js 建立分层覆盖率门槛，并保留 Go/Python 覆盖率报告。工作流动作已固定到不可变提交，Dependabot 负责依赖更新；发布后会从 PyPI 安装相同版本并对匹配 CLI 做真实验证，同时校正源码构建、发布产物和各 SDK 示例说明。
+当前仓库是 v1.1 功能完成开发线，正式 `v1.1.0` 将在发布门禁通过后创建。本阶段新增社区安全策略、平台支持政策、项目状态、Issue 表单、质量评估、开源成熟度路线图，以及发布制品校验、SPDX SBOM、Cosign 签名、签名验真、GitHub 来源证明和 PyPI Trusted Publishing 工作流；发布会在所有门禁通过后最后创建。新增零依赖 Node.js 客户端、TypeScript 类型、同步和 Promise API、dry-run 安全默认值及三平台真实 CLI 集成。CLI 增加 Bash、Zsh、Fish 和 PowerShell 补全；提供安全可复现演示、故障排查、兼容性报告表单及维护者协作指南。CI 已为 Go、Python 和 Node.js 建立分层覆盖率门槛，并保留 Go/Python 覆盖率报告。工作流动作已固定到不可变提交，Dependabot 负责依赖更新；发布后会从 PyPI 安装相同版本并对匹配 CLI 做真实验证，同时校正源码构建、发布产物和各 SDK 示例说明。
 
 ### [0.1.0-assignment]
 

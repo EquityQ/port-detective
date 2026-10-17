@@ -28,12 +28,15 @@ Global flags apply before or after a subcommand:
 | `kill <port>` | `--dry-run` previews; `--yes` skips interactive confirmation | `{port, dry_run, diagnostic, message}`. |
 | `clean` | Operates on the current project; `--dry-run` previews; `--yes` skips confirmation | `PortDiagnostic[]`. |
 | `mcp` | Starts the Stdio MCP server | JSON-RPC only on stdout. |
+| `completion <shell>` | `bash`, `zsh`, `fish`, or `powershell` | Writes the generated shell script to stdout. |
 
 `kill` and `clean` perform real termination only when dry-run is disabled. A
 destructive JSON invocation also requires `--yes` (`-y`). Process identity and
 listener ownership are revalidated immediately before termination.
 
 `kill` 和 `clean` 只有在关闭预演模式时才会真实终止进程。破坏性 JSON 调用还必须显式添加 `--yes`（`-y`）。终止前会重新校验进程身份和监听归属。
+
+`completion <shell>` 支持 Bash、Zsh、Fish 和 PowerShell，直接向 stdout 输出补全脚本，不输出 JSON。安装示例见[Shell 补全指南](../operations/SHELL_COMPLETION.md)。
 
 ### `PortDiagnostic`
 

@@ -35,7 +35,7 @@ def main() -> int:
         for match in re.finditer(r'\bUse:\s+"([a-z][a-z0-9-]*)', cli)
         if match.group(1) != "port-detective"
     }
-    expected_commands = {"check", "scan", "kill", "clean", "mcp"}
+    expected_commands = {"check", "scan", "kill", "clean", "mcp", "completion"}
     if commands != expected_commands:
         fail(f"CLI commands are {sorted(commands)}, expected {sorted(expected_commands)}")
     require_tokens(reference, {f"`{command}" for command in commands}, "CLI commands")
@@ -71,7 +71,13 @@ def main() -> int:
 
     require_tokens(
         reference,
-        {"PortDiagnostic", "`dry_run`", "JSON-RPC", "DefaultDevPorts"},
+        {
+            "PortDiagnostic",
+            "`dry_run`",
+            "JSON-RPC",
+            "DefaultDevPorts",
+            "completion <shell>",
+        },
         "contract terms",
     )
     print(

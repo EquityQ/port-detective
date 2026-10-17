@@ -49,6 +49,32 @@ func TestDisplayWidthHandlesCJK(t *testing.T) {
 	}
 }
 
+func TestCompletionCommandGeneratesSupportedShells(t *testing.T) {
+	markers := map[string]string{
+		"bash":       "# bash completion V2",
+		"zsh":        "#compdef port-detective",
+		"fish":       "# fish completion for port-detective",
+		"powershell": "# powershell completion for port-detective",
+	}
+	for shell, marker := range markers {
+		t.Run(shell, func(t *testing.T) {
+			out, _, err := captureRun(t, "completion", shell)
+			if err != nil {
+				t.Fatalf("completion %s failed: %v", shell, err)
+			}
+			if !strings.Contains(out, marker) {
+				t.Fatalf("completion %s output does not contain marker %q", shell, marker)
+			}
+		})
+	}
+}
+
+func TestCompletionCommandRejectsUnknownShell(t *testing.T) {
+	if _, _, err := captureRun(t, "completion", "cmd"); err == nil {
+		t.Fatal("unknown shell should be rejected")
+	}
+}
+
 func TestPadRightUsesDisplayWidth(t *testing.T) {
 	got := padRight("端口", 10)
 	if want := "端口" + strings.Repeat(" ", 6); got != want {

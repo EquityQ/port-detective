@@ -2,7 +2,7 @@
 
 Language / 语言: English below · [中文摘要](#中文摘要) · [Documentation index / 文档中心](../README.md)
 
-**Review date:** 2026-10-16
+**Review date:** 2026-10-17
 **Review scope:** Go core, CLI, MCP server, Python and Node.js SDKs, CI/release automation, documentation, and community files.
 
 ## Current Assessment
@@ -21,10 +21,10 @@ assumption.
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 17/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, and a dedicated core termination module | The CLI root module remains large and should be split when command contracts allow |
-| Correctness and safety | 19/20 | 59 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference with CI drift detection, and a post-publish PyPI install check | Published npm package, generated reference output, and a reproducible demo environment |
+| Correctness and safety | 19/20 | 60 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
+| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference with CI drift detection, four-shell completion, a safe CLI demo, and a post-publish PyPI install check | Published npm package, generated API reference output, and public release evidence |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
-| Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance | Support triage and maintainer ownership |
+| Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance, compatibility reports, troubleshooting, and documented maintainer response goals | Named maintainer ownership and evidence from actual support triage |
 
 ## Strengths
 
@@ -79,10 +79,10 @@ assumption.
 
 1. Split the remaining large CLI root module into cohesive files without changing
    the public contracts documented in `AGENTS.md`.
-2. Add shell completion examples, a troubleshooting guide, and a short recorded demo.
-3. Track compatibility reports and benchmark results by OS, architecture, and
+2. Track compatibility reports and benchmark results by OS, architecture, and
    permission level instead of presenting one environment as universal.
-4. Define maintainer ownership, response targets, and a regular release cadence.
+3. Establish a named maintainer roster and review response goals and release cadence
+   against actual community activity.
 
 ## Quality Gates
 
@@ -101,4 +101,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **89/100**。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。已补充版本化 CLI/MCP 接口参考；仍需实际创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并让参考文档未来由实现或测试自动校验。
+当前质量基线为 **89/100**。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。API 参考已纳入 CI 漂移检查，CLI 增加四种 Shell 补全，并提供安全可复现演示、故障排查及兼容性报告入口。仍需创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并建立具名维护者名单。

@@ -18,6 +18,7 @@ users usually have.
 - [Contributing guide / 贡献指南](community/CONTRIBUTING.md)
 - [Code of Conduct / 行为准则](community/CODE_OF_CONDUCT.md)
 - [Security policy / 安全策略](community/SECURITY.md)
+- [Maintainer operations / 维护者协作](community/MAINTAINERS.md)
 
 ## Project / 项目规划
 
@@ -29,6 +30,10 @@ users usually have.
 
 - [Project status / 项目状态](operations/STATUS.md)
 - [Platform support / 平台支持政策](operations/PLATFORM_SUPPORT.md)
+- [Troubleshooting / 故障排查](operations/TROUBLESHOOTING.md)
+- [Shell completion / Shell 补全](operations/SHELL_COMPLETION.md)
+- [Compatibility reports / 兼容性报告](operations/COMPATIBILITY_REPORT.md)
+- [Reproducible CLI demo / 可复现 CLI 演示](../scripts/demo/README.md)
 
 ## Releases / 发布记录
 

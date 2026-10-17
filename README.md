@@ -124,6 +124,8 @@ from the checkout and has not been published to npm. See the [Node.js client gui
 - [Quality review](docs/project/QUALITY_REVIEW.md)
 - [Roadmap](docs/project/ROADMAP.md)
 - [CLI and MCP API reference](docs/project/API_REFERENCE.md)
+- [Troubleshooting](docs/operations/TROUBLESHOOTING.md) · [Shell completion](docs/operations/SHELL_COMPLETION.md)
+- [Safe CLI demo](scripts/demo/README.md)
 - [Changelog](docs/releases/CHANGELOG.md)
 - [Release checklist](docs/releases/RELEASE_CHECKLIST.md)
 

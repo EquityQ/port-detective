@@ -43,12 +43,15 @@ project.
 
 ## Later: Community Scale
 
-- Establish a maintainer roster, response targets, and a predictable release cadence.
-- Add a troubleshooting guide, shell completion walkthroughs, and a reproducible demo.
-- Track benchmarks and compatibility reports by operating system, architecture, and
-  permission level.
+- Establish a named maintainer roster and review documented response goals and
+  release cadence against actual community activity.
+- Track compatibility reports and benchmarks by operating system, architecture,
+  and permission level.
 - Split the remaining oversized CLI implementation while preserving the documented
   contracts.
+
+The troubleshooting guide, four-shell completion walkthroughs, compatibility report
+form, and safe reproducible CLI demo are available in the documentation index.
 
 Priorities may change as compatibility reports arrive. Security fixes and data-loss
 prevention always take precedence over feature work.
@@ -75,7 +78,7 @@ prevention always take precedence over feature work.
 
 ### 后续：社区规模化
 
-- 明确维护者、响应目标和发布节奏。
-- 增加故障排查、Shell 补全和可复现演示。
-- 按系统、架构和权限记录兼容性与基准数据。
+- 建立具名维护者名单，并根据实际社区活动复核已记录的响应目标和发布节奏。
+- 按系统、架构和权限记录兼容性报告与基准数据。
 - 已将核心终止与项目清理逻辑拆到独立模块；后续继续拆分较大的 CLI 根模块。发布流程已改为先校验、签名验真和生成来源证明，最后创建 GitHub Release；GitHub Actions 已固定到不可变提交并由 Dependabot 跟踪更新。
+- 故障排查、四种 Shell 补全指南、兼容性报告表单和安全可复现 CLI 演示已提供。
