@@ -87,8 +87,8 @@ class TestRuntimeDownload(unittest.TestCase):
             first = Path(download_cli(version="1.1.0", destination=Path(directory)))
             second = Path(download_cli(version="1.1.1", destination=Path(directory)))
             self.assertNotEqual(first, second)
-            self.assertTrue(str(first).endswith("1.1.0\\windows-amd64\\port-detective.exe"))
-            self.assertTrue(str(second).endswith("1.1.1\\windows-amd64\\port-detective.exe"))
+            self.assertEqual(first.parts[-3:], ("1.1.0", "windows-amd64", "port-detective.exe"))
+            self.assertEqual(second.parts[-3:], ("1.1.1", "windows-amd64", "port-detective.exe"))
             self.assertNotEqual(first.read_bytes(), second.read_bytes())
 
     def test_rejects_unsupported_platform(self):
