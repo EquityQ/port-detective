@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 20 complete; ready for next user priority
+- **当前状态指针**: Step 21 complete; ready for next user priority
 - **构建/测试状态**: Go 覆盖率门槛通过（core 66.0%/60%、CLI 51.1%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。Go 与 Python CI 保留 HTML/XML 报告为工作流产物。常规构建、竞态、vet、多平台集成和依赖安全门禁保留。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **89/100**；真实 CLI/Python/Node.js 集成矩阵、分层覆盖率门槛、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **90/100**；真实 CLI/Python/Node.js 集成矩阵、分层覆盖率门槛、原子化发布门禁和 PyPI Trusted Publishing 已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -154,6 +154,16 @@
     coverage pass. API drift check, four shell-specific completion outputs, safe listener
     demo, all three MCP acceptance scripts, 11 YAML files, and local links in 27 Markdown
     files pass. IPv6 listener test skips because this Windows host denies loopback IPv6.
+
+- [x] **Step 21: Split CLI implementation by responsibility**
+  - Move rendering helpers, root command setup, inspection/scanning, cleanup, MCP,
+    and port parsing into focused files within `internal/cli`.
+  - Keep `NewRootCommand`, command flags, JSON and terminal output, and core/MCP
+    contracts unchanged.
+  - Update the quality review, status, and roadmap to reflect the completed split.
+  - Validation: 60 Go tests, build/race/vet/gofmt, and all package coverage thresholds pass.
+    Python and Node.js SDKs pass real-listener CLI integration; MCP handshake/tools/stdout
+    acceptance passes. Linux amd64, macOS amd64, and Windows arm64 cross-builds pass.
 
 ---
 
@@ -373,6 +383,7 @@ port-detective
 - **[Step-18 done]**: Added `scripts/quality/verify_api_reference.py`, a standard-library checker that compares CLI commands/flags and MCP tools/arguments with the bilingual API reference. Added it as a required CI documentation job and updated the quality review, roadmap, changelog, and progress board. Local checker and workflow parsing pass.
 - **[Step-19 done]**: Added a portable IPv6 loopback inspection fixture with a capability-based skip, Unicode project-path coverage, and PID 0/1 cleanup guard tests. Split process termination/project cleanup from `detector.go` into `internal/core/termination.go`; public core signatures and behavior remain unchanged. Go build/tests, race, vet, formatting, and Windows/macOS/Linux core test cross-compilation pass. The local Windows IPv6 fixture skipped because the OS denied loopback connections; WSL/container/protected-process integration remains environment-dependent.
 - **[Step-20 done]**: Added `completion` generation for Bash, Zsh, Fish, and PowerShell, with shell-specific output assertions. Added a listener-based CLI demo that validates `check`, `scan`, and `kill --dry-run` without terminating an external process; documented troubleshooting, compatibility reports, and maintainer response/release goals. Linked the bilingual documentation entry points and included `completion` in the API drift gate. All Go, Python, Node.js coverage gates, MCP acceptance scripts, Linux/macOS/Windows cross-builds, YAML parsing, demo, and 27-file Markdown link checks pass. Remaining work is release publication, external compatibility evidence, a named maintainer roster, and further CLI decomposition.
+- **[Step-21 done]**: Split the 1,126-line `internal/cli/root.go` into focused root, output, inspect/scan, cleanup, MCP, and port parsing files; the root entry is now about 110 lines. Kept command contracts and output behavior unchanged. Full Go tests/race/vet/gofmt and coverage thresholds pass, as do real Python/Node.js CLI integration, all MCP acceptance scripts, and Linux/macOS/Windows cross-builds. Updated the architecture assessment to 18/20; remaining priorities include release publication, external compatibility evidence, generated API reference output, and a named maintainer roster.
 
 ---
 
