@@ -9,7 +9,7 @@ identifying owning processes, and cleaning project-scoped listeners safely.
 
 ## Quick Start
 
-Requirements: Go 1.23+ for the CLI, Python 3.9+ for the Python SDK, and Node.js 22+
+Requirements: Go 1.25+ for the CLI, Python 3.9+ for the Python SDK, and Node.js 22+
 for the Node.js client.
 
 ```bash

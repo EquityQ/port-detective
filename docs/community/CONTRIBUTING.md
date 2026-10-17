@@ -15,7 +15,7 @@ For compatibility, benchmark, or maintenance evidence, follow the [community sub
 
 ## Local checks
 
-Requirements: Go 1.23+, Python 3.9+, and Node.js 22+ when changing the SDKs.
+Requirements: Go 1.25+, Python 3.9+, and Node.js 22+ when changing the SDKs.
 
 ```bash
 go build ./...

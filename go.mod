@@ -1,6 +1,6 @@
 module github.com/EquityQ/port-detective
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/mark3labs/mcp-go v0.48.0
@@ -22,5 +22,5 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 )
