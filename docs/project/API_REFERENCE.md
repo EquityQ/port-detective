@@ -5,6 +5,11 @@ API revision / 接口修订：**v1.1 development line** · CLI build default: `1
 This is the concise public contract for the CLI JSON interface and MCP tools. Keep
 the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
 
+The command, flag, tool, and core API inventory is generated in
+[`API_REFERENCE.generated.md`](API_REFERENCE.generated.md); the machine-readable
+manifest is available as [`API_REFERENCE.generated.json`](API_REFERENCE.generated.json).
+CI checks both generated files for drift.
+
 这是 CLI JSON 接口和 MCP 工具的简明公开契约。CLI、Python SDK 和 Node.js 客户端应使用同一个经过审核的提交或版本。
 
 ## CLI
@@ -37,6 +42,16 @@ listener ownership are revalidated immediately before termination.
 `kill` 和 `clean` 只有在关闭预演模式时才会真实终止进程。破坏性 JSON 调用还必须显式添加 `--yes`（`-y`）。终止前会重新校验进程身份和监听归属。
 
 `completion <shell>` 支持 Bash、Zsh、Fish 和 PowerShell，直接向 stdout 输出补全脚本，不输出 JSON。安装示例见[Shell 补全指南](../operations/SHELL_COMPLETION.md)。
+
+## Core contract / 核心契约
+
+The frozen core API exposes `PortDiagnostic`, `DefaultDevPorts`,
+`InspectPort`, `ScanPortsConcurrent`, and `KillPortProcess`. The CLI and MCP
+layers consume these contracts without changing their field names or safety rules.
+
+核心 API 固定提供 `PortDiagnostic`、`DefaultDevPorts`、`InspectPort`、
+`ScanPortsConcurrent` 和 `KillPortProcess`。CLI 与 MCP 层直接使用这些契约，
+不得修改字段名称或安全规则。
 
 ### `PortDiagnostic`
 

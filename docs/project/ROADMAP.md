@@ -23,8 +23,9 @@ project.
   the core suite; the IPv6 fixture skips when host policy blocks IPv6 loopback.
 - Keep the scheduled `govulncheck` and `pip-audit` jobs green as dependencies change.
 - Keep the versioned [CLI/MCP API reference](API_REFERENCE.md) synchronized with
-  implementation and acceptance tests; CI now fails when documented command, flag,
-  tool, or argument names drift.
+  implementation and acceptance tests; the standard-library generator checks in a
+  machine-readable manifest, and CI now fails when implementation or documentation
+  command, flag, tool, or argument names drift.
 
 ## Next: Packaging and measurable quality
 
@@ -67,7 +68,7 @@ prevention always take precedence over feature work.
 
 - 已增加真实 CLI/Python SDK 集成工作流，在 Windows、macOS 和 Linux 上使用 Python 3.9/3.13 构建并调用匹配二进制；应将该矩阵作为发布候选版本的必需证据。
 - 增加受保护进程、PID 复用、WSL 和容器集成夹具；IPv4/IPv6 回环、Unicode 路径及 PID 0/1 保护测试已加入核心测试，IPv6 会按宿主能力跳过。
-- 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考。
+- 保持 `govulncheck`、`pip-audit` 定时检查和版本化 CLI/MCP 参考；参考页的双语 Markdown 清单和 JSON manifest 由实现生成并由 CI 检查漂移。
 
 ### 打包与质量门槛
 

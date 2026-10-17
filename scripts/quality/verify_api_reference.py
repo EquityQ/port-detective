@@ -3,15 +3,17 @@
 
 from __future__ import annotations
 
-import re
+import importlib.util
+import json
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = ROOT / "docs" / "project" / "API_REFERENCE.md"
-CLI_SOURCE = ROOT / "internal" / "cli" / "root.go"
-MCP_SOURCE = ROOT / "internal" / "mcpserver" / "server.go"
+MANIFEST = ROOT / "docs" / "project" / "API_REFERENCE.generated.json"
+GENERATED_REFERENCE = ROOT / "docs" / "project" / "API_REFERENCE.generated.md"
+GENERATOR = ROOT / "scripts" / "quality" / "generate_api_reference.py"
 
 
 def fail(message: str) -> None:
@@ -25,65 +27,58 @@ def require_tokens(document: str, tokens: set[str], label: str) -> None:
         fail(f"{label} missing {', '.join(missing)}")
 
 
+def load_generator():
+    spec = importlib.util.spec_from_file_location("api_reference_generator", GENERATOR)
+    if spec is None or spec.loader is None:
+        fail(f"cannot load generator {GENERATOR}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main() -> int:
     reference = REFERENCE.read_text(encoding="utf-8")
-    cli = CLI_SOURCE.read_text(encoding="utf-8")
-    mcp = MCP_SOURCE.read_text(encoding="utf-8")
+    try:
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot read generated manifest: {exc}")
 
-    commands = {
-        match.group(1)
-        for match in re.finditer(r'\bUse:\s+"([a-z][a-z0-9-]*)', cli)
-        if match.group(1) != "port-detective"
-    }
-    expected_commands = {"check", "scan", "kill", "clean", "mcp", "completion"}
-    if commands != expected_commands:
-        fail(f"CLI commands are {sorted(commands)}, expected {sorted(expected_commands)}")
-    require_tokens(reference, {f"`{command}" for command in commands}, "CLI commands")
+    generator = load_generator()
+    expected = generator.build_manifest()
+    if manifest != expected:
+        fail("generated manifest is stale; run python scripts/quality/generate_api_reference.py")
+    try:
+        generated_reference = GENERATED_REFERENCE.read_text(encoding="utf-8")
+    except OSError as exc:
+        fail(f"cannot read generated Markdown inventory: {exc}")
+    if generated_reference != generator.render_markdown(expected):
+        fail("generated Markdown inventory is stale; run python scripts/quality/generate_api_reference.py")
 
-    flags = {
-        match.group(1)
-        for match in re.finditer(
-            r'\b(?:PersistentFlags|Flags)\(\)\.(?:StringVar|StringVarP|BoolVar|BoolVarP)\(\s*&?[\w.]+,\s*"([a-z-]+)"',
-            cli,
-        )
-    }
-    expected_flags = {"json", "lang", "ports", "dry-run", "yes"}
-    if not expected_flags.issubset(flags):
-        fail(f"CLI flags are missing from implementation: {sorted(expected_flags - flags)}")
-    require_tokens(reference, {f"--{flag}" for flag in expected_flags}, "CLI flags")
-
-    tools = set(re.findall(r'mcp\.NewTool\("([a-z_]+)"', mcp))
-    expected_tools = {"inspect_port", "scan_dev_ports", "free_port", "clean_current_project"}
-    if tools != expected_tools:
-        fail(f"MCP tools are {sorted(tools)}, expected {sorted(expected_tools)}")
-    require_tokens(reference, {f"`{tool}`" for tool in tools}, "MCP tools")
-
-    arguments = set(
-        re.findall(r'mcp\.With(?:Number|String|Boolean)\("([a-z_]+)"', mcp)
-    )
-    expected_arguments = {"port", "ports", "dry_run"}
-    if arguments != expected_arguments:
-        fail(
-            f"MCP arguments are {sorted(arguments)}, "
-            f"expected {sorted(expected_arguments)}"
-        )
+    try:
+        commands = manifest["cli"]["commands"]
+        flags = manifest["cli"]["flags"]
+        tools = manifest["mcp"]["tools"]
+        arguments = {
+            argument
+            for tool in tools
+            for argument in tool["arguments"]
+        }
+        core_terms = set(manifest["core"]["types"])
+        core_terms.update(manifest["core"]["constants"])
+        core_terms.update(manifest["core"]["functions"])
+        core_terms.update(manifest["reference_terms"])
+    except (KeyError, TypeError) as exc:
+        fail(f"generated manifest schema is invalid: {exc}")
+    require_tokens(reference, {f"`{item['name']}" for item in commands}, "CLI commands")
+    require_tokens(reference, {f"--{item['name']}" for item in flags}, "CLI flags")
+    require_tokens(reference, {f"`{tool['name']}`" for tool in tools}, "MCP tools")
     require_tokens(reference, {f"`{argument}`" for argument in arguments}, "MCP arguments")
-
-    require_tokens(
-        reference,
-        {
-            "PortDiagnostic",
-            "`dry_run`",
-            "JSON-RPC",
-            "DefaultDevPorts",
-            "completion <shell>",
-        },
-        "contract terms",
-    )
+    require_tokens(reference, core_terms, "contract terms")
+    require_tokens(reference, {"API_REFERENCE.generated.json", "API_REFERENCE.generated.md"}, "generated reference links")
     print(
         "API reference matches "
-        f"{len(commands)} CLI commands, {len(tools)} MCP tools, "
-        f"and {len(arguments)} MCP argument names."
+        f"{len(commands)} CLI commands, {len(flags)} CLI flags, "
+        f"{len(tools)} MCP tools, and {len(arguments)} MCP argument names."
     )
     return 0
 

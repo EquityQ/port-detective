@@ -15,14 +15,14 @@ not exist yet. A real CLI/Python integration matrix now covers Windows, macOS, a
 Linux, while its first hosted run remains release evidence rather than a local
 assumption.
 
-**Current score: 90/100**
+**Current score: 91/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility reports |
 | Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, a dedicated core termination module, and focused CLI root/output/command files | Shared private CLI helpers need continued contract-level regression coverage |
 | Correctness and safety | 19/20 | 60 Go tests, race tests, PID identity revalidation, listener-only indexing, stable scan output, dry-run and JSON confirmation guard | More OS-specific termination fixtures |
-| Developer experience | 14/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a versioned CLI/MCP API reference with CI drift detection, four-shell completion, a safe CLI demo, and a post-publish PyPI install check | Published npm package, generated API reference output, and public release evidence |
+| Developer experience | 15/15 | Bilingual READMEs, issue forms, three-OS Go/Python/Node.js CI, a typed dependency-free Node.js package, wheel smoke checks, real CLI integration matrices, a generated versioned CLI/MCP API manifest with CI drift detection, four-shell completion, a safe CLI demo, and a post-publish PyPI install check | Published npm package and public release evidence |
 | Release and supply chain | 14/15 | Atomic pre-publication verification, immutable Action SHAs, Dependabot, checksum/archive verification, signed artifacts, SPDX SBOM, GitHub provenance, configured PyPI Trusted Publishing, post-publish installation verification, three-OS CI, `govulncheck`, and `pip-audit` | Actual release tag and published artifact trail |
 | Community operations | 7/10 | Security, Code of Conduct, status, contribution and PR guidance, compatibility reports, troubleshooting, and documented maintainer response goals | Named maintainer ownership and evidence from actual support triage |
 
@@ -99,4 +99,4 @@ See [ROADMAP.md](ROADMAP.md) for the staged implementation plan and
 
 ## 中文摘要
 
-当前质量基线为 **90/100**。CLI 根模块已拆分为根命令、输出、检查扫描、清理、MCP 和端口解析文件。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。API 参考已纳入 CI 漂移检查，CLI 增加四种 Shell 补全，并提供安全可复现演示、故障排查及兼容性报告入口。仍需创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式、生成 API 参考文档，并建立具名维护者名单。
+当前质量基线为 **91/100**。CLI 根模块已拆分为根命令、输出、检查扫描、清理、MCP 和端口解析文件。CI 已为 Go core/CLI/MCP/fingerprint（60%/45%/70%/70%）、Python core/models/总计（60%/85%/65%）和 Node.js 行/分支/函数（45%/65%/55%）建立分层覆盖率门槛，并保留 Go 与 Python 报告。真实 CLI/Python/Node.js 集成工作流覆盖 Windows、macOS、Linux；Node.js 客户端提供零依赖同步/Promise API 和类型声明，但 npm registry 发布尚未配置。API 参考由标准库生成双语 Markdown 清单和 JSON manifest，并纳入 CI 漂移检查；CLI 增加四种 Shell 补全，并提供安全可复现演示、故障排查及兼容性报告入口。仍需创建 `v1.1.0` Tag、保留公开制品证据、决定 npm 发布方式，并建立具名维护者名单。
