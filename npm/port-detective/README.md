@@ -11,10 +11,13 @@ Install the published package from npm:
 npm install port-detective
 ```
 
+Published npm installations include the matching platform CLI binary. Users do not
+need Go or a local CLI build on the supported platforms.
+
 The published package supports Windows, macOS, and Linux on x64 and arm64. Source
-checkouts omit generated platform packages; build the CLI locally or set
-`PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` always overrides
-automatic resolution, and unsupported platforms can use a CLI on `PATH`.
+checkouts omit generated platform packages; contributors should build the CLI locally
+or set `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` always
+overrides automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 
 The published package also exposes the CLI command through npm:
 

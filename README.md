@@ -100,8 +100,11 @@ npm install port-detective
 npx --no-install port-detective check 3000
 ```
 
-Source checkouts do not contain generated platform packages, so local development still
-requires a built CLI on `PATH` or `PORT_DETECTIVE_BIN`. Process actions default to dry-run;
+The published npm package includes the matching CLI binary, so Go and a local CLI build
+are unnecessary on supported platforms. Source checkouts still require a built CLI or
+`PORT_DETECTIVE_BIN`.
+
+Process actions default to dry-run;
 set `dryRun: false` only after reviewing the target. See the [Node.js client guide](npm/port-detective/README.md).
 
 ## Safety and Platform Notes
