@@ -1,0 +1,103 @@
+name: Publish npm Client
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish platform packages and client
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/port-detective
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Update npm for trusted publishing
+        run: npm install --global npm@11.5.1
+
+      - name: Download verified Go release archives
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          release_version="${RELEASE_TAG#v}"
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "port-detective_${release_version}_*.tar.gz" \
+            --pattern "port-detective_${release_version}_*.zip" \
+            --pattern "checksums.txt" \
+            --dir "$RUNNER_TEMP/release"
+
+      - name: Verify downloaded Go archives
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python scripts/release/verify_artifacts.py \
+            --expected-version "${RELEASE_TAG#v}" \
+            --dist "$RUNNER_TEMP/release" \
+            --checksums "$RUNNER_TEMP/release/checksums.txt"
+
+      - name: Stage npm packages
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python scripts/release/prepare_npm_packages.py \
+            --version "${RELEASE_TAG#v}" \
+            --dist "$RUNNER_TEMP/release" \
+            --output "$RUNNER_TEMP/npm-dist"
+
+      - name: Verify package contents
+        shell: bash
+        run: |
+          for package in "$RUNNER_TEMP"/npm-dist/port-detective-cli-* "$RUNNER_TEMP"/npm-dist/port-detective; do
+            (cd "$package" && npm pack --dry-run --ignore-scripts)
+          done
+
+      - name: Publish platform packages with provenance
+        shell: bash
+        run: |
+          for package in "$RUNNER_TEMP"/npm-dist/port-detective-cli-*; do
+            (cd "$package" && npm publish --provenance --access public --ignore-scripts)
+          done
+
+      - name: Publish the client with provenance
+        shell: bash
+        run: cd "$RUNNER_TEMP/npm-dist/port-detective" && npm publish --provenance --access public --ignore-scripts
+
+      - name: Verify a clean install resolves the bundled CLI
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          release_version="${RELEASE_TAG#v}"
+          install_root="$RUNNER_TEMP/npm-client"
+          for attempt in {1..12}; do
+            rm -rf "$install_root"
+            if npm install --prefix "$install_root" --no-audit --no-fund --ignore-scripts "port-detective@${release_version}"; then
+              break
+            fi
+            if [[ "$attempt" == "12" ]]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          unset PORT_DETECTIVE_BIN
+          export PORT_DETECTIVE_NODE_MODULE="$install_root/node_modules/port-detective"
+          node scripts/integration/verify_node_cli.js

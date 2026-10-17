@@ -1,7 +1,7 @@
 {
   "name": "port-detective",
   "version": "1.1.0-dev",
-  "description": "Dependency-free Node.js client for the port-detective CLI.",
+  "description": "Minimal-dependency Node.js client for the port-detective CLI.",
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
@@ -14,6 +14,7 @@
   },
   "files": [
     "index.js",
+    "platform.js",
     "index.d.ts",
     "README.md",
     "LICENSE"

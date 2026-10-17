@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
+const { binaryRelativePath, platformPackageName } = require("./platform");
 
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
@@ -36,6 +37,19 @@ function validatePorts(ports) {
     throw new TypeError("ports must be an array of integers");
   }
   ports.forEach(validatePort);
+}
+
+function resolveBundledBinary() {
+  const packageName = platformPackageName();
+  if (!packageName) return null;
+  const relativePath = binaryRelativePath();
+  try {
+    const candidate = require.resolve(`${packageName}/${relativePath}`);
+    if (fs.statSync(candidate).isFile()) return candidate;
+  } catch {
+    // The optional package is absent when using a source checkout or an unsupported release.
+  }
+  return null;
 }
 
 function validateOptions(options, asyncMode = false) {
@@ -85,7 +99,8 @@ function resolveBinary(binaryPath) {
     throw new TypeError("binaryPath must be a non-empty path or command name");
   }
   const configured = binaryPath || process.env.PORT_DETECTIVE_BIN;
-  const candidate = configured || (process.platform === "win32" ? "port-detective.exe" : "port-detective");
+  const bundled = configured ? null : resolveBundledBinary();
+  const candidate = configured || bundled || (process.platform === "win32" ? "port-detective.exe" : "port-detective");
 
   if (typeof candidate !== "string" || candidate.length === 0) {
     throw new TypeError("binaryPath must be a non-empty path or command name");
@@ -115,7 +130,10 @@ function resolveBinary(binaryPath) {
 
 function executionError(error, result = {}) {
   if (error && error.code === "ENOENT") {
-    return new PortDetectiveNotFoundError(`failed to execute port-detective: ${error.message}`, { cause: error });
+    return new PortDetectiveNotFoundError(
+      `port-detective executable not found; install the matching CLI package or set PORT_DETECTIVE_BIN: ${error.message}`,
+      { cause: error },
+    );
   }
   const timedOut = error && error.code === "ETIMEDOUT";
   const message = timedOut ? "port-detective command timed out" :

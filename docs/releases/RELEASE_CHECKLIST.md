@@ -2,7 +2,8 @@
 
 The tag workflow builds GoReleaser artifacts without publishing them, completes the
 verification and signing gates, publishes the Python distributions to PyPI, and
-creates the GitHub Release as the final publication step:
+creates the GitHub Release. A separate release-published workflow then publishes the
+Node.js client and six platform packages:
 
 1. Build the CLI with the tag version and verify `port-detective --version`.
 2. Rewrite the temporary Python build metadata to the same version and verify the wheel and source distribution metadata.
@@ -13,11 +14,20 @@ creates the GitHub Release as the final publication step:
 7. Publish the Python wheel and source distribution through the configured PyPI Trusted Publisher.
 8. Install that exact version from PyPI and exercise it against the matching CLI binary.
 9. Create the GitHub Release and upload the already verified archives, Python distributions, SBOM, signatures, and certificates.
+10. Stage the six platform npm packages from the verified Go archives, publish them with provenance, and publish the main client with exact optional dependency versions.
+11. Install the published npm client without `PORT_DETECTIVE_BIN` and run the Node.js CLI integration check.
 
 Before the first release, configure a PyPI Trusted Publisher for repository
 `EquityQ/port-detective`, workflow `.github/workflows/release.yml`, environment
 `pypi`, and the `port-detective` project name. The workflow requests only the
 short-lived `id-token: write` permission; no PyPI API token is stored in GitHub.
+
+Before npm publication, configure Trusted Publishers for the main `port-detective`
+package and each platform package (`port-detective-cli-win32-x64`,
+`port-detective-cli-win32-arm64`, `port-detective-cli-darwin-x64`,
+`port-detective-cli-darwin-arm64`, `port-detective-cli-linux-x64`, and
+`port-detective-cli-linux-arm64`). Use workflow `.github/workflows/npm-publish.yml`
+and the `npm` environment. No npm token is stored in GitHub.
 
 Run the local version and package check with:
 

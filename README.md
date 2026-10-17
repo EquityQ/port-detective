@@ -92,15 +92,17 @@ See the [Python SDK guide](python/README.md) for synchronous and asyncio APIs.
 
 ## Node.js Client
 
-The zero-dependency npm package wraps the CLI and does not bundle its binary:
+The npm package provides synchronous, Promise, and TypeScript APIs. Published releases
+install the matching CLI binary for Windows, macOS, and Linux on x64 or arm64:
 
 ```bash
-npm install ./npm/port-detective
+npm install port-detective
 ```
 
-It provides synchronous and Promise APIs. Process actions default to dry-run; set
-`dryRun: false` only after reviewing the target. The package is currently available
-from the checkout and has not been published to npm. See the [Node.js client guide](npm/port-detective/README.md).
+Source checkouts do not contain generated platform packages, so local development still
+requires a built CLI on `PATH` or `PORT_DETECTIVE_BIN`. Process actions default to dry-run;
+set `dryRun: false` only after reviewing the target. The package is not published to npm
+yet. See the [Node.js client guide](npm/port-detective/README.md).
 
 ## Safety and Platform Notes
 

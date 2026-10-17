@@ -10,7 +10,8 @@ process inspection. CI validates Windows, macOS, and Linux. Release builds targe
 | Ubuntu 22.04+ | `amd64`, `arm64` | CLI Tier 1 |
 
 Go builds require Go 1.23+. The Python SDK requires Python 3.9+ and the Node.js client
-requires Node.js 22+. Both SDKs use a separately installed CLI from the same release.
+requires Node.js 22+. Published Node.js packages install a matching CLI for the listed
+platforms; source checkouts and the Python SDK still require a separately installed CLI.
 
 ## Known limits
 

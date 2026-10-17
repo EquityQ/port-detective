@@ -20,7 +20,8 @@ This roadmap tracks the remaining work needed for a dependable public release.
 ## Packaging and quality
 
 - Configure the PyPI Trusted Publisher before the first release.
-- Decide whether to configure npm Trusted Publishing and publish the matching Node.js client.
+- Configure npm Trusted Publishing for the main client and six platform binary packages,
+  then verify a clean install without `PORT_DETECTIVE_BIN`.
 - Raise coverage thresholds only with targeted regression tests.
 
 ## Later

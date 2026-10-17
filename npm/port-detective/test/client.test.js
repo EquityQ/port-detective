@@ -12,6 +12,7 @@ const {
   freePort,
   asyncInspectPort,
 } = require("..");
+const { binaryRelativePath, platformPackageName } = require("../platform");
 
 test("validates ports before starting the CLI", () => {
   assert.throws(() => inspectPort(0), RangeError);
@@ -56,4 +57,17 @@ test("execution errors expose machine-readable process details", () => {
   assert.equal(error.returncode, 2);
   assert.equal(error.stderr, "stderr");
   assert.equal(error.stdout, "stdout");
+});
+
+test("maps supported Node targets to platform package names", () => {
+  assert.equal(platformPackageName("win32", "x64"), "port-detective-cli-win32-x64");
+  assert.equal(platformPackageName("win32", "arm64"), "port-detective-cli-win32-arm64");
+  assert.equal(platformPackageName("darwin", "x64"), "port-detective-cli-darwin-x64");
+  assert.equal(platformPackageName("darwin", "arm64"), "port-detective-cli-darwin-arm64");
+  assert.equal(platformPackageName("linux", "x64"), "port-detective-cli-linux-x64");
+  assert.equal(platformPackageName("linux", "arm64"), "port-detective-cli-linux-arm64");
+  assert.equal(platformPackageName("freebsd", "x64"), null);
+  assert.equal(platformPackageName("win32", "ia32"), null);
+  assert.equal(binaryRelativePath("win32"), "bin/port-detective.exe");
+  assert.equal(binaryRelativePath("linux"), "bin/port-detective");
 });

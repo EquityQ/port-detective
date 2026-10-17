@@ -4,12 +4,12 @@
 > 文末的「历史契约偏离记录」保留早期实现的背景，供追溯使用，不构成当前操作指令。
 
 ## 当前状态指针
-- **当前状态指针**: Step 24 complete; ready for the next user priority
+- **当前状态指针**: Step 25 complete; ready for release configuration and publication
 - **构建/测试状态**: Go 覆盖率门槛通过（core 66.0%/60%、CLI 51.1%/45%、MCP 78.6%/70%、fingerprint 75.2%/70%）；Python SDK 通过 core 64%/60%、models 88%/85%、总计 69%/65%；Node.js SDK 通过行 46.35%/45%、分支 68.66%/65%、函数 56.52%/55%。本轮 Go 构建、完整测试、竞态、vet、格式化、API 漂移校验、Python 和 Node.js 测试均通过；受限环境测试默认跳过，显式启用后仅验证 WSL、容器或沙箱中的诊断契约。
 - **模块状态**: `go mod tidy` 幂等稳定（锁定三大轻量依赖：`mcp-go v0.48.0` / `gopsutil/v3 v3.24.5` / `cobra v1.10.2`，绝无违规引入其他第三方库）。
 - **MCP 验收**: 注册 4 大工具（`inspect_port` / `scan_dev_ports` / `free_port` / `clean_current_project`），只读与破坏性元数据注解诚实无欺；**stdout 绝对零污染**。
 - **Python SDK**: `port-detective` 跨平台子进程包装 SDK 交付，提供完整同步与 `asyncio` 异步接口及数据类模型。
-- **精品开源项目评估**: 当前质量基线为 **91/100**；真实 CLI/Python/Node.js 集成矩阵、分层覆盖率门槛、原子化发布门禁、PyPI Trusted Publishing 和生成式 API manifest 漂移门禁已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，npm 包目前从源码安装，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
+- **精品开源项目评估**: 当前质量基线为 **91/100**；真实 CLI/Python/Node.js 集成矩阵、分层覆盖率门槛、原子化发布门禁、PyPI Trusted Publishing、npm 平台包暂存和生成式 API manifest 漂移门禁已覆盖 Windows、macOS、Linux 以及 Python 3.9/3.13、Node.js 22/24。v1.1.0 尚未发布，详见 `docs/project/QUALITY_REVIEW.md` 与 `docs/project/ROADMAP.md`。
 
 ## OSS Quality Improvement Roadmap
 
@@ -189,6 +189,16 @@
   - Add one concise English guide for community compatibility, benchmark, and governance
     submissions, and link it from the public documentation indexes.
   - Validation: Go build/tests/race/vet/gofmt, SDK tests, API/link/language checks, and diff checks.
+
+- [x] **Step 25: Bundle matching CLI binaries with the npm client**
+  - Add platform-specific optional CLI packages for Windows, macOS, and Linux on x64 and arm64.
+  - Resolve the matching bundled binary before falling back to `PORT_DETECTIVE_BIN` or `PATH`;
+    keep source-checkout installs and unsupported platforms functional.
+  - Generate publishable platform packages from verified Go release archives and add an npm
+    provenance workflow with clean-install integration coverage.
+  - Validation: Node tests/coverage, package dry-runs, release package self-checks, workflow
+    YAML parsing, and Markdown/link/language checks. All local gates pass; release publication
+    remains a maintainer action after configuring npm Trusted Publishers.
 
 ---
 
@@ -412,6 +422,7 @@ port-detective
 - **[Step-22 done]**: Added the standard-library `generate_api_reference.py` generator and CI drift check for the split CLI/core packages and MCP tool definitions. The generator now supports CI-only JSON or Markdown output, while the committed API reference remains the stable contract. Go build/tests/race/vet/gofmt, Python/Node tests, MCP acceptance, Markdown links, workflow YAML parsing, and `git diff --check` pass. Quality score updated to 91/100; release publication, npm publication, external compatibility evidence, and named maintainers remain open.
 - **[Step-23 done]**: Audited tracked public content and kept it English-only. Removed the translated README, placeholder maintainer and compatibility pages, compatibility issue form, and derived API output files; added ignore rules for local or generated copies. Removed obsolete release references, updated GoReleaser/archive verification, and reduced the documentation index, SDK guides, API reference, status, roadmap, quality review, release checklist, and changelog to concise user-facing English. Runtime diagnostics, tests, and MCP acceptance scripts are English-only while JSON contracts remain unchanged. CI now validates API generation without committing derived output. Public language scan, links, YAML parsing, API drift, Go build/tests/race/vet/gofmt, Python/Node tests, MCP acceptance, release verifier tests, and `git diff --check` pass.
 - **[Step-24 done]**: Added deterministic PID-reuse and missing-creation-time rejection tests, protected-PID detector-hook coverage, and an opt-in restricted-environment diagnostic contract test for WSL, containers, and sandboxes. Added the concise English community submission guide for compatibility, benchmark, and governance evidence; linked it from the root README, documentation index, contributor guide, and issue-template platform policy link. Public tracked-text scan, Markdown links, Go build/tests/race/vet/gofmt, API drift, Python tests, Node tests, and diff checks pass. The restricted-environment test is skipped unless `PORT_DETECTIVE_RESTRICTED_ENV_TESTS=1` is set.
+- **[Step-25 done]**: Added platform-specific optional npm CLI packages for Windows, macOS, and Linux on x64 and arm64. The Node.js client resolves the matching bundled binary before `PORT_DETECTIVE_BIN` or `PATH`, while source checkouts and unsupported platforms remain functional. Added deterministic package staging from verified GoReleaser archives, npm Trusted Publishing with provenance, clean-install integration, and package mapping tests. Go build/tests/race/vet/gofmt, Python tests, Node coverage (50.38% lines / 71.60% branches / 61.54% functions), npm staging self-check, package dry-run, API drift, workflow YAML, Markdown link, language, and diff checks pass. Maintainers must configure Trusted Publishers for the main package and all six platform packages before creating the first npm release.
 
 ---
 

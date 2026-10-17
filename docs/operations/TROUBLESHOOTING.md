@@ -5,7 +5,7 @@
 | A port is shown as free but a service is reachable | Confirm a local TCP listener, IPv4/IPv6 binding, network namespace, and the host running the CLI. |
 | `permission_required` or empty process fields | The OS restricts process metadata. Retry with appropriate privileges only when understood. |
 | `kill` or `clean` refuses to continue | Start with `--dry-run`; confirm the target and project path. JSON termination also needs `--yes`. |
-| Python or Node.js cannot find the CLI | Install the matching CLI separately, add it to `PATH`, or set `PORT_DETECTIVE_BIN`. |
+| Python or a source-checkout Node.js client cannot find the CLI | Install the matching CLI, add it to `PATH`, set `PORT_DETECTIVE_BIN`, or pass `binaryPath` to the Node.js API. |
 | MCP output cannot be parsed | Keep stdout connected to the MCP client and send logs only to stderr. |
 | The command is not found | Add the executable directory to `PATH` and check `port-detective --version`. |
 

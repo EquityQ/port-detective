@@ -1,19 +1,20 @@
 # port-detective Node.js Client
 
-A zero-dependency Node.js wrapper for the `port-detective` CLI with synchronous,
-Promise, and TypeScript APIs. The package does not bundle the CLI.
+A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
+TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
 ## Install
 
-Install from a checkout while the npm release is pending:
+Install the package from npm when a release is available:
 
 ```bash
-npm install ./npm/port-detective
-go build -o port-detective .
+npm install port-detective
 ```
 
-Install the matching CLI separately on Windows, macOS, or Linux. Set
-`PORT_DETECTIVE_BIN` when it is not on `PATH`. Keep client and CLI versions aligned.
+The published package supports Windows, macOS, and Linux on x64 and arm64. Source
+checkouts omit generated platform packages; build the CLI locally or set
+`PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` always overrides
+automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 
 ## Use
 
@@ -37,5 +38,3 @@ async function inspectAgain() {
 Async methods accept an `AbortSignal`. Process actions require
 `{ dryRun: false }`; the wrapper then passes the CLI's `--yes` flag. Type
 declarations are included in `index.d.ts`.
-
-The package is available from this checkout and is not published to npm yet.

@@ -21,6 +21,7 @@ pass.
 - IPv6, Unicode-path, and protected-PID regression coverage.
 - PID-reuse and restricted-environment diagnostic checks with safe capability skips.
 - Community guidance for compatibility, benchmark, and maintenance submissions.
+- Platform-specific npm CLI packages with automatic binary resolution and provenance publishing workflow.
 - Bash, Zsh, Fish, and PowerShell completion plus a safe listener-based demo.
 
 ### Changed
