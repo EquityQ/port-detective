@@ -5,7 +5,7 @@ CI/release automation, documentation, and community files.
 
 ## Current assessment
 
-`port-detective` v1.1.0 is a public release with clear layering and strong safety
+`port-detective` v1.1.1 is a public release with clear layering and strong safety
 coverage for a local process tool. GitHub, PyPI, and npm publication completed with
 artifact verification, signatures, SBOM, provenance, and cross-platform integration checks.
 
@@ -17,12 +17,12 @@ artifact verification, signatures, SBOM, provenance, and cross-platform integrat
 | Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, focused CLI files | More contract-level regression coverage |
 | Correctness and safety | 19/20 | Race tests, PID-reuse and protected-PID checks, listener revalidation, dry-run and JSON confirmation guards | Hosted restricted-environment evidence |
 | Developer experience | 15/15 | Concise quick start, issue forms, three-OS CI, typed Node client, published platform packages, wheel checks, API drift gate, shell completion | More user feedback |
-| Release and supply chain | 15/15 | Published GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, and clean-install checks | None for v1.1.0 |
+| Release and supply chain | 15/15 | Published GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, and clean-install checks | None for v1.1.1 |
 | Community operations | 7/10 | Security, conduct, contribution, submission, status, and PR guidance | Named ownership and support history |
 
 ## Release evidence
 
-The v1.1.0 release workflow passed Go, Python, MCP, artifact, signature, provenance,
+The v1.1.1 release workflow passed Go, Python, MCP, artifact, signature, provenance,
 PyPI installation, npm publication, and clean-install integration checks.
 
 ## Quality gates

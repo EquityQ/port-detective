@@ -4,7 +4,7 @@ This roadmap tracks post-release improvements for the next development cycle.
 
 ## Release readiness
 
-- v1.1.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
+- v1.1.1 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Keep supported platforms and known permission limits current in release notes.

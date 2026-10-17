@@ -17,12 +17,12 @@ same release tag to publish the Node.js client and six platform packages:
 10. Dispatch the npm workflow with the release tag; it stages the six platform packages from verified Go archives, publishes them with provenance, and publishes the client with exact optional dependency versions.
 11. Install the published npm client without `PORT_DETECTIVE_BIN` and run the Node.js CLI integration check.
 
-The v1.1.0 release configured a PyPI Trusted Publisher for repository
+The v1.1.1 release configured a PyPI Trusted Publisher for repository
 `EquityQ/port-detective`, workflow `.github/workflows/release.yml`, environment
 `pypi`, and the `port-detective` project name. The workflow requests only the
 short-lived `id-token: write` permission; no PyPI API token is stored in GitHub.
 
-The v1.1.0 release configured Trusted Publishers for the main `port-detective`
+The v1.1.1 release configured Trusted Publishers for the main `port-detective`
 package and each platform package (`port-detective-cli-win32-x64`,
 `port-detective-cli-win32-arm64`, `port-detective-cli-darwin-x64`,
 `port-detective-cli-darwin-arm64`, `port-detective-cli-linux-x64`, and
@@ -33,12 +33,13 @@ Run the local version and package check with:
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.1.0 \
+  --expected-version 1.1.1 \
   --cli ./port-detective \
   --python-root python \
   --wheel-dir python/dist
 ```
 
 Downloaders should verify `checksums.txt` before extraction and keep the matching
-`.sig`/`.pem` files and GitHub attestation with the release record. The first
-The `v1.1.0` tag and release are complete. Reuse this checklist for subsequent tags.
+`.sig`/`.pem` files and GitHub attestation with the release record.
+
+The `v1.1.1` tag and release are complete. Reuse this checklist for subsequent tags.

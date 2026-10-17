@@ -1,6 +1,6 @@
 # Project Status
 
-`port-detective` v1.1.0 is publicly released on GitHub, PyPI, and npm. The release
+`port-detective` v1.1.1 is publicly released on GitHub, PyPI, and npm. The release
 contains signed Go archives, Python distributions, six platform npm packages, an SPDX
 SBOM, checksums, and GitHub provenance attestations.
 

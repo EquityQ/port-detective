@@ -3,7 +3,7 @@
 Cross-platform CLI, MCP server, and Python SDK for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 
-> **Release status:** `v1.1.0` is published on GitHub, PyPI, and npm with signed
+> **Release status:** `v1.1.1` is published on GitHub, PyPI, and npm with signed
 > artifacts and platform packages.
 
 ## Quick Start

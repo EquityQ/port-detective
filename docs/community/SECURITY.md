@@ -17,8 +17,8 @@ Do not open a public issue or include exploit details in a pull request. Include
 affected version, OS and architecture, installation method, reproduction steps, and
 impact. Remove credentials, tokens, and private paths.
 
-The repository does not yet publish a signed `v1.1.0` artifact. Use a reviewed commit
-or a future release with verified checksums and provenance for deployed automation.
+The repository publishes signed `v1.1.1` artifacts. Verify checksums, signatures, and
+provenance before using a release in deployed automation.
 
 ## Safety
 

@@ -1,6 +1,7 @@
 # CLI and MCP API Reference
 
-Revision: **v1.1 development line**. The CLI build default is `1.1.0-dev`.
+Revision: **v1.1.1**. Published CLI builds use the release tag; source builds use a
+development version until the next release.
 
 Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
 The implementation inventory is generated during CI; this page is the stable behavior

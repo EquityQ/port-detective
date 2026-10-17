@@ -5,7 +5,21 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Development continues after the v1.1.0 release.
+Development continues after the v1.1.1 release.
+
+## [1.1.1] - 2026-10-17
+
+The patch release improves installation without a separately installed CLI and adds a
+direct npm command entry point.
+
+### Added
+
+- First-use Python CLI bootstrap with SHA-256 verification and versioned user caching.
+- `npx --no-install port-detective ...` support for the published npm package.
+
+### Fixed
+
+- Python runtime cache validation now rejects tampered or empty cached binaries.
 
 ## [1.1.0] - 2026-10-17
 
