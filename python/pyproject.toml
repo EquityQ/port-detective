@@ -29,7 +29,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/EquityQ/port-detective"
 Repository = "https://github.com/EquityQ/port-detective"
-Documentation = "https://github.com/EquityQ/port-detective/tree/master/python"
+Documentation = "https://github.com/EquityQ/port-detective/tree/main/python"
 
 [project.optional-dependencies]
 dev = [

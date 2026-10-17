@@ -2,7 +2,7 @@ name: Python SDK CLI Integration
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - "*.go"
       - "go.mod"

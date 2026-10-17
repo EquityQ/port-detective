@@ -2,7 +2,7 @@ name: Python SDK
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - "python/**"
       - "scripts/release/**"

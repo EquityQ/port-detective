@@ -2,7 +2,7 @@ name: Dependency Security
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - "go.mod"
       - "go.sum"
