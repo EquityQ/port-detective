@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
 
 from .models import PortDiagnostic, KillResult
+from .runtime import RuntimeDownloadError, auto_download_enabled, download_cli
 
 DEFAULT_CLI_TIMEOUT = 30.0
 
@@ -75,7 +76,7 @@ async def _terminate_async_process(proc: Any) -> tuple[str, str]:
     return _decode_output(stdout_bytes).strip(), _decode_output(stderr_bytes).strip()
 
 
-def find_binary(explicit_path: Optional[str] = None) -> str:
+def find_binary(explicit_path: Optional[str] = None, *, allow_download: bool = True) -> str:
     """
     Locate the port-detective executable.
 
@@ -84,6 +85,7 @@ def find_binary(explicit_path: Optional[str] = None) -> str:
     2. PORT_DETECTIVE_BIN environment variable.
     3. System PATH via shutil.which("port-detective").
     4. Nearby repository binary locations.
+    5. A verified, cached binary downloaded from the matching GitHub release.
     """
     if explicit_path:
         path = Path(explicit_path).resolve()
@@ -113,10 +115,21 @@ def find_binary(explicit_path: Optional[str] = None) -> str:
         if c.is_file():
             return str(c)
 
-    raise PortDetectiveNotFoundError(
-        "Could not find 'port-detective' executable. "
-        "Please ensure it is installed on your PATH or set PORT_DETECTIVE_BIN."
-    )
+    if not allow_download or not auto_download_enabled():
+        raise PortDetectiveNotFoundError(
+            "Could not find 'port-detective' executable. Automatic download is disabled; "
+            "install the matching CLI, set PORT_DETECTIVE_BIN, or enable "
+            "PORT_DETECTIVE_AUTO_DOWNLOAD."
+        )
+
+    try:
+        return download_cli()
+    except RuntimeDownloadError as exc:
+        raise PortDetectiveNotFoundError(
+            "Could not find 'port-detective' executable and automatic download failed. "
+            "Install the matching CLI, set PORT_DETECTIVE_BIN, or retry with network access: "
+            f"{exc}"
+        ) from exc
 
 
 def _run_cli_sync(
@@ -189,7 +202,14 @@ async def _run_cli_async(
 ) -> Any:
     _validate_timeout(timeout)
     _validate_cwd(cwd)
-    bin_path = find_binary(binary_path)
+    try:
+        # Resolve local paths immediately so cancellation cannot interrupt process startup.
+        bin_path = find_binary(binary_path, allow_download=False)
+    except PortDetectiveNotFoundError:
+        if binary_path or os.getenv("PORT_DETECTIVE_BIN"):
+            raise
+        # Network and archive work stays off the event loop on first use.
+        bin_path = await asyncio.to_thread(find_binary, None)
     cmd = [bin_path, *args, "--json"]
 
     proc = None

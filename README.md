@@ -65,7 +65,7 @@ The server exposes `inspect_port`, `scan_dev_ports`, `free_port`, and
 
 ## Python SDK
 
-The SDK wraps the CLI and does not bundle a Go binary:
+The SDK works without a separately installed Go toolchain or CLI:
 
 ```bash
 python -m pip install port-detective
@@ -74,10 +74,12 @@ python -m pip install port-detective
 python -m pip install ./python
 ```
 
-Keep the SDK and CLI on the same reviewed commit or release. Set
-`PORT_DETECTIVE_BIN` when the executable is not on `PATH`. The tag workflow uses
-PyPI Trusted Publishing and verifies the installed package before creating the
-matching GitHub Release.
+The SDK first checks `PORT_DETECTIVE_BIN`, `PATH`, and local checkout binaries. If no
+CLI is found, the first API call downloads the matching GitHub Release archive,
+verifies its SHA-256 checksum, and caches it under the user cache directory. This
+needs network access once. Set `PORT_DETECTIVE_AUTO_DOWNLOAD=0` for offline use and
+provide a CLI with `PORT_DETECTIVE_BIN`, or set `PORT_DETECTIVE_CACHE_DIR` to choose
+the cache location.
 
 ```python
 from port_detective import inspect_port, scan_ports

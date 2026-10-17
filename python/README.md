@@ -19,9 +19,17 @@ python -m pip install ./python
 go build -o port-detective .
 ```
 
-The package does not bundle the Go executable. Put a matching CLI on `PATH`, set
-`PORT_DETECTIVE_BIN`, or pass `binary_path` to an API call. Keep SDK and CLI versions
-aligned because the SDK consumes the CLI JSON contract.
+The SDK looks for a matching CLI on `PATH`, in `PORT_DETECTIVE_BIN`, and in the
+checkout. If none is available, the first API call downloads the matching release
+archive from GitHub, verifies its SHA-256 checksum, and caches the binary in
+the user cache directory. This requires network access only once. Set
+`PORT_DETECTIVE_AUTO_DOWNLOAD=0` for offline or locked-down environments, or set
+`PORT_DETECTIVE_CACHE_DIR` to choose the cache location. You can also download it
+explicitly with `from port_detective import download_cli`.
+
+The package still requires Python 3.9 or newer. Source checkouts can build the CLI
+locally with Go, while unsupported platforms must provide a compatible CLI through
+`PORT_DETECTIVE_BIN`.
 
 ## Quickstart
 

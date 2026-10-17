@@ -10,6 +10,7 @@ Current capabilities:
 - Node.js, Python, and Go project fingerprinting.
 - Dry-run-aware cleanup through the CLI and MCP tools.
 - MCP Stdio server, Python 3.9+ SDK, and minimal-dependency Node.js 22+ client with platform-package staging.
+- Python SDK first-use CLI bootstrap with SHA-256 verification and a user-cache opt-out.
 - Bash, Zsh, Fish, and PowerShell completion.
 - A safe listener-based CLI demo that never terminates an external process.
 - Focused CLI modules, generated API inventory checks, and cross-platform CI.
