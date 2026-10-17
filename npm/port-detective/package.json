@@ -37,7 +37,7 @@
     "url": "https://github.com/EquityQ/port-detective.git",
     "directory": "npm/port-detective"
   },
-  "homepage": "https://github.com/EquityQ/port-detective/tree/master/npm/port-detective",
+  "homepage": "https://github.com/EquityQ/port-detective/tree/main/npm/port-detective",
   "sideEffects": false,
   "publishConfig": {
     "access": "public"
