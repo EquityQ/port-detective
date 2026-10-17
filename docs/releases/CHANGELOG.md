@@ -5,9 +5,18 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-The repository contains the v1.1 feature-complete development line. A public `v1.1.0`
-release is planned after the release gates in [QUALITY_REVIEW.md](../project/QUALITY_REVIEW.md)
-pass. npm currently has only the `1.1.0-bootstrap.0` staging packages.
+Development continues after the v1.1.0 release.
+
+## [1.1.0] - 2026-10-17
+
+The first public release includes the CLI, MCP server, Python SDK, Node.js client, and
+platform-specific npm CLI packages. GitHub, PyPI, and npm publication completed through
+Trusted Publishing after checksum, signature, SBOM, provenance, and integration checks.
+
+### Security
+
+- Release archives, Python distributions, checksums, and SBOM are signed with keyless Cosign.
+- GitHub build provenance attestations are attached to release artifacts.
 
 ### Added
 

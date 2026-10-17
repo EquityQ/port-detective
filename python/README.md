@@ -6,7 +6,7 @@ Windows, macOS, and Linux.
 
 ## Install
 
-After a release:
+Install the published SDK:
 
 ```bash
 python -m pip install port-detective

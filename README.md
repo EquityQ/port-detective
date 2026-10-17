@@ -3,10 +3,8 @@
 Cross-platform CLI, MCP server, and Python SDK for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 
-> **Release status:** The repository is on the v1.1 development line. No public
-> `v1.1.0` tag or release exists yet. npm currently contains only the
-> `1.1.0-bootstrap.0` staging packages; the PyPI project is not published. Use a
-> reviewed source commit until the formal release is available.
+> **Release status:** `v1.1.0` is published on GitHub, PyPI, and npm with signed
+> artifacts and platform packages.
 
 ## Quick Start
 
@@ -70,7 +68,6 @@ The server exposes `inspect_port`, `scan_dev_ports`, `free_port`, and
 The SDK wraps the CLI and does not bundle a Go binary:
 
 ```bash
-# After the v1.1.0 release is published:
 python -m pip install port-detective
 
 # Or install the SDK from this checkout:
@@ -80,7 +77,7 @@ python -m pip install ./python
 Keep the SDK and CLI on the same reviewed commit or release. Set
 `PORT_DETECTIVE_BIN` when the executable is not on `PATH`. The tag workflow uses
 PyPI Trusted Publishing and verifies the installed package before creating the
-matching GitHub Release. The v1.1.0 package is not published yet.
+matching GitHub Release.
 
 ```python
 from port_detective import inspect_port, scan_ports
@@ -102,9 +99,7 @@ npm install port-detective
 
 Source checkouts do not contain generated platform packages, so local development still
 requires a built CLI on `PATH` or `PORT_DETECTIVE_BIN`. Process actions default to dry-run;
-set `dryRun: false` only after reviewing the target. The formal `1.1.0` package is not
-published to npm yet; only the `1.1.0-bootstrap.0` staging packages are available. See
-the [Node.js client guide](npm/port-detective/README.md).
+set `dryRun: false` only after reviewing the target. See the [Node.js client guide](npm/port-detective/README.md).
 
 ## Safety and Platform Notes
 

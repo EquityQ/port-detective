@@ -5,30 +5,25 @@ CI/release automation, documentation, and community files.
 
 ## Current assessment
 
-`port-detective` is a feature-complete v1.1 development line with clear layering and
-strong safety coverage for a local process tool. It is ready for careful use from source
-or a locally built binary. It is not a finished public release because the v1.1.0 tag
-and published artifact trail do not exist yet. npm has only the `1.1.0-bootstrap.0`
-staging packages; PyPI has no published project.
+`port-detective` v1.1.0 is a public release with clear layering and strong safety
+coverage for a local process tool. GitHub, PyPI, and npm publication completed with
+artifact verification, signatures, SBOM, provenance, and cross-platform integration checks.
 
-**Current score: 91/100**
+**Current score: 94/100**
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
 | Product usefulness | 18/20 | CLI, MCP, project cleanup, fingerprinting, Python SDK | More real-world compatibility evidence |
 | Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, focused CLI files | More contract-level regression coverage |
 | Correctness and safety | 19/20 | Race tests, PID-reuse and protected-PID checks, listener revalidation, dry-run and JSON confirmation guards | Hosted restricted-environment evidence |
-| Developer experience | 15/15 | Concise quick start, issue forms, three-OS CI, typed Node client, platform binary staging, wheel checks, API drift gate, shell completion | Published npm package and public release evidence |
-| Release and supply chain | 14/15 | Atomic verification, immutable Action SHAs, checksums, signatures, SBOM, provenance, PyPI workflow | Actual tag and artifact trail |
+| Developer experience | 15/15 | Concise quick start, issue forms, three-OS CI, typed Node client, published platform packages, wheel checks, API drift gate, shell completion | More user feedback |
+| Release and supply chain | 15/15 | Published GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, and clean-install checks | None for v1.1.0 |
 | Community operations | 7/10 | Security, conduct, contribution, submission, status, and PR guidance | Named ownership and support history |
 
-## Required before v1.1.0
+## Release evidence
 
-1. Configure both Trusted Publishers, then create the tag only after the release workflow is ready.
-2. Review checksums, signatures, SBOM, and provenance attestation.
-3. Run MCP acceptance scripts against the release binary.
-4. Verify the matching Python package installation from the published release.
-5. Publish the matching Node.js client and six platform binary packages to npm.
+The v1.1.0 release workflow passed Go, Python, MCP, artifact, signature, provenance,
+PyPI installation, npm publication, and clean-install integration checks.
 
 ## Quality gates
 

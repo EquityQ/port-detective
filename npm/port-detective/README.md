@@ -5,7 +5,7 @@ TypeScript APIs. Published releases install a matching platform CLI package auto
 
 ## Install
 
-Install the package from npm when a release is available:
+Install the published package from npm:
 
 ```bash
 npm install port-detective

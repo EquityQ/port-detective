@@ -1,13 +1,13 @@
 # Roadmap
 
-This roadmap tracks the remaining work needed for a dependable public release.
+This roadmap tracks post-release improvements for the next development cycle.
 
 ## Release readiness
 
-- Configure PyPI and npm Trusted Publishers, then create the signed `v1.1.0` CLI and matching Python SDK only after all release gates pass.
+- v1.1.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
-- Publish supported platforms and known permission limits in the release notes.
+- Keep supported platforms and known permission limits current in release notes.
 
 ## Cross-environment confidence
 
@@ -19,9 +19,7 @@ This roadmap tracks the remaining work needed for a dependable public release.
 
 ## Packaging and quality
 
-- Configure the PyPI Trusted Publisher before the first release.
-- Configure npm Trusted Publishing for the main client and six platform binary packages,
-  then verify a clean install without `PORT_DETECTIVE_BIN`.
+- Keep PyPI and npm Trusted Publishing configured and verify clean installs on future releases.
 - Raise coverage thresholds only with targeted regression tests.
 
 ## Later
