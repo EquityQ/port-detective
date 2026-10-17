@@ -2,8 +2,8 @@
 
 The tag workflow builds GoReleaser artifacts without publishing them, completes the
 verification and signing gates, publishes the Python distributions to PyPI, and
-creates the GitHub Release. A separate release-published workflow then publishes the
-Node.js client and six platform packages:
+creates the GitHub Release. It then explicitly dispatches the npm workflow with the
+same release tag to publish the Node.js client and six platform packages:
 
 1. Build the CLI with the tag version and verify `port-detective --version`.
 2. Rewrite the temporary Python build metadata to the same version and verify the wheel and source distribution metadata.
@@ -14,7 +14,7 @@ Node.js client and six platform packages:
 7. Publish the Python wheel and source distribution through the configured PyPI Trusted Publisher.
 8. Install that exact version from PyPI and exercise it against the matching CLI binary.
 9. Create the GitHub Release and upload the already verified archives, Python distributions, SBOM, signatures, and certificates.
-10. Stage the six platform npm packages from the verified Go archives, publish them with provenance, and publish the main client with exact optional dependency versions.
+10. Dispatch the npm workflow with the release tag; it stages the six platform packages from verified Go archives, publishes them with provenance, and publishes the client with exact optional dependency versions.
 11. Install the published npm client without `PORT_DETECTIVE_BIN` and run the Node.js CLI integration check.
 
 Before the first release, configure a PyPI Trusted Publisher for repository

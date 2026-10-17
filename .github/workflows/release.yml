@@ -184,3 +184,19 @@ jobs:
             --verify-tag \
             --title "port-detective ${GITHUB_REF_NAME}" \
             --generate-notes
+
+  dispatch_npm:
+    name: Dispatch npm publication
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch npm publication workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run npm-publish.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME" \
+            -f tag="$GITHUB_REF_NAME"
