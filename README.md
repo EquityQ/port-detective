@@ -97,6 +97,7 @@ install the matching CLI binary for Windows, macOS, and Linux on x64 or arm64:
 
 ```bash
 npm install port-detective
+npx --no-install port-detective check 3000
 ```
 
 Source checkouts do not contain generated platform packages, so local development still

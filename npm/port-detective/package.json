@@ -4,6 +4,9 @@
   "description": "Minimal-dependency Node.js client for the port-detective CLI.",
   "license": "MIT",
   "main": "index.js",
+  "bin": {
+    "port-detective": "cli.js"
+  },
   "types": "index.d.ts",
   "exports": {
     ".": {
@@ -14,6 +17,7 @@
   },
   "files": [
     "index.js",
+    "cli.js",
     "platform.js",
     "index.d.ts",
     "README.md",

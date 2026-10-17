@@ -16,6 +16,17 @@ checkouts omit generated platform packages; build the CLI locally or set
 `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` always overrides
 automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 
+The published package also exposes the CLI command through npm:
+
+```bash
+npx --no-install port-detective check 3000
+npx --no-install port-detective scan --ports 3000,8080
+```
+
+After installation, `port-detective` is available from npm scripts and
+`node_modules/.bin`. The wrapper uses the matching bundled platform binary and falls
+back to `PORT_DETECTIVE_BIN` or a CLI on `PATH`.
+
 ## Use
 
 ```js
