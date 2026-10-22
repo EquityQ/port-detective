@@ -5,13 +5,12 @@ CI/release automation, documentation, and community files.
 
 ## Current assessment
 
-`port-detective` v1.2.0 is a release candidate with local validation evidence.
-Its hosted CI, GitHub Release, PyPI/npm publication, and clean-install verification
-remain pending. The latest verified public release, v1.1.1, completed artifact
-verification, signatures, SBOM, provenance, and cross-platform integration checks.
+`port-detective` v1.2.0 passed hosted CI and the release workflow. GitHub assets,
+PyPI distributions, the npm client, and six platform packages were published; the
+PyPI and npm clean-install integrations passed.
 
-**Established public-release baseline: 94/100**. This retained assessment does not
-claim completed v1.2.0 publication or a new hosted platform matrix.
+**Established public-release baseline: 94/100**. This score remains unchanged;
+the v1.2.0 release adds current hosted publication and install evidence.
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
@@ -19,14 +18,15 @@ claim completed v1.2.0 publication or a new hosted platform matrix.
 | Architecture | 18/20 | Core/CLI/MCP separation, worker pool, protocol-safe stdout, focused CLI files | More contract-level regression coverage |
 | Correctness and safety | 19/20 | Race tests, PID-reuse and protected-PID checks, listener revalidation, dry-run and JSON confirmation guards | Hosted restricted-environment evidence |
 | Developer experience | 15/15 | Concise quick start, issue forms, three-OS CI, typed Node client, published platform packages, wheel checks, API drift gate, shell completion | More user feedback |
-| Release and supply chain | 15/15 | Published GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, and clean-install checks | None for v1.1.1 |
+| Release and supply chain | 15/15 | v1.2.0 GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, and clean-install checks | None for this release |
 | Community operations | 7/10 | Security, conduct, contribution, submission, status, and PR guidance | Named ownership and support history |
 
 ## Release evidence
 
-The v1.1.1 release workflow passed Go, Python, MCP, artifact, signature, provenance,
-PyPI installation, npm publication, and clean-install integration checks.
-These are historical results; v1.2.0 release verification is pending.
+The [v1.2.0 release workflow](https://github.com/EquityQ/port-detective/actions/runs/39722738497)
+passed Go, Python, MCP, artifact, signature, provenance, and PyPI installation checks.
+The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/39723082681)
+published the client and platform packages and passed clean-install CLI integration.
 
 ## Quality gates
 
@@ -37,7 +37,8 @@ API inventory checks, and package builds. Windows coverage was core 81.9%, CLI
 73/88/73%, and Node lines/branches/functions was 84.02/71.89/95%.
 
 Cross-compilation passed for Linux amd64, macOS amd64, and Windows arm64. This
-is local evidence for the v1.2.0 candidate, not a completed hosted runtime matrix.
+is local cross-compilation evidence; hosted SDK and CLI release workflows supply
+the runtime evidence for the published packages.
 IPv6 loopback was unavailable on this host, restricted-environment checks remained
 opt-in, and the MCP Python listener's project-match assertion was capability-skipped
 because its working-directory metadata was unavailable. Controlled core/MCP tests

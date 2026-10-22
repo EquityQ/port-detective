@@ -1,8 +1,7 @@
 # CLI and MCP API Reference
 
-Revision: **v1.2.0 release candidate; publication pending**. The latest verified
-public packages are v1.1.1; build this checkout for the commands and arguments below. Published CLI builds
-use the release tag; this checkout's CLI and SDK metadata are also set to 1.2.0.
+Revision: **v1.2.0**, released 2026-10-22. Published CLI and SDK packages use
+the same major/minor compatibility contract.
 
 Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
 The implementation inventory is generated during CI; this page is the stable behavior

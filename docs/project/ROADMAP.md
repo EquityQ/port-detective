@@ -13,12 +13,12 @@ This roadmap tracks post-release improvements for the next development cycle.
 - Check external CLI versions in SDKs and provide Python install/doctor commands.
 - Prefer a one-command npm quick start and document CLI versus SDK/MCP safety defaults.
 
-The v1.2.0 publication is pending. Validate the required platform matrix before
-pushing its release tag. Historical v1.1.1 packages do not contain these features.
+Version 1.2.0 was published through GitHub, PyPI, and npm. Its release tag passed
+the hosted Go, Python, and MCP checks, and the npm workflow verified a clean install.
 
 ## Release readiness
 
-- v1.1.1 release completed through GitHub, PyPI, and npm Trusted Publishing.
+- v1.2.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Keep supported platforms and known permission limits current in release notes.

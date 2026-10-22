@@ -4,21 +4,20 @@ A lightweight subprocess client for the `port-detective` CLI. It provides synchr
 and `asyncio` APIs for port diagnostics, project fingerprinting, and safe cleanup on
 Windows, macOS, and Linux.
 
-This checkout is the `v1.2.0` release candidate; PyPI and GitHub publication is pending.
-Version checks, module entry points, and cleanup port selection require the v1.2.0 SDK
-and matching CLI. Install both from source as shown below until publication is verified.
-`v1.1.1` remains the latest verified public release. Major/minor compatibility
-protects the shared API contract and does not add new commands to an older CLI.
+The `v1.2.0` SDK adds CLI version checks, module entry points, and cleanup port
+selection. Major/minor compatibility protects the shared API contract and does not
+add new commands to an older CLI.
 
 ## Install
 
-After v1.2.0 publication is verified, install the exact SDK version:
+Install the published SDK from PyPI:
 
 ```bash
 python -m pip install port-detective==1.2.0
 ```
 
-To use the v1.2.0 candidate now, run both commands from the repository root:
+For source development, install this checkout and build the matching CLI from the
+repository root:
 
 ```bash
 python -m pip install ./python
@@ -26,8 +25,8 @@ go build -o port-detective .
 ```
 
 Set `PORT_DETECTIVE_BIN` to the absolute path of this local executable. On Windows,
-build with `go build -o port-detective.exe .`. Automatic bootstrap and
-`python -m port_detective install` require the matching GitHub Release to be published.
+build with `go build -o port-detective.exe .`. Automatic bootstrap can use the
+published GitHub Release, or the local CLI can be selected with `PORT_DETECTIVE_BIN`.
 
 The SDK checks an explicit `binary_path`, `PORT_DETECTIVE_BIN`, `PATH`, and nearby
 checkout binaries, in that order. External CLIs must have the same major and minor
@@ -43,9 +42,8 @@ the user cache directory. This requires network access only once. Set
 `PORT_DETECTIVE_CACHE_DIR` to choose the cache location. You can also download it
 explicitly with `from port_detective import download_cli`.
 
-After publication, prepare the matching CLI before the first request or diagnose
-installation and permissions. During the candidate phase, `doctor` can use the
-local executable selected with `PORT_DETECTIVE_BIN`:
+Prepare the matching CLI before the first request or diagnose installation and
+permissions:
 
 ```bash
 python -m port_detective install

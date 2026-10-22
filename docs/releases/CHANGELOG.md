@@ -5,12 +5,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No additional changes are recorded after the v1.2.0 release candidate.
+No additional changes are recorded after v1.2.0.
 
 ## [1.2.0] - 2026-10-22
 
-Release candidate; GitHub, PyPI, and npm publication is pending. The date records
-release preparation, not verified registry or artifact availability.
+Released 2026-10-22 through GitHub, PyPI, and npm Trusted Publishing.
 
 ### Added
 
@@ -34,8 +33,7 @@ release preparation, not verified registry or artifact availability.
 - CLI, Python, and npm release metadata target 1.2.0; SDK 1.2.x requires a CLI
   with the same major and minor version.
 
-These changes are available from source. Use the matching candidate SDK and CLI
-until publication is verified.
+The matching CLI and SDK packages are available from the linked release and registries.
 
 ## [1.1.1] - 2026-10-17
 

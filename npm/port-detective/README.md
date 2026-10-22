@@ -3,15 +3,13 @@
 A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
 TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
-This checkout is the `v1.2.0` release candidate; npm and GitHub publication is pending.
-Version checks, explicit `projectPath`, and cleanup `ports` require the v1.2.0 SDK
-and matching CLI. Install both from source as shown below until publication is verified.
-`v1.1.1` remains the latest verified public release. Major/minor compatibility
-protects the shared API contract and does not add new flags to an older CLI.
+Version checks, explicit `projectPath`, and cleanup `ports` are available in the
+published v1.2.0 SDK and matching CLI. Major/minor compatibility protects the
+shared API contract and does not add new flags to an older CLI.
 
 ## Install
 
-After v1.2.0 publication is verified, install the exact package from npm:
+Install the published package from npm:
 
 ```bash
 npm install port-detective@1.2.0
@@ -20,7 +18,8 @@ npm install port-detective@1.2.0
 Published npm installations include the matching platform CLI binary. Users do not
 need Go or a local CLI build on the supported platforms.
 
-To use the v1.2.0 candidate now, run both commands from the repository root:
+For source development, install this checkout and build the matching CLI from the
+repository root:
 
 ```bash
 npm install ./npm/port-detective
