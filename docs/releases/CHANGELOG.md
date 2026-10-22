@@ -5,6 +5,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No additional changes are recorded after the v1.2.0 release candidate.
+
+## [1.2.0] - 2026-10-22
+
+Release candidate; GitHub, PyPI, and npm publication is pending. The date records
+release preparation, not verified registry or artifact availability.
+
 ### Added
 
 - Port list ranges and deduplication for CLI and MCP scans.
@@ -22,7 +29,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 - MCP acceptance waits for live replies and verifies successful tool results.
 - Quick-start commands work with current-directory executables and explain actual safety defaults.
 
-These changes are available from source and have not been published as a new release.
+### Changed
+
+- CLI, Python, and npm release metadata target 1.2.0; SDK 1.2.x requires a CLI
+  with the same major and minor version.
+
+These changes are available from source. Use the matching candidate SDK and CLI
+until publication is verified.
 
 ## [1.1.1] - 2026-10-17
 

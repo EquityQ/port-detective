@@ -33,7 +33,7 @@ Run the local version and package check with:
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.1.1 \
+  --expected-version 1.2.0 \
   --cli ./port-detective \
   --python-root python \
   --wheel-dir python/dist
@@ -42,4 +42,6 @@ python scripts/release/verify_artifacts.py \
 Downloaders should verify `checksums.txt` before extraction and keep the matching
 `.sig`/`.pem` files and GitHub attestation with the release record.
 
-The `v1.1.1` tag and release are complete. Reuse this checklist for subsequent tags.
+The `v1.1.1` tag and release are complete. The current target is `v1.2.0`; follow
+the release and npm runs through completion, then verify both registry versions
+and clean installs before recording publication as complete.

@@ -53,7 +53,7 @@ def _release_version() -> str:
         try:
             value = importlib.metadata.version("port-detective")
         except importlib.metadata.PackageNotFoundError:
-            value = "1.1.0.dev0"
+            value = "1.2.0"
     match = re.match(r"^(\d+\.\d+\.\d+)", value)
     if not match:
         raise RuntimeDownloadError(

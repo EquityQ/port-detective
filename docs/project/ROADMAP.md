@@ -2,7 +2,7 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
-## Implemented in source, awaiting release
+## Included in v1.2.0
 
 - Read all local TCP bindings and deduplicate scan inputs.
 - Discover project listeners beyond the default development ports; support an
@@ -13,8 +13,8 @@ This roadmap tracks post-release improvements for the next development cycle.
 - Check external CLI versions in SDKs and provide Python install/doctor commands.
 - Prefer a one-command npm quick start and document CLI versus SDK/MCP safety defaults.
 
-Validate these changes against the required platform matrix before publishing
-the next release. The published v1.1.1 packages do not contain them yet.
+The v1.2.0 publication is pending. Validate the required platform matrix before
+pushing its release tag. Historical v1.1.1 packages do not contain these features.
 
 ## Release readiness
 

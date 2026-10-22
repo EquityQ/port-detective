@@ -1,8 +1,8 @@
 # CLI and MCP API Reference
 
-Revision: **Unreleased after v1.1.1**. Published packages still provide v1.1.1;
-build this checkout for the new commands and arguments below. Published CLI builds
-use the release tag; source builds use a development version.
+Revision: **v1.2.0 release candidate; publication pending**. The latest verified
+public packages are v1.1.1; build this checkout for the commands and arguments below. Published CLI builds
+use the release tag; this checkout's CLI and SDK metadata are also set to 1.2.0.
 
 Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
 The implementation inventory is generated during CI; this page is the stable behavior
@@ -132,6 +132,7 @@ inspection.
 
 ## Compatibility
 
-Within the v1.1 development line, fields may be added. Changes to field names, command
+Within the v1.2 development line, fields may be added. SDK 1.2.x accepts CLI 1.2.x,
+including 1.2.0-dev, and rejects CLI 1.1.x. Changes to field names, command
 flags, tool names, or safety defaults require updates to this page, SDK models, acceptance
 tests, and the changelog.

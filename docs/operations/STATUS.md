@@ -1,10 +1,11 @@
 # Project Status
 
-`port-detective` v1.1.1 is publicly released on GitHub, PyPI, and npm. The release
+`port-detective` v1.2.0 is a release candidate; GitHub, PyPI, and npm publication
+is pending. The latest verified public release is v1.1.1. That historical release
 contains signed Go archives, Python distributions, six platform npm packages, an SPDX
 SBOM, checksums, and GitHub provenance attestations.
 
-Current capabilities:
+Capabilities retained in the v1.2.0 candidate:
 
 - Concurrent TCP port inspection with process health diagnostics.
 - Node.js, Python, and Go project fingerprinting.
@@ -15,12 +16,15 @@ Current capabilities:
 - A safe listener-based CLI demo that never terminates an external process.
 - Focused CLI modules, generated API inventory checks, and cross-platform CI.
 
-Unreleased source changes after v1.1.1 add interface-aware listener inspection,
+The v1.2.0 candidate adds interface-aware listener inspection,
 all-listener project cleanup with an explicit project/port selection and target
 preview, MCP `project_path`, deduplicated port ranges, `wait`, `check --watch`,
 explicit scan presets, `find-free`, and `doctor`. SDK updates validate external CLI compatibility and
-provide Python install/doctor entry points. These changes require a local source
-build until a new release is published.
+provide Python install/doctor entry points. SDK 1.2.x requires CLI 1.2.x. These
+changes require a local source build until v1.2.0 publication is verified.
+
+Local validation completed on 2026-10-22 is recorded in the quality review. Hosted
+CI, release signing, and registry clean-install results for v1.2.0 remain pending.
 
 Go, Python, and Node.js CI cover Windows, macOS, and Linux. The Node.js package and
 platform binary workflow are published with the formal npm release. Process metadata can be

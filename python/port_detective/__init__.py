@@ -25,7 +25,7 @@ from .core import (
     PortDetectiveExecutionError,
 )
 
-__version__ = "1.1.0.dev0"
+__version__ = "1.2.0"
 __all__ = [
     "PortDiagnostic",
     "ProjectInfo",

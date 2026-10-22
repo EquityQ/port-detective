@@ -3,24 +3,24 @@
 A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
 TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
-This checkout documents unreleased improvements after `v1.1.1`. Version checks,
-explicit `projectPath`, and cleanup `ports` require this checkout's SDK; cleanup
-selection also requires this checkout's CLI. Install both from source as shown
-below until the next release. Major/minor compatibility
+This checkout is the `v1.2.0` release candidate; npm and GitHub publication is pending.
+Version checks, explicit `projectPath`, and cleanup `ports` require the v1.2.0 SDK
+and matching CLI. Install both from source as shown below until publication is verified.
+`v1.1.1` remains the latest verified public release. Major/minor compatibility
 protects the shared API contract and does not add new flags to an older CLI.
 
 ## Install
 
-Install the published package from npm:
+After v1.2.0 publication is verified, install the exact package from npm:
 
 ```bash
-npm install port-detective
+npm install port-detective@1.2.0
 ```
 
 Published npm installations include the matching platform CLI binary. Users do not
 need Go or a local CLI build on the supported platforms.
 
-For unreleased features, run both commands from the repository root:
+To use the v1.2.0 candidate now, run both commands from the repository root:
 
 ```bash
 npm install ./npm/port-detective
@@ -36,7 +36,7 @@ or set `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` al
 overrides automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 Resolution order is `binaryPath`, `PORT_DETECTIVE_BIN`, the bundled platform
 binary, then `PATH`. External CLIs must share the SDK's major and minor version:
-SDK `1.1.x` accepts CLI `1.1.x`, including `1.1.0-dev`. Incompatible or unrecognized
+SDK `1.2.x` accepts CLI `1.2.x`, including `1.2.0-dev`, and rejects CLI `1.1.x`. Incompatible or unrecognized
 versions raise `PortDetectiveVersionError` with the resolved executable and repair
 instructions. Successful checks are cached until that file's identity changes.
 

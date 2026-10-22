@@ -4,30 +4,35 @@ A lightweight subprocess client for the `port-detective` CLI. It provides synchr
 and `asyncio` APIs for port diagnostics, project fingerprinting, and safe cleanup on
 Windows, macOS, and Linux.
 
-This checkout documents unreleased improvements after `v1.1.1`. New version checks,
-module entry points, and cleanup port selection require this checkout's SDK;
-`doctor` and cleanup selection also require this checkout's CLI. Install the SDK
-from source and build the CLI as shown below until the next release. Major/minor compatibility
+This checkout is the `v1.2.0` release candidate; PyPI and GitHub publication is pending.
+Version checks, module entry points, and cleanup port selection require the v1.2.0 SDK
+and matching CLI. Install both from source as shown below until publication is verified.
+`v1.1.1` remains the latest verified public release. Major/minor compatibility
 protects the shared API contract and does not add new commands to an older CLI.
 
 ## Install
 
-Install the published SDK:
+After v1.2.0 publication is verified, install the exact SDK version:
 
 ```bash
-python -m pip install port-detective
+python -m pip install port-detective==1.2.0
 ```
 
-For unreleased features, run both commands from the repository root:
+To use the v1.2.0 candidate now, run both commands from the repository root:
 
 ```bash
 python -m pip install ./python
 go build -o port-detective .
 ```
 
+Set `PORT_DETECTIVE_BIN` to the absolute path of this local executable. On Windows,
+build with `go build -o port-detective.exe .`. Automatic bootstrap and
+`python -m port_detective install` require the matching GitHub Release to be published.
+
 The SDK checks an explicit `binary_path`, `PORT_DETECTIVE_BIN`, `PATH`, and nearby
 checkout binaries, in that order. External CLIs must have the same major and minor
-version as the SDK: SDK `1.1.x` accepts CLI `1.1.x`, including `1.1.0-dev`. An
+version as the SDK: SDK `1.2.x` accepts CLI `1.2.x`, including `1.2.0-dev`, and
+rejects CLI `1.1.x`. An
 unrecognized or incompatible version raises `PortDetectiveVersionError` with the
 resolved executable and repair instructions. Successful checks are cached until the
 executable's file identity changes. If no CLI is available, the first API call
@@ -38,7 +43,9 @@ the user cache directory. This requires network access only once. Set
 `PORT_DETECTIVE_CACHE_DIR` to choose the cache location. You can also download it
 explicitly with `from port_detective import download_cli`.
 
-To prepare the CLI before the first request or diagnose installation and permissions:
+After publication, prepare the matching CLI before the first request or diagnose
+installation and permissions. During the candidate phase, `doctor` can use the
+local executable selected with `PORT_DETECTIVE_BIN`:
 
 ```bash
 python -m port_detective install

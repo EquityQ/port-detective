@@ -1,6 +1,6 @@
 {
   "name": "port-detective",
-  "version": "1.1.0-dev",
+  "version": "1.2.0",
   "description": "Minimal-dependency Node.js client for the port-detective CLI.",
   "license": "MIT",
   "main": "index.js",

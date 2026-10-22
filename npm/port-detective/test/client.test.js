@@ -42,7 +42,7 @@ function fixture(t, environment = {}) {
   const binary = path.join(fixtureRoot, `fixture-${fixtureNumber++}.exe`);
   fs.copyFileSync(path.join(fixtureRoot, "fixture.exe"), binary);
   if (process.platform !== "win32") fs.chmodSync(binary, 0o700);
-  const values = { SDK_TEST_VERSION: "1.1.4", SDK_TEST_VERSION_FAIL: "",
+  const values = { SDK_TEST_VERSION: "1.2.4", SDK_TEST_VERSION_FAIL: "",
     SDK_TEST_VERSION_DELAY_MS: "0", SDK_TEST_VERSION_LOG: "", SDK_TEST_ARGUMENTS: "", ...environment };
   if (!("SDK_TEST_COMMAND_DELAY_MS" in values)) values.SDK_TEST_COMMAND_DELAY_MS = "0";
   const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
@@ -59,16 +59,16 @@ function fixture(t, environment = {}) {
 test("accepts compatible patch and versioned development builds", (t) => {
   const binaryPath = fixture(t);
   assert.equal(inspectPort(3000, { binaryPath }).is_open, true);
-  const other = fixture(t, { SDK_TEST_VERSION: "1.1.0-dev" });
+  const other = fixture(t, { SDK_TEST_VERSION: "1.2.0-dev" });
   assert.equal(inspectPort(3000, { binaryPath: other }).port, 3000);
 });
 
 test("rejects incompatible and unrecognizable versions before operations", (t) => {
   const binaryPath = fixture(t);
-  for (const version of ["1.2.0", "2.1.0", "dev", "invalid"]) {
+  for (const version of ["1.1.4", "1.3.0", "2.2.0", "dev", "invalid"]) {
     process.env.SDK_TEST_VERSION = version;
     assert.throws(() => inspectPort(3000, { binaryPath }), (error) =>
-      error instanceof PortDetectiveVersionError && /requires CLI 1\.1\.x/.test(error.message));
+      error instanceof PortDetectiveVersionError && /requires CLI 1\.2\.x/.test(error.message));
   }
 });
 
@@ -123,7 +123,7 @@ test("sync command shares its timeout budget with version discovery", (t) => {
 test("async API rejects incompatible versions and supports project selection", async (t) => {
   const binaryPath = fixture(t, { SDK_TEST_VERSION: "2.0.0" });
   await assert.rejects(asyncInspectPort(3000, { binaryPath }), PortDetectiveVersionError);
-  process.env.SDK_TEST_VERSION = "1.1.2";
+  process.env.SDK_TEST_VERSION = "1.2.0";
   const record = path.join(fixtureRoot, "arguments.json");
   process.env.SDK_TEST_ARGUMENTS = record;
   assert.deepEqual(cleanProject({ binaryPath, projectPath: fixtureRoot, ports: [3010, 3011] }), []);

@@ -38,7 +38,7 @@ class FixtureMixin:
     def setUp(self):
         _VALIDATED_BINARIES.clear()
         self.environment = patch.dict(os.environ, {
-            "PORT_DETECTIVE_BIN": str(self.binary), "SDK_TEST_VERSION": "1.1.4",
+            "PORT_DETECTIVE_BIN": str(self.binary), "SDK_TEST_VERSION": "1.2.4",
             "SDK_TEST_VERSION_FAIL": "", "SDK_TEST_VERSION_DELAY_MS": "0",
             "SDK_TEST_VERSION_LOG": "", "SDK_TEST_ARGUMENTS": "",
             "SDK_TEST_COMMAND_DELAY_MS": "0",
@@ -49,17 +49,17 @@ class FixtureMixin:
 
 class TestCompatibility(FixtureMixin, unittest.TestCase):
     def test_compatible_patch_and_development_builds(self):
-        for version in ["1.1.4", "1.1.0-dev"]:
+        for version in ["1.2.0", "1.2.4", "1.2.0-dev"]:
             with self.subTest(version=version):
                 _VALIDATED_BINARIES.clear()
                 os.environ["SDK_TEST_VERSION"] = version
                 self.assertTrue(inspect_port(3000).is_open)
 
     def test_rejects_incompatible_and_unrecognizable_versions(self):
-        for version in ["1.2.0", "2.1.0", "dev", "not-a-version"]:
+        for version in ["1.1.4", "1.3.0", "2.2.0", "dev", "not-a-version"]:
             with self.subTest(version=version):
                 os.environ["SDK_TEST_VERSION"] = version
-                with self.assertRaisesRegex(PortDetectiveVersionError, r"requires CLI 1\.1\.x"):
+                with self.assertRaisesRegex(PortDetectiveVersionError, r"requires CLI 1\.2\.x"):
                     inspect_port(3000)
 
     def test_explicit_env_path_and_checkout_candidates_are_validated(self):

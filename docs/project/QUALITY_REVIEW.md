@@ -1,15 +1,17 @@
 # Open Source Quality Review
 
-Review date: 2026-10-17. Scope: Go core, CLI, MCP server, Python and Node.js SDKs,
+Review date: 2026-10-22. Scope: Go core, CLI, MCP server, Python and Node.js SDKs,
 CI/release automation, documentation, and community files.
 
 ## Current assessment
 
-`port-detective` v1.1.1 is a public release with clear layering and strong safety
-coverage for a local process tool. GitHub, PyPI, and npm publication completed with
-artifact verification, signatures, SBOM, provenance, and cross-platform integration checks.
+`port-detective` v1.2.0 is a release candidate with local validation evidence.
+Its hosted CI, GitHub Release, PyPI/npm publication, and clean-install verification
+remain pending. The latest verified public release, v1.1.1, completed artifact
+verification, signatures, SBOM, provenance, and cross-platform integration checks.
 
-**Current score: 94/100**
+**Established public-release baseline: 94/100**. This retained assessment does not
+claim completed v1.2.0 publication or a new hosted platform matrix.
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
@@ -24,6 +26,7 @@ artifact verification, signatures, SBOM, provenance, and cross-platform integrat
 
 The v1.1.1 release workflow passed Go, Python, MCP, artifact, signature, provenance,
 PyPI installation, npm publication, and clean-install integration checks.
+These are historical results; v1.2.0 release verification is pending.
 
 ## Quality gates
 
@@ -34,7 +37,7 @@ API inventory checks, and package builds. Windows coverage was core 81.9%, CLI
 73/88/73%, and Node lines/branches/functions was 84.02/71.89/95%.
 
 Cross-compilation passed for Linux amd64, macOS amd64, and Windows arm64. This
-is local evidence for unreleased changes, not a completed hosted runtime matrix.
+is local evidence for the v1.2.0 candidate, not a completed hosted runtime matrix.
 IPv6 loopback was unavailable on this host, restricted-environment checks remained
 opt-in, and the MCP Python listener's project-match assertion was capability-skipped
 because its working-directory metadata was unavailable. Controlled core/MCP tests

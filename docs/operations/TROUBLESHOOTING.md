@@ -4,7 +4,7 @@ With a CLI built from this checkout, start with `port-detective doctor --json`.
 It reports the executable actually running, version, OS/architecture, working
 directory, and process visibility for a disposable local listener. It does not
 change another process or automatically elevate privileges. `doctor` and the
-new workflow commands are unreleased after v1.1.1.
+new workflow commands require v1.2.0; publication is pending during release preparation.
 
 | Symptom | Check |
 | --- | --- |
@@ -12,7 +12,7 @@ new workflow commands are unreleased after v1.1.1.
 | `permission_required` or empty process fields | The OS restricts process metadata. Retry with appropriate privileges only when understood. |
 | `kill` or `clean` refuses to continue | Start with `--dry-run`; confirm the target and project path. JSON termination also needs `--yes`. |
 | `clean` finds no project listeners | Check the effective project directory. Use `clean --project /absolute/project --dry-run`; a missing fingerprint or another network namespace can hide targets. `--ports` restricts the selection. |
-| MCP cleans the wrong project scope | With the source-built server, supply `project_path` explicitly and review the returned `cwd` and `scope`. v1.1.1 uses the server process working directory. |
+| MCP cleans the wrong project scope | With v1.2.0, supply `project_path` explicitly and review the returned `cwd` and `scope`. v1.1.1 uses the server process working directory. |
 | SDK reports an incompatible CLI | Check `port-detective --version` and the configured binary path; use the same major/minor CLI as the SDK, or select the matching binary with `PORT_DETECTIVE_BIN`. |
 | `wait` times out | Check `--state`, the timeout, local listener bindings, and the network namespace. Port occupancy is not an application readiness check. |
 | Python cannot find the CLI | Allow the first-use GitHub download, or install the matching CLI, add it to `PATH`, set `PORT_DETECTIVE_BIN`, or disable automatic downloads with `PORT_DETECTIVE_AUTO_DOWNLOAD=0`. |

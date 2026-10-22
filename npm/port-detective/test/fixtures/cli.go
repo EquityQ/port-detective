@@ -27,7 +27,7 @@ func main() {
 		}
 		version := os.Getenv("SDK_TEST_VERSION")
 		if version == "" {
-			version = "1.1.4"
+			version = "1.2.4"
 		}
 		fmt.Println("port-detective version " + version)
 		return
