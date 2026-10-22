@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock, AsyncMock, ANY
 
 # Ensure parent directory is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -147,7 +147,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
-            timeout=30.0,
+            timeout=ANY,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -175,7 +175,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
-            timeout=30.0,
+            timeout=ANY,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -203,7 +203,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=None,
             check=False,
-            timeout=30.0,
+            timeout=ANY,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -229,7 +229,7 @@ class TestSyncClient(unittest.TestCase):
             encoding="utf-8",
             cwd=os.getcwd(),
             check=False,
-            timeout=30.0,
+            timeout=ANY,
         )
 
     @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
@@ -256,7 +256,7 @@ class TestSyncClient(unittest.TestCase):
 
 
 class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
-    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
     async def test_async_inspect_port(self, mock_exec, mock_find):
         payload = {
@@ -275,7 +275,7 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(diag.port, 9000)
         self.assertEqual(diag.pid, 3333)
 
-    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
     async def test_async_scan_ports(self, mock_exec, mock_find):
         payload = [{"port": 6379, "is_open": True, "pid": 444, "process_name": "redis-server"}]
@@ -288,7 +288,7 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0].port, 6379)
 
-    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
     async def test_async_clean_and_free(self, mock_exec, mock_find):
         mock_proc = MagicMock()
@@ -304,7 +304,7 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         freed = await async_free_port(8080, dry_run=True)
         self.assertEqual(freed.port, 8080)
 
-    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
     async def test_async_timeout_kills_child(self, mock_exec, mock_find):
         mock_proc = MagicMock()
@@ -318,7 +318,7 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         mock_proc.kill.assert_called_once_with()
         self.assertEqual(ctx.exception.returncode, -1)
 
-    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
     async def test_async_cancellation_kills_and_reaps_child(self, mock_exec, mock_find):
         mock_proc = MagicMock()

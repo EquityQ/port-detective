@@ -394,6 +394,6 @@ func degradedNote(w io.Writer, p palette, infos []core.PortDiagnostic) {
 	if degraded == 0 {
 		return
 	}
-	hint(w, p, fmt.Sprintf("%d port(s) belong to protected processes inaccessible with current privileges.", degraded))
-	fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
+	hint(w, p, fmt.Sprintf("%d port(s) have unavailable or ambiguous process metadata.", degraded))
+	fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Check the host/network scope and run port-detective doctor before considering elevated privileges."))
 }

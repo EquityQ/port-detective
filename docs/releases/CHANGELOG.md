@@ -5,7 +5,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Development continues after the v1.1.1 release.
+### Added
+
+- Port list ranges and deduplication for CLI and MCP scans.
+- Explicit web, Python, database, and opt-in project scan presets.
+- `clean --project` / `--ports` and MCP `project_path` / `ports` selection.
+- `wait`, `check --watch`, `find-free`, and `doctor` workflows.
+- SDK compatibility checks for external CLI binaries and Python install/doctor entry points.
+
+### Fixed
+
+- Interface-specific TCP listeners are included in inspection and scans.
+- Project cleanup discovers listeners beyond the ten default development ports.
+- Cleanup shows its selected targets before confirmation and retains their process identities.
+- Interactive kill/clean confirmations exit promptly when interrupted.
+- MCP acceptance waits for live replies and verifies successful tool results.
+- Quick-start commands work with current-directory executables and explain actual safety defaults.
+
+These changes are available from source and have not been published as a new release.
 
 ## [1.1.1] - 2026-10-17
 

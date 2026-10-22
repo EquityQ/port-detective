@@ -2,14 +2,15 @@
 """Verify that the MCP startup path does not write non-protocol output to os.Stdout.
 
 Procedure:
-  1. Send one initialize request and close stdin so the server exits naturally.
+  1. Send initialize, receive its reply, then close stdin so the server exits naturally.
   2. Assert stdout contains exactly one line with a valid JSON-RPC response;
   3. Count stderr output; diagnostics are allowed only there.
 """
 import json
 import os
-import subprocess
 import sys
+
+from stdio_client import run_requests
 
 # Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
 # On Windows, the binary is port-detective.exe; on other platforms it is port-detective.
@@ -23,14 +24,12 @@ if not os.path.exists(_BIN):
     sys.exit(2)
 BIN = _BIN
 
-payload = json.dumps({
+request = {
     "jsonrpc": "2.0", "id": 1, "method": "initialize",
     "params": {"protocolVersion": "2024-11-05", "capabilities": {},
                "clientInfo": {"name": "purity-check", "version": "1.0"}},
-}) + "\n"
-
-proc = subprocess.run([BIN, "mcp"], input=payload.encode(),
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+}
+proc = run_requests(BIN, [request])
 
 raw_stdout = proc.stdout.decode("utf-8", "replace")
 raw_stderr = proc.stderr.decode("utf-8", "replace")
@@ -41,7 +40,7 @@ out.append(f"stdout bytes     : {len(proc.stdout)}")
 out.append(f"non-empty lines  : {len(lines)} (expected exactly 1)")
 out.append(f"stderr lines     : {len([l for l in raw_stderr.splitlines() if l.strip()])}")
 
-ok = True
+ok = proc.returncode == 0
 
 # Assertion 1: stdout contains exactly one line.
 if len(lines) != 1:

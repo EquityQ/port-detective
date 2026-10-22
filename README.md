@@ -5,16 +5,24 @@ identifying owning processes, and cleaning project-scoped listeners safely.
 
 > **Release status:** `v1.1.1` is published on GitHub, PyPI, and npm with signed
 > artifacts and platform packages.
+> The listener, cleanup, and workflow improvements below are unreleased; build
+> this checkout to use them until the next release.
 
 ## Quick Start
 
-Requirements: Go 1.25+ only when building the CLI from source, Python 3.9+ for the
+Requirements: Go 1.25.5+ only when building the CLI from source, Python 3.9+ for the
 Python SDK, and Node.js 22+ for the Node.js client and npm-based MCP setup.
 
+Inspect a port immediately with the published package; no Go installation is needed:
+
 ```bash
-git clone https://github.com/EquityQ/port-detective.git
-cd port-detective
-go build -o port-detective .
+npx --yes --package=port-detective port-detective check 3000
+```
+
+For repeated use, install the package and invoke its CLI:
+
+```bash
+npm install -g port-detective
 ```
 
 ```bash
@@ -24,7 +32,9 @@ port-detective kill 3000 --dry-run
 port-detective clean --dry-run
 ```
 
-Use `--json` with `check`, `scan`, `kill`, or `clean` for machine-readable output.
+Use `--json` for machine-readable output. CLI `kill` and `clean` ask for
+confirmation by default; `--dry-run` previews without acting. SDK and MCP process
+actions default to dry-run.
 Destructive JSON commands require an explicit `--yes` flag:
 
 ```bash
@@ -32,11 +42,45 @@ port-detective kill 3000 --json --yes
 port-detective clean --json --yes
 ```
 
+Build the latest source with Go 1.25.5 or newer:
+
+```bash
+git clone https://github.com/EquityQ/port-detective.git
+cd port-detective
+go build -o port-detective .
+./port-detective check 3000
+```
+
+On Windows, build with `go build -o port-detective.exe .` and run
+`.\port-detective.exe check 3000`. The current directory is usually absent from PATH.
 Run the test suite with:
 
 ```bash
 go test -race ./...
 ```
+
+## Development Workflows (Unreleased)
+
+Examples assume the CLI from this checkout is on PATH; otherwise use the local
+executable path shown above.
+
+```bash
+port-detective scan --ports 3000-3005,8080
+port-detective scan --preset web
+port-detective scan --preset project --project /path/to/project
+port-detective clean --project /path/to/project --dry-run
+port-detective clean --project /path/to/project --ports 3000-3010,8081 --dry-run
+port-detective wait 3000 --state open --timeout 30s
+port-detective check 3000 --watch --interval 1s
+port-detective find-free --from 3000 --to 3100
+port-detective doctor
+```
+
+Cleanup discovers all visible TCP listeners, matches the resolved project directory,
+and shows the target list before confirmation. Running from a subdirectory resolves
+to the nearest supported project manifest. Wait observes port state rather than
+application readiness; a suggested free port is a snapshot, not a reservation.
+See the [API reference](docs/project/API_REFERENCE.md) for JSON and error contracts.
 
 ## Set Up with an AI Agent
 
@@ -87,11 +131,15 @@ client if it is not obvious:
 
 Reload or reconnect the AI client after saving its configuration. The server
 provides `inspect_port`, `scan_dev_ports`, `free_port`, and
-`clean_current_project`; the last tool uses the server's working directory.
+`clean_current_project`. In v1.1.1 the last tool uses the server's working directory;
+this checkout also accepts `project_path` and optional `ports`, so a global MCP
+server can select a project explicitly. Its preview returns the effective path and scope.
 Process actions default to dry-run. Review the target and get user confirmation
 before terminating a process. MCP stdout is reserved for JSON-RPC.
 
-To run the server from a locally built CLI instead, use `port-detective mcp`.
+To use the unreleased tools, configure the absolute path to the locally built CLI
+as the server command with `["mcp"]` as its arguments. Published npm configurations
+above continue to run the published version.
 
 ## Python SDK
 

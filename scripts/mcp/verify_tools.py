@@ -1,87 +1,84 @@
 #!/usr/bin/env python3
-"""End-to-end read-only checks for MCP tools/call.
+"""Exercise MCP tools using an owned listener and default dry-run previews only."""
 
-Safety: this script calls only read-only tools (inspect_port and scan_dev_ports).
-Never call free_port; validate destructive tools only with controlled temporary ports.
-"""
 import json
 import os
-import subprocess
-import sys
+from pathlib import Path
+import socket
 
-# Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_BIN = os.environ.get("PORT_DETECTIVE_BIN") or os.path.join(
-    _ROOT, "port-detective.exe" if os.name == "nt" else "port-detective")
-if not os.path.exists(_BIN):
-    sys.stderr.write(
-        "Binary not found: %s\nRun `go build -o port-detective .` first, "
-        "or set PORT_DETECTIVE_BIN.\n" % _BIN)
-    sys.exit(2)
-BIN = _BIN
+from stdio_client import run_requests
 
-REQUESTS = [
-    {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-     "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                "clientInfo": {"name": "verifier", "version": "1.0"}}},
-    {"jsonrpc": "2.0", "method": "notifications/initialized"},
-    {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-     "params": {"name": "inspect_port", "arguments": {"port": 1}}},
-    {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-     "params": {"name": "scan_dev_ports", "arguments": {}}},
-    {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
-     "params": {"name": "inspect_port", "arguments": {"port": 70000}}},
-    {"jsonrpc": "2.0", "id": 5, "method": "tools/call",
-     "params": {"name": "inspect_port", "arguments": {"port": 8080}}},
-]
-
-payload = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in REQUESTS)
-proc = subprocess.run([BIN, "mcp"], input=payload.encode("utf-8"),
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
-
-responses, bad = {}, []
-for line in proc.stdout.decode("utf-8", "replace").splitlines():
-    if not line.strip():
-        continue
-    try:
-        obj = json.loads(line)
-        responses[obj.get("id")] = obj
-    except json.JSONDecodeError as e:
-        bad.append((line[:100], str(e)))
+ROOT = Path(__file__).resolve().parents[2]
+BIN = os.environ.get("PORT_DETECTIVE_BIN") or str(
+    ROOT / ("port-detective.exe" if os.name == "nt" else "port-detective"))
+if not Path(BIN).is_file():
+    raise SystemExit("Build the CLI first or set PORT_DETECTIVE_BIN: " + BIN)
+os.chdir(ROOT)
 
 
-def tool_text(resp_id):
-    r = responses.get(resp_id, {}).get("result", {})
-    content = r.get("content") or [{}]
-    return r.get("isError"), content[0].get("text", "<empty>")
+def call(request_id, name, arguments):
+    return {"jsonrpc": "2.0", "id": request_id, "method": "tools/call",
+            "params": {"name": name, "arguments": arguments}}
 
 
-out = []
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+    port = listener.getsockname()[1]
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as unused:
+        unused.bind(("127.0.0.1", 0))
+        free_port = unused.getsockname()[1]
 
+    requests = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                    "clientInfo": {"name": "tool-verifier", "version": "1.0"}}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        call(2, "inspect_port", {"port": port}),
+        call(3, "scan_dev_ports", {"ports": f"{port}-{port},{port}"}),
+        call(4, "inspect_port", {"port": 70000}),
+        call(5, "inspect_port", {"port": free_port}),
+        call(6, "clean_current_project", {"project_path": str(ROOT), "ports": str(port)}),
+        call(7, "inspect_port", {"port": port + 0.5}),
+        call(8, "free_port", {"port": port}),
+    ]
+    process = run_requests(BIN, requests)
+    assert process.returncode == 0, process.stderr.decode("utf-8", "replace")
+    lines = [line for line in process.stdout.splitlines() if line.strip()]
+    responses = {response["id"]: response
+                 for response in map(json.loads, lines)}
+    assert len(lines) == 8 and set(responses) == set(range(1, 9)), responses
+    assert "result" in responses[1], responses[1]
 
-def show(label, resp_id, limit=600):
-    is_err, text = tool_text(resp_id)
-    out.append(f"\n=== {label} ===")
-    out.append(f"  isError={is_err}")
-    out.append("  " + (text if len(text) <= limit else text[:limit] + " ...(truncated)"))
+    def data(request_id):
+        result = responses[request_id]["result"]
+        assert not result.get("isError", False), result
+        return json.loads(result["content"][0]["text"])
 
+    diagnostic = data(2)
+    assert diagnostic["is_open"] and diagnostic["pid"] == os.getpid(), diagnostic
+    scan = data(3)
+    assert len(scan) == 1 and scan[0]["port"] == port, scan
+    for invalid in (4, 7):
+        assert responses[invalid]["result"].get("isError") is True, responses[invalid]
+    assert data(5)["is_open"] is False, responses[5]
+    clean = data(6)
+    assert clean["dry_run"] is True, clean
+    assert os.path.samefile(clean["cwd"], ROOT), clean
+    project = diagnostic.get("project") or {}
+    identified_project = project.get("path")
+    if identified_project and os.path.samefile(identified_project, ROOT):
+        assert clean["count"] == 1, clean
+    else:
+        assert clean["count"] == 0 and clean["cleaned"] == [], clean
+        print("SKIP: positive project match; host hides listener working-directory metadata.")
+    assert clean["count"] in (0, 1) and len(clean["cleaned"]) == clean["count"], clean
+    if clean["cleaned"]:
+        assert clean["cleaned"][0]["port"] == port, clean
+    preview = data(8)
+    assert preview["dry_run"] is True and preview["diagnostic"]["pid"] == os.getpid(), preview
+    with socket.create_connection(("127.0.0.1", port), timeout=2):
+        pass
 
-show("inspect_port(1): controlled system port probe", 2)
-show("scan_dev_ports(): default development port set", 3)
-show("inspect_port(70000): invalid port, isError should be true", 4)
-show("inspect_port(8080): idle port, is_open should be false", 5)
-
-out.append("\n=== stdout protocol check ===")
-out.append(f"  invalid JSON lines = {len(bad)} -> {'PASS' if not bad else 'FAIL ' + str(bad)}")
-out.append(f"  responses received = {len(responses)} (expected 5)")
-
-err4 = tool_text(4)[0]
-err_lines = [l for l in proc.stderr.decode("utf-8", "replace").splitlines() if l.strip()]
-out.append(f"\n=== stderr (allowed diagnostics, {len(err_lines)} lines) ===")
-out.append("  " + (err_lines[0] if err_lines else "<empty>"))
-
-sys.stdout.buffer.write("\n".join(out).encode("utf-8"))
-sys.stdout.buffer.flush()
-
-ok = (not bad) and len(responses) == 5 and err4 is True
-sys.exit(0 if ok else 1)
+print("PASS: MCP inspect, deduplicated range scan, invalid inputs, explicit project,")
+print("      safe default cleanup/free previews, listener survival, and JSON-RPC stdout.")

@@ -9,6 +9,7 @@ import os
 import platform
 import re
 import stat
+import sys
 import tarfile
 import tempfile
 import urllib.error
@@ -200,6 +201,7 @@ def download_cli(*, version: Optional[str] = None, destination: Optional[Path] =
             return str(target)
         archive_url = f"{RELEASE_BASE_URL}/v{release}/{archive_name}"
         checksum_url = f"{RELEASE_BASE_URL}/v{release}/checksums.txt"
+        print(f"port-detective: downloading verified CLI v{release} for {goos}/{goarch}...", file=sys.stderr)
         archive = _download(archive_url)
         expected = _checksum(_download(checksum_url), archive_name)
         actual = hashlib.sha256(archive).hexdigest()

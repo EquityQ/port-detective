@@ -49,7 +49,7 @@ def extract_cli() -> dict[str, list[dict[str, Any]]]:
         flag_pattern = (
             r'\b(?:PersistentFlags|Flags)\(\)\.'
             r'(?:StringVar|StringVarP|BoolVar|BoolVarP|IntVar|IntVarP|'
-            r'Float64Var|Float64VarP)\(\s*&?[\w.]+,\s*"([a-z][a-z0-9-]*)"'
+            r'Float64Var|Float64VarP|DurationVar|DurationVarP)\(\s*&?[\w.]+,\s*"([a-z][a-z0-9-]*)"'
         )
         for match in re.finditer(flag_pattern, source):
             name = match.group(1)

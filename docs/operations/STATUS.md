@@ -15,6 +15,13 @@ Current capabilities:
 - A safe listener-based CLI demo that never terminates an external process.
 - Focused CLI modules, generated API inventory checks, and cross-platform CI.
 
+Unreleased source changes after v1.1.1 add interface-aware listener inspection,
+all-listener project cleanup with an explicit project/port selection and target
+preview, MCP `project_path`, deduplicated port ranges, `wait`, `check --watch`,
+explicit scan presets, `find-free`, and `doctor`. SDK updates validate external CLI compatibility and
+provide Python install/doctor entry points. These changes require a local source
+build until a new release is published.
+
 Go, Python, and Node.js CI cover Windows, macOS, and Linux. The Node.js package and
 platform binary workflow are published with the formal npm release. Process metadata can be
 unavailable for protected or system-owned processes; the CLI reports that limitation

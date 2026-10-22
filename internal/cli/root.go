@@ -9,9 +9,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	_ "github.com/EquityQ/port-detective/internal/fingerprint"
 	"github.com/EquityQ/port-detective/internal/version"
@@ -41,12 +44,16 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.PersistentFlags().BoolVar(&opts.jsonOutput, "json", false, "output machine-readable JSON")
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error { return usageError(err) })
 
 	root.AddCommand(
 		newCheckCommand(opts),
 		newScanCommand(opts),
 		newKillCommand(opts),
 		newCleanCommand(opts),
+		newWaitCommand(opts),
+		newFindFreeCommand(opts),
+		newDoctorCommand(opts),
 		newMCPCommand(opts),
 	)
 	root.AddCommand(newCompletionCommand(root))
@@ -55,10 +62,11 @@ func NewRootCommand() *cobra.Command {
 
 func Execute() {
 	root := NewRootCommand()
-	if err := root.Execute(); err != nil {
-		p := newPalette(os.Stderr)
-		fmt.Fprintf(os.Stderr, "%s %v\n", p.paint(p.warn, "Error:"), err)
-		os.Exit(1)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	root.SetContext(ctx)
+	if code := executeCommand(root); code != 0 {
+		os.Exit(code)
 	}
 }
 

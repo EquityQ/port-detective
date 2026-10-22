@@ -61,6 +61,7 @@ type PortDiagnostic struct {
 	Status         string       `json:"status"`            // "occupied", "free", or "permission_required".
 	Project        *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
 	processCreated int64        // Internal process creation timestamp used for identity checks.
+	ambiguousOwner bool         // Multiple or unknown owners share the local port.
 }
 
 // ProjectDetectorFunc defines the process fingerprint detector signature.
@@ -139,19 +140,32 @@ func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return indexTCPListeners(conns), nil
+}
+
+// indexTCPListeners keeps every binding, including listeners whose PID is hidden.
+// A negative owner marks an ambiguous port; terminating an arbitrary owner is unsafe.
+func indexTCPListeners(conns []gnet.ConnectionStat) map[connKey]int32 {
 	index := make(map[connKey]int32, len(conns))
 	for _, c := range conns {
-		if c.Pid <= 0 || c.Laddr.Port == 0 || !isTCPListener(c.Status) {
+		if c.Laddr.Port == 0 || c.Type != sockStream || !isTCPListener(c.Status) {
 			continue
 		}
 		key := connKey{port: c.Laddr.Port, sockTyp: c.Type}
-		if current, exists := index[key]; !exists || c.Pid < current {
-			// Multiple listeners can share a port on some systems. Pick a stable
-			// owner instead of allowing connection-table order to decide.
-			index[key] = c.Pid
+		pid := c.Pid
+		if pid < 0 {
+			pid = 0
+		}
+		if current, exists := index[key]; !exists {
+			index[key] = pid
+		} else if current != pid {
+			index[key] = -1
 		}
 	}
-	return index, nil
+	return index
 }
 
 func isTCPListener(status string) bool {
@@ -169,13 +183,13 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 		diag.processCreated = created
 	}
 
-	if name, err := proc.Name(); err == nil {
+	if name, err := proc.NameWithContext(ctx); err == nil {
 		diag.ProcessName = name
 	}
-	if cmdline, err := proc.Cmdline(); err == nil {
+	if cmdline, err := proc.CmdlineWithContext(ctx); err == nil {
 		diag.Cmdline = cmdline
 	}
-	if mem, err := proc.MemoryInfo(); err == nil && mem != nil {
+	if mem, err := proc.MemoryInfoWithContext(ctx); err == nil && mem != nil {
 		// Convert bytes to megabytes and retain two decimal places.
 		diag.MemoryMB = float64(mem.RSS) / (1024 * 1024)
 	}
@@ -183,7 +197,10 @@ func fillProcessDetail(ctx context.Context, diag *PortDiagnostic) {
 		diag.CPUPercent = cpu
 	}
 	if diag.PID > 1 {
-		diag.Project = detectProjectSafe(ctx, diag.PID)
+		if info := detectProjectSafe(ctx, diag.PID); info != nil {
+			copy := *info
+			diag.Project = &copy
+		}
 	}
 }
 
@@ -210,17 +227,9 @@ func enrichProcessDetail(ctx context.Context, diag *PortDiagnostic, index map[co
 	if !diag.IsOpen {
 		return
 	}
-	if index == nil {
-		built, err := buildProcIndex(ctx)
-		if err != nil {
-			diag.Status = StatusPermissionRequired
-			return
-		}
-		index = built
-	}
-
 	pid, found := index[connKey{port: uint32(diag.Port), sockTyp: sockStream}]
 	if !found || pid <= 0 {
+		diag.ambiguousOwner = pid < 0
 		diag.Status = StatusPermissionRequired
 		return
 	}
@@ -236,7 +245,15 @@ func enrichProcessDetail(ctx context.Context, diag *PortDiagnostic, index map[co
 
 // inspectPortInternal inspects one port and can reuse a prebuilt process index.
 func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32) *PortDiagnostic {
-	diag := probePort(ctx, port)
+	if index == nil {
+		diag := probePort(ctx, port)
+		if diag.IsOpen {
+			diag.Status = StatusPermissionRequired
+		}
+		return diag
+	}
+	_, listening := index[connKey{port: uint32(port), sockTyp: sockStream}]
+	diag := &PortDiagnostic{Port: port, Protocol: ProtocolTCP, IsOpen: listening, Status: StatusFree}
 	enrichProcessDetail(ctx, diag, index)
 	return diag
 }
@@ -252,7 +269,8 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 		return nil, err
 	}
 
-	diag := inspectPortInternal(ctx, port, nil)
+	index, _ := buildProcIndex(ctx)
+	diag := inspectPortInternal(ctx, port, index)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -270,16 +288,27 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 //	                                 │                          │
 //	              sync.WaitGroup closes the channel after workers exit; results are sorted.
 func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, error) {
+	return scanPortsConcurrent(ctx, ports, nil, false)
+}
+
+// scanPortsConcurrent optionally reuses a listener snapshot for project discovery.
+func scanPortsConcurrent(ctx context.Context, ports []int, index map[connKey]int32, indexReady bool) ([]PortDiagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if len(ports) == 0 {
 		return []PortDiagnostic{}, nil
 	}
-	for _, port := range ports {
-		if err := validatePort(port); err != nil {
-			return []PortDiagnostic{}, err
-		}
+	unique, err := normalizePorts(ports)
+	if err != nil {
+		return []PortDiagnostic{}, err
+	}
+	ports = unique
+	if !indexReady {
+		index, _ = buildProcIndex(ctx)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// Cap the worker pool to the number of ports being scanned.
@@ -295,7 +324,7 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	portsChan := make(chan int, workers)
 	resultsChan := make(chan PortDiagnostic, workers)
 
-	// The producer submits ports and closes the jobs channel when done.
+	// 生产者通过 channel 分发端口；取消后停止投递并关闭任务通道。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -309,15 +338,16 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		}
 	}()
 
-	// Start a bounded pool of workers to probe ports concurrently.
+	// 有界 goroutine 工作池共享只读监听快照，避免每个端口重复读取系统连接表。
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for port := range portsChan {
-				// Probe first so newly-created listeners have time to appear in
-				// the system connection table before the shared index is built.
-				diag := probePort(ctx, port)
+				if ctx.Err() != nil {
+					return
+				}
+				diag := inspectPortInternal(ctx, port, index)
 				// Collect open ports only.
 				if diag.IsOpen {
 					select {
@@ -330,7 +360,7 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 		}()
 	}
 
-	// Close the results channel after every worker has finished.
+	// WaitGroup 确保所有生产者退出后才关闭结果 channel，主协程汇总并排序。
 	go func() {
 		wg.Wait()
 		close(resultsChan)
@@ -340,22 +370,6 @@ func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, er
 	occupied := make([]PortDiagnostic, 0)
 	for res := range resultsChan {
 		occupied = append(occupied, res)
-	}
-
-	// Build the process index once after probing. This ordering avoids a
-	// cross-platform race where a fresh listener is reachable by TCP but is not
-	// visible in the OS connection table yet.
-	if len(occupied) > 0 {
-		index, indexErr := buildProcIndex(ctx)
-		if indexErr != nil {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			index = make(map[connKey]int32)
-		}
-		for i := range occupied {
-			enrichProcessDetail(ctx, &occupied[i], index)
-		}
 	}
 
 	// Return deterministic results sorted by port number.

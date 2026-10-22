@@ -1,6 +1,7 @@
 """Tests for the verified lazy CLI downloader."""
 
 import hashlib
+import contextlib
 import io
 import os
 import tarfile
@@ -36,6 +37,7 @@ class TestRuntimeDownload(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             calls = []
+            output, errors = io.StringIO(), io.StringIO()
 
             def fake_download(url):
                 calls.append(url)
@@ -43,7 +45,8 @@ class TestRuntimeDownload(unittest.TestCase):
 
             with patch("port_detective.runtime.platform_target", return_value=("windows", "amd64", "port-detective.exe")), \
                  patch("port_detective.runtime._release_version", return_value="1.1.0"), \
-                 patch("port_detective.runtime._download", side_effect=fake_download):
+                 patch("port_detective.runtime._download", side_effect=fake_download), \
+                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
                 path = Path(download_cli(destination=Path(directory)))
                 self.assertEqual(path.read_bytes(), binary)
                 self.assertEqual(Path(download_cli(destination=Path(directory))), path)
@@ -51,6 +54,8 @@ class TestRuntimeDownload(unittest.TestCase):
                 self.assertEqual(Path(download_cli(destination=Path(directory))).read_bytes(), binary)
 
             self.assertEqual(len(calls), 4)
+            self.assertEqual(output.getvalue(), "")
+            self.assertEqual(errors.getvalue().count("downloading verified CLI"), 2)
 
     def test_rejects_checksum_mismatch(self):
         archive_name = "port-detective_1.1.0_windows_amd64.zip"

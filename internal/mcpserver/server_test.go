@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/fingerprint"
 )
 
 func listenLoopback(t *testing.T) (net.Listener, int) {
@@ -355,5 +358,100 @@ func TestCleanCurrentProjectTool(t *testing.T) {
 	}
 	if resp.Cwd == "" {
 		t.Errorf("response cwd must not be empty")
+	}
+}
+
+func TestCleanSelectedProjectFindsNonDefaultListener(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"mcp-project"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(dir, "src")
+	if err := os.Mkdir(nested, 0700); err != nil {
+		t.Fatal(err)
+	}
+	core.RegisterProjectDetector(func(_ context.Context, pid int32) *core.ProjectInfo {
+		if pid != int32(os.Getpid()) {
+			return nil
+		}
+		return &core.ProjectInfo{Name: "mcp-project", Path: dir}
+	})
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
+	res := callTool(t, handleCleanCurrentProject, map[string]any{"project_path": nested})
+	if res.IsError {
+		t.Fatalf("selected project preview failed: %s", resultText(t, res))
+	}
+	var result struct {
+		Cwd     string                `json:"cwd"`
+		Scope   string                `json:"scope"`
+		DryRun  bool                  `json:"dry_run"`
+		Cleaned []core.PortDiagnostic `json:"cleaned"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &result); err != nil {
+		t.Fatal(err)
+	}
+	wantPath, err := core.ResolveProjectPath(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Cwd != wantPath || !result.DryRun || result.Scope != "all visible local TCP listeners" {
+		t.Fatalf("wrong project or unsafe default: %+v", result)
+	}
+	found := false
+	for _, diag := range result.Cleaned {
+		if diag.Port == port {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("non-default listener %d missing from project result: %+v", port, result)
+	}
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatalf("default preview must leave listener alive: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestCleanToolRejectsInvalidSelection(t *testing.T) {
+	for _, args := range []map[string]any{
+		{"project_path": 42},
+		{"project_path": filepath.Join(t.TempDir(), "missing")},
+		{"ports": []int{3000}},
+		{"ports": "8081-8080"},
+		{"dry_run": "false"},
+	} {
+		if result := callTool(t, handleCleanCurrentProject, args); !result.IsError {
+			t.Fatalf("invalid selection must fail: %+v", args)
+		}
+	}
+}
+
+func TestScanToolRangesAndDeduplication(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	result := callTool(t, handleScanDevPorts, map[string]any{"ports": fmt.Sprintf("%d-%d,%d", port, port, port)})
+	if result.IsError {
+		t.Fatal(resultText(t, result))
+	}
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, result)), &diags); err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) != 1 || diags[0].Port != port {
+		t.Fatalf("range/duplicate scan returned %+v", diags)
+	}
+}
+
+func TestToolRejectsFractionalPortAndMistypedDryRun(t *testing.T) {
+	for _, port := range []any{3000.5, "3000", true, nil} {
+		if result := callTool(t, handleInspectPort, map[string]any{"port": port}); !result.IsError {
+			t.Fatalf("mistyped port accepted: %v", port)
+		}
+	}
+	if result := callTool(t, handleFreePort, map[string]any{"port": 3000, "dry_run": "false"}); !result.IsError {
+		t.Fatal("mistyped dry_run must be rejected")
 	}
 }

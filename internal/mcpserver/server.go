@@ -9,9 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -138,7 +138,7 @@ func scanDevPortsTool() mcp.Tool {
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(false),
 		mcp.WithString("ports",
-			mcp.Description("Optional comma-separated list of ports to scan, e.g. '3000,8080'. If omitted, scans DefaultDevPorts."),
+			mcp.Description("Optional ports and inclusive ranges, e.g. '3000-3005,8080'. Duplicates are removed. If omitted, scans DefaultDevPorts."),
 		),
 	)
 }
@@ -171,13 +171,19 @@ func freePortTool() mcp.Tool {
 func cleanCurrentProjectTool() mcp.Tool {
 	return mcp.NewTool("clean_current_project",
 		mcp.WithDescription(
-			"Concurrently scan development ports and process listeners belonging to the current working directory project. Set dry_run=false to actually kill processes.",
+			"Discover local TCP listeners belonging to the selected project, including non-default ports. Defaults to the server working directory project. Set dry_run=false to actually kill processes.",
 		),
 		mcp.WithTitleAnnotation("Clean current project"),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(false),
 		mcp.WithOpenWorldHintAnnotation(false),
+		mcp.WithString("project_path",
+			mcp.Description("Existing project directory on the MCP server host. Prefer an absolute path. Subdirectories resolve to the nearest project manifest; defaults to the server working directory."),
+		),
+		mcp.WithString("ports",
+			mcp.Description("Optional port list or ranges, e.g. '3000-3005,8080'. If omitted, discovers all visible local TCP listeners before matching the project."),
+		),
 		mcp.WithBoolean("dry_run",
 			mcp.Description("Whether to run in dry-run mode without actually terminating the processes. Defaults to true for safety."),
 			mcp.DefaultBool(true),
@@ -188,9 +194,9 @@ func cleanCurrentProjectTool() mcp.Tool {
 // ============================ Tool Handlers ============================
 
 func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	port, err := request.RequireInt("port")
+	port, err := requirePort(request)
 	if err != nil {
-		return mcp.NewToolResultError("required parameter port is missing (1-65535)"), nil
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	diag, err := core.InspectPort(ctx, port)
@@ -202,27 +208,16 @@ func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 }
 
 func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	portsStr := request.GetString("ports", "")
-	var targetPorts []int
-
-	if portsStr != "" {
-		parts := strings.Split(portsStr, ",")
-		for _, p := range parts {
-			trimmed := strings.TrimSpace(p)
-			if trimmed == "" {
-				continue
-			}
-			num, err := strconv.Atoi(trimmed)
-			if err != nil || num < 1 || num > 65535 {
-				return mcp.NewToolResultErrorf("invalid port %q: expected an integer from 1 to 65535", trimmed), nil
-			}
-			targetPorts = append(targetPorts, num)
+	portsStr, err := optionalString(request, "ports")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	targetPorts := core.DefaultDevPorts
+	if strings.TrimSpace(portsStr) != "" {
+		targetPorts, err = core.ParsePortsList(portsStr)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
-		if len(targetPorts) == 0 {
-			targetPorts = core.DefaultDevPorts
-		}
-	} else {
-		targetPorts = core.DefaultDevPorts
 	}
 
 	results, err := core.ScanPortsConcurrent(ctx, targetPorts)
@@ -233,12 +228,15 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 }
 
 func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	port, err := request.RequireInt("port")
+	port, err := requirePort(request)
 	if err != nil {
-		return mcp.NewToolResultError("required parameter port is missing (1-65535)"), nil
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	dryRun := request.GetBool("dry_run", true)
+	dryRun, err := optionalDryRun(request)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	diag, msg, err := core.KillPortProcess(ctx, port, dryRun)
 	if err != nil {
@@ -255,17 +253,39 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 }
 
 func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	dryRun := request.GetBool("dry_run", true)
-
-	cwd, err := os.Getwd()
+	projectPath, err := optionalString(request, "project_path")
 	if err != nil {
-		return mcp.NewToolResultErrorf("unable to get the current working directory: %v", err), nil
+		return mcp.NewToolResultError(err.Error()), nil
 	}
-
-	cleaned, cleanErr := core.CleanCurrentProjectPorts(ctx, cwd, dryRun)
-
+	portsStr, err := optionalString(request, "ports")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	dryRun, err := optionalDryRun(request)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	cwd, err := core.ResolveProjectPath(projectPath)
+	if err != nil {
+		return mcp.NewToolResultErrorf("invalid project_path: %v", err), nil
+	}
+	var ports []int
+	scope := "all visible local TCP listeners"
+	if strings.TrimSpace(portsStr) != "" {
+		ports, err = core.ParsePortsList(portsStr)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		scope = "specified TCP ports"
+	}
+	targets, err := core.DiscoverProjectPorts(ctx, cwd, ports)
+	if err != nil {
+		return mcp.NewToolResultErrorf("project discovery failed: %v", err), nil
+	}
+	cleaned, cleanErr := core.CleanProjectTargets(ctx, cwd, targets, dryRun)
 	result := map[string]any{
 		"cwd":     cwd,
+		"scope":   scope,
 		"dry_run": dryRun,
 		"count":   len(cleaned),
 		"cleaned": cleaned,
@@ -282,6 +302,47 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 }
 
 // ============================ Shared Helpers ============================
+
+func requirePort(request mcp.CallToolRequest) (int, error) {
+	value := request.GetArguments()["port"]
+	var port float64
+	switch v := value.(type) {
+	case int:
+		port = float64(v)
+	case float64:
+		port = v
+	default:
+		return 0, fmt.Errorf("port is required and must be an integer number from 1 to 65535")
+	}
+	if math.IsNaN(port) || port < 1 || port > 65535 || math.Trunc(port) != port {
+		return 0, fmt.Errorf("port must be an integer number from 1 to 65535")
+	}
+	return int(port), nil
+}
+
+func optionalString(request mcp.CallToolRequest, name string) (string, error) {
+	value, found := request.GetArguments()[name]
+	if !found {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%s must be a string", name)
+	}
+	return text, nil
+}
+
+func optionalDryRun(request mcp.CallToolRequest) (bool, error) {
+	value, found := request.GetArguments()["dry_run"]
+	if !found {
+		return true, nil
+	}
+	dryRun, ok := value.(bool)
+	if !ok {
+		return true, fmt.Errorf("dry_run must be a boolean; omit it for a safe preview")
+	}
+	return dryRun, nil
+}
 
 func jsonResult(v any) (*mcp.CallToolResult, error) {
 	payload, err := json.MarshalIndent(v, "", "  ")

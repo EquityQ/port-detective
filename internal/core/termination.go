@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -39,53 +39,17 @@ func processIdentity(ctx context.Context, pid int32) (*process.Process, int64, e
 // KillPortProcess terminates the process occupying a port, or previews the action
 // when dryRun is true. System processes with PID <= 1 are never terminated.
 func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnostic, string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, "", err
-	}
 	diag, err := InspectPort(ctx, port)
 	if err != nil {
 		return nil, "", err
 	}
-	if !diag.IsOpen {
-		return diag, "", fmt.Errorf("port %d is currently free; no process to terminate", port)
-	}
-	// Never terminate protected system processes.
-	if diag.PID <= 1 {
-		return diag, "", fmt.Errorf("refusing to terminate protected system process (PID %d)", diag.PID)
-	}
-	if diag.PID <= 0 || diag.Status == StatusPermissionRequired {
-		return diag, "", errors.New("port is occupied, but current privileges cannot inspect or terminate the process")
-	}
+	return KillPortTarget(ctx, *diag, dryRun)
+}
 
-	// Preview the action without terminating the process.
-	if dryRun {
-		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying port %d with %.1f MB RSS",
-			diag.ProcessName, diag.PID, port, diag.MemoryMB)
-		return diag, msg, nil
-	}
-
-	_, created, err := processIdentity(ctx, diag.PID)
-	if err != nil {
-		return diag, "", fmt.Errorf("unable to confirm identity of process %d: %w", diag.PID, err)
-	}
-
-	latest, latestProc, err := verifyTerminationTarget(ctx, port, &PortDiagnostic{
-		Port:           diag.Port,
-		PID:            diag.PID,
-		processCreated: created,
-	}, "")
-	if err != nil {
-		return latest, "", err
-	}
-	if err := terminateProcess(ctx, latestProc); err != nil {
-		return latest, "", fmt.Errorf("failed to terminate process %d: %w", diag.PID, err)
-	}
-	if err := waitForPortRelease(ctx, port, terminationGracePeriod); err != nil {
-		return latest, "", fmt.Errorf("process %d received a termination request, but port %d is still occupied: %w", diag.PID, port, err)
-	}
-
-	msg := fmt.Sprintf("terminated process %q (PID: %d) occupying port %d", diag.ProcessName, diag.PID, port)
-	return diag, msg, nil
+// KillPortTarget revalidates the exact in-memory inspection snapshot, so a
+// confirmation prompt cannot authorize terminating a replacement process.
+func KillPortTarget(ctx context.Context, target PortDiagnostic, dryRun bool) (*PortDiagnostic, string, error) {
+	return cleanProjectTarget(ctx, target, "", dryRun)
 }
 
 func validatePort(port int) error {
@@ -106,6 +70,9 @@ func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagno
 	if !latest.IsOpen {
 		return latest, nil, fmt.Errorf("port %d was released before termination", port)
 	}
+	if latest.ambiguousOwner || latest.Status == StatusPermissionRequired {
+		return latest, nil, fmt.Errorf("unable to confirm a unique owner for port %d; termination canceled", port)
+	}
 	if latest.PID != expected.PID {
 		return latest, nil, fmt.Errorf("port %d ownership changed from PID %d to PID %d; termination canceled", port, expected.PID, latest.PID)
 	}
@@ -116,7 +83,7 @@ func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagno
 		return latest, nil, fmt.Errorf("PID %d for port %d was reused; termination canceled", latest.PID, port)
 	}
 	if projectPath != "" {
-		if latest.Project == nil || latest.Project.Path == "" || !projectPathsMatch(latest.Project.Path, projectPath) {
+		if !projectDiagnosticMatches(*latest, projectPath) {
 			return latest, nil, fmt.Errorf("project path for port %d changed or could not be confirmed; termination canceled", port)
 		}
 	}
@@ -197,7 +164,11 @@ func waitForPortRelease(ctx context.Context, port int, timeout time.Duration) er
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !checkTCPOpenContext(ctx, port, DefaultDialTimeout) {
+		index, err := buildProcIndex(ctx)
+		if err != nil {
+			return fmt.Errorf("cannot verify release across all local TCP bindings: %w", err)
+		}
+		if _, listening := index[connKey{port: uint32(port), sockTyp: sockStream}]; !listening {
 			return nil
 		}
 		select {
@@ -210,58 +181,89 @@ func waitForPortRelease(ctx context.Context, port int, timeout time.Duration) er
 	}
 }
 
-// CleanCurrentProjectPorts scans common development ports and selects processes
-// whose detected project path matches cwd.
+// CleanCurrentProjectPorts discovers all local project listeners before cleanup.
 func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]PortDiagnostic, error) {
-	if cwd == "" {
-		var err error
-		cwd, err = os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("unable to get the current working directory: %w", err)
-		}
-	}
-
-	cleanCwd := filepath.Clean(cwd)
-	// Scan commonly used development ports concurrently.
-	occupied, err := ScanPortsConcurrent(ctx, DefaultDevPorts)
+	targets, err := DiscoverProjectPorts(ctx, cwd, nil)
 	if err != nil {
-		return nil, fmt.Errorf("development port scan failed: %w", err)
+		return nil, err
 	}
+	return CleanProjectTargets(ctx, cwd, targets, dryRun)
+}
 
-	var targets []PortDiagnostic
-	for _, diag := range occupied {
-		if diag.Project != nil && diag.Project.Path != "" {
-			targetPath := filepath.Clean(diag.Project.Path)
-			matched := projectPathsMatch(targetPath, cleanCwd)
-
-			if matched {
-				targets = append(targets, diag)
-			}
-		}
+// CleanProjectTargets acts only on the supplied preview snapshot. Processes that
+// acquire new listeners after the preview are never added to this operation.
+func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnostic, dryRun bool) ([]PortDiagnostic, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-
-	if len(targets) == 0 {
-		return []PortDiagnostic{}, nil
+	projectPath, err := ResolveProjectPath(path)
+	if err != nil {
+		return nil, err
 	}
-
-	cleaned := make([]PortDiagnostic, 0, len(targets))
-	var failures []error
+	selected := make([]PortDiagnostic, 0, len(targets))
+	seen := make(map[int]PortDiagnostic, len(targets))
 	for _, target := range targets {
-		diag, _, err := cleanProjectTarget(ctx, target, cleanCwd, dryRun)
-		if err != nil {
-			target.Status = fmt.Sprintf("kill_failed: %v", err)
-			cleaned = append(cleaned, target)
-			failures = append(failures, fmt.Errorf("port %d: %w", target.Port, err))
+		if previous, exists := seen[target.Port]; exists {
+			if previous.PID != target.PID || previous.processCreated != target.processCreated {
+				return nil, fmt.Errorf("conflicting preview identities for port %d; cleanup canceled", target.Port)
+			}
 			continue
 		}
-		if diag != nil {
-			cleaned = append(cleaned, *diag)
-		} else {
-			cleaned = append(cleaned, target)
+		seen[target.Port] = target
+		selected = append(selected, target)
+	}
+	sort.Slice(selected, func(i, j int) bool { return selected[i].Port < selected[j].Port })
+	// 同一进程可能监听多个端口：先复核整组预览身份，再只终止一次，防止把已释放的兄弟端口误报失败。
+	type identity struct {
+		pid     int32
+		created int64
+	}
+	groups := make(map[identity][]int)
+	order := make([]identity, 0)
+	for i, target := range selected {
+		key := identity{target.PID, target.processCreated}
+		if _, exists := groups[key]; !exists {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], i)
+	}
+	var failures []error
+	for _, key := range order {
+		indices := groups[key]
+		var groupErr error
+		for _, i := range indices {
+			target := selected[i]
+			if !projectDiagnosticMatches(target, projectPath) {
+				groupErr = fmt.Errorf("preview project path for port %d does not match %q; cleanup canceled", target.Port, projectPath)
+				break
+			}
+			if _, _, err := cleanProjectTarget(ctx, target, projectPath, true); err != nil {
+				groupErr = err
+				break
+			}
+		}
+		if groupErr == nil && !dryRun {
+			_, _, groupErr = cleanProjectTarget(ctx, selected[indices[0]], projectPath, false)
+			if groupErr == nil {
+				for _, i := range indices[1:] {
+					if err := waitForPortRelease(ctx, selected[i].Port, terminationGracePeriod); err != nil {
+						groupErr = fmt.Errorf("port %d release could not be confirmed: %w", selected[i].Port, err)
+						break
+					}
+				}
+			}
+		}
+		if groupErr != nil {
+			for _, i := range indices {
+				selected[i].Status = fmt.Sprintf("kill_failed: %v", groupErr)
+			}
+			failures = append(failures, groupErr)
+		}
+		if ctx.Err() != nil {
+			return selected, errors.Join(append(failures, ctx.Err())...)
 		}
 	}
-
-	return cleaned, errors.Join(failures...)
+	return selected, errors.Join(failures...)
 }
 
 // cleanProjectTarget validates the original scan result again before a project
@@ -271,13 +273,19 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 	if err := ctx.Err(); err != nil {
 		return &target, "", err
 	}
+	if err := validatePort(target.Port); err != nil {
+		return &target, "", err
+	}
 	if !target.IsOpen {
 		return &target, "", fmt.Errorf("port %d is currently free; no process to terminate", target.Port)
 	}
-	if target.PID <= 1 {
+	if target.ambiguousOwner {
+		return &target, "", fmt.Errorf("port %d has multiple or unknown owners; termination canceled", target.Port)
+	}
+	if target.PID == 1 || target.PID < 0 {
 		return &target, "", fmt.Errorf("refusing to terminate protected system process (PID %d)", target.PID)
 	}
-	if target.Status == StatusPermissionRequired || target.processCreated <= 0 {
+	if target.PID == 0 || target.Status == StatusPermissionRequired || target.processCreated <= 0 {
 		return &target, "", fmt.Errorf("unable to confirm the target process for port %d; cleanup canceled", target.Port)
 	}
 

@@ -26,7 +26,7 @@ export interface KillResult {
 }
 
 export interface ClientOptions {
-  /** CLI executable path or command name. Defaults to port-detective on PATH. */
+  /** Overrides PORT_DETECTIVE_BIN, the bundled platform binary, and PATH, in that order. */
   binaryPath?: string;
   /** Working directory passed to the CLI. */
   cwd?: string;
@@ -51,13 +51,22 @@ export interface AsyncFreePortOptions extends AsyncClientOptions {
   dryRun?: boolean;
 }
 
-export interface CleanProjectOptions extends FreePortOptions {}
-export interface AsyncCleanProjectOptions extends AsyncFreePortOptions {}
+export interface CleanProjectOptions extends FreePortOptions {
+  /** Explicit project directory; defaults to cwd or the caller's working directory. */
+  projectPath?: string;
+  /** Limit cleanup to these ports; omitted or empty discovers project listeners. */
+  ports?: number[] | null;
+}
+export interface AsyncCleanProjectOptions extends AsyncFreePortOptions {
+  projectPath?: string;
+  ports?: number[] | null;
+}
 
 export const DEFAULT_TIMEOUT: number;
 
 export class PortDetectiveError extends Error {}
 export class PortDetectiveNotFoundError extends PortDetectiveError {}
+export class PortDetectiveVersionError extends PortDetectiveError {}
 export class PortDetectiveExecutionError extends PortDetectiveError {
   returncode: number;
   stderr: string;

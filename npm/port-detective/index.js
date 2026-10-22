@@ -7,6 +7,8 @@ const { binaryRelativePath, platformPackageName } = require("./platform");
 
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
+const SDK_VERSION = require("./package.json").version;
+const validatedBinaries = new Map();
 
 class PortDetectiveError extends Error {
   constructor(message, options = {}) {
@@ -16,6 +18,7 @@ class PortDetectiveError extends Error {
 }
 
 class PortDetectiveNotFoundError extends PortDetectiveError {}
+class PortDetectiveVersionError extends PortDetectiveError {}
 
 class PortDetectiveExecutionError extends PortDetectiveError {
   constructor(message, returncode, stderr = "", stdout = "", options = {}) {
@@ -85,8 +88,12 @@ function validateOptions(options, asyncMode = false) {
     throw new TypeError("signal must be an AbortSignal");
   }
 
+  const configured = options.binaryPath || process.env.PORT_DETECTIVE_BIN;
+  const binary = resolveBinary(options.binaryPath);
+  const bundled = configured ? null : resolveBundledBinary();
   return {
-    binary: resolveBinary(options.binaryPath),
+    binary,
+    trustedVersion: bundled !== null,
     cwd,
     timeout,
     maxBuffer,
@@ -125,7 +132,51 @@ function resolveBinary(binaryPath) {
       // Bare command names are resolved through PATH by the operating system.
     }
   }
+  const directories = (process.env.PATH || process.env.Path || "").split(path.delimiter);
+  for (const directory of directories) {
+    const executable = path.resolve(directory, candidate);
+    try {
+      if (fs.statSync(executable).isFile()) {
+        fs.accessSync(executable, fs.constants.X_OK);
+        return executable;
+      }
+    } catch {
+      // Try the next PATH entry; spawn reports a typed not-found error if absent.
+    }
+  }
   return candidate;
+}
+
+function binaryIdentity(binary) {
+  try {
+    const info = fs.statSync(binary, { bigint: true });
+    return [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(":");
+  } catch {
+    return null;
+  }
+}
+
+function versionCached(config) {
+  const identity = binaryIdentity(config.binary);
+  return config.trustedVersion || (identity !== null && validatedBinaries.get(config.binary) === identity);
+}
+
+function acceptVersion(config, result, identity) {
+  const output = result.stdout.trim();
+  const match = /^(?:port-detective(?:\.exe)? version )?v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?$/.exec(output);
+  const expected = SDK_VERSION.split(".").slice(0, 2).join(".");
+  if (!match || `${match[1]}.${match[2]}` !== expected) {
+    throw new PortDetectiveVersionError(
+      `Incompatible port-detective CLI at ${config.binary}: ${JSON.stringify(output)}. ` +
+      `This SDK requires CLI ${expected}.x (including versioned development builds). ` +
+      "Upgrade the CLI or set PORT_DETECTIVE_BIN to a compatible binary.",
+    );
+  }
+  const current = binaryIdentity(config.binary);
+  if (identity !== null && current !== identity) {
+    throw new PortDetectiveVersionError(`CLI changed during its version check: ${config.binary}; retry the call`);
+  }
+  if (current !== null) validatedBinaries.set(config.binary, current);
 }
 
 function executionError(error, result = {}) {
@@ -170,7 +221,21 @@ function commandArgs(args) {
 
 function runCliSync(args, options) {
   const config = validateOptions(options);
-  const result = spawnSync(config.binary, commandArgs(args), {
+  const deadline = config.timeout === null ? null : Date.now() + config.timeout;
+  if (!versionCached(config)) {
+    const identity = binaryIdentity(config.binary);
+    acceptVersion(config, executeSync(["--version"], config), identity);
+  }
+  if (deadline !== null) {
+    config.timeout = deadline - Date.now();
+    if (config.timeout <= 0) throw new PortDetectiveExecutionError("port-detective command timed out", -1);
+  }
+  const result = executeSync(commandArgs(args), config);
+  return decodeResponse(result.stdout, result.stderr, result.status);
+}
+
+function executeSync(args, config) {
+  const result = spawnSync(config.binary, args, {
     cwd: config.cwd,
     encoding: "utf8",
     windowsHide: true,
@@ -182,7 +247,7 @@ function runCliSync(args, options) {
 
   if (result.error) throw executionError(result.error, { ...result, stdout, stderr });
   if (result.status !== 0) throw executionError(null, { ...result, stdout, stderr });
-  return decodeResponse(stdout, stderr, result.status);
+  return { stdout, stderr, status: result.status };
 }
 
 function abortError(signal) {
@@ -192,14 +257,28 @@ function abortError(signal) {
   return error;
 }
 
-function runCliAsync(args, options) {
+async function runCliAsync(args, options) {
   const config = validateOptions(options, true);
-  if (config.signal && config.signal.aborted) return Promise.reject(abortError(config.signal));
+  if (config.signal && config.signal.aborted) throw abortError(config.signal);
+  const deadline = config.timeout === null ? null : Date.now() + config.timeout;
+  if (!versionCached(config)) {
+    const identity = binaryIdentity(config.binary);
+    acceptVersion(config, await executeAsync(["--version"], config), identity);
+  }
+  if (config.signal && config.signal.aborted) throw abortError(config.signal);
+  if (deadline !== null) {
+    config.timeout = deadline - Date.now();
+    if (config.timeout <= 0) throw new PortDetectiveExecutionError("port-detective command timed out", -1);
+  }
+  const result = await executeAsync(commandArgs(args), config);
+  return decodeResponse(result.stdout, result.stderr, result.code);
+}
 
+function executeAsync(args, config) {
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(config.binary, commandArgs(args), {
+      child = spawn(config.binary, args, {
         cwd: config.cwd,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
@@ -264,11 +343,7 @@ function runCliAsync(args, options) {
       } else if (code !== 0) {
         finish(executionError(null, { status: code, stdout, stderr }));
       } else {
-        try {
-          finish(null, decodeResponse(stdout, stderr, code));
-        } catch (error) {
-          finish(error);
-        }
+        finish(null, { stdout, stderr, code });
       }
     });
   });
@@ -322,6 +397,7 @@ function cleanProject(options = {}) {
     throw new TypeError("dryRun must be a boolean");
   }
   const args = ["clean", options.dryRun === false ? "--yes" : "--dry-run"];
+  appendProjectArgs(args, options);
   return requireArray(runCliSync(args, options), "clean");
 }
 
@@ -355,13 +431,28 @@ async function asyncCleanProject(options = {}) {
     throw new TypeError("dryRun must be a boolean");
   }
   const args = ["clean", options.dryRun === false ? "--yes" : "--dry-run"];
+  appendProjectArgs(args, options);
   return requireArray(await runCliAsync(args, options), "clean");
+}
+
+function appendProjectArgs(args, options) {
+  if (options.projectPath !== undefined) {
+    if (typeof options.projectPath !== "string" || options.projectPath.length === 0) {
+      throw new TypeError("projectPath must be a non-empty directory path");
+    }
+    args.push("--project", options.projectPath);
+  }
+  if (options.ports !== undefined && options.ports !== null) {
+    validatePorts(options.ports);
+    if (options.ports.length > 0) args.push("--ports", options.ports.join(","));
+  }
 }
 
 module.exports = {
   DEFAULT_TIMEOUT,
   PortDetectiveError,
   PortDetectiveNotFoundError,
+  PortDetectiveVersionError,
   PortDetectiveExecutionError,
   inspectPort,
   scanPorts,

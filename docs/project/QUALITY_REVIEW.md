@@ -27,6 +27,19 @@ PyPI installation, npm publication, and clean-install integration checks.
 
 ## Quality gates
 
+Local source validation on 2026-10-22 passed Go build, verbose tests, race tests,
+vet, formatting, Python/Node SDK tests and real CLI integrations, MCP acceptance,
+API inventory checks, and package builds. Windows coverage was core 81.9%, CLI
+74.0%, MCP 84.2%, and fingerprint 75.2%; Python core/models/overall was
+73/88/73%, and Node lines/branches/functions was 84.02/71.89/95%.
+
+Cross-compilation passed for Linux amd64, macOS amd64, and Windows arm64. This
+is local evidence for unreleased changes, not a completed hosted runtime matrix.
+IPv6 loopback was unavailable on this host, restricted-environment checks remained
+opt-in, and the MCP Python listener's project-match assertion was capability-skipped
+because its working-directory metadata was unavailable. Controlled core/MCP tests
+still cover positive project matching and disposable-child termination.
+
 Every change should pass:
 
 ```text

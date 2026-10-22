@@ -13,17 +13,19 @@ import (
 
 // check inspects a single port.
 func newCheckCommand(opts *options) *cobra.Command {
+	var watch bool
+	var interval time.Duration
 	cmd := &cobra.Command{
 		Use:   "check <port>",
 		Short: "Inspect a port and its owning process",
-		Long:  "Inspect a TCP port and report its listener, process, framework, and resource usage.",
+		Long:  "Inspect a TCP port and report its listener, process, framework, and resource usage. With --watch --json, emit compact newline-delimited JSON (NDJSON). TCP occupancy does not prove application readiness.",
 		Example: strings.Join([]string{
 			"  port-detective check 8080",
 			"  port-detective check 5432 --json",
 		}, "\n"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("exactly one port is required, for example: port-detective check 8080")
+				return usageError(fmt.Errorf("exactly one port is required, for example: port-detective check 8080"))
 			}
 			if _, err := parsePort(args[0]); err != nil {
 				return err
@@ -31,7 +33,13 @@ func newCheckCommand(opts *options) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if interval <= 0 {
+				return usageError(fmt.Errorf("--interval must be greater than zero"))
+			}
 			port, _ := parsePort(args[0])
+			if watch {
+				return watchPort(cmd, opts, port, interval)
+			}
 			out := stdout(cmd)
 
 			start := time.Now()
@@ -48,6 +56,8 @@ func newCheckCommand(opts *options) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&watch, "watch", false, "repeat inspection until canceled; --json emits NDJSON")
+	cmd.Flags().DurationVar(&interval, "interval", time.Second, "delay between watched inspections")
 	return cmd
 }
 
@@ -104,8 +114,8 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 
 	fmt.Fprintf(w, "\n")
 	if info.Status == core.StatusPermissionRequired {
-		hint(w, p, "Target process is system-protected. Current permissions insufficient to read details.")
-		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Run as Administrator (Windows) or root (Linux/macOS) for full details."))
+		hint(w, p, "Process owner or metadata unavailable: permissions, changing listeners, or multiple owners may limit details.")
+		fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Check the host/network scope and run port-detective doctor before considering elevated privileges."))
 	}
 
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
@@ -120,7 +130,7 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 
 // scan concurrently scans ports, defaulting to DefaultDevPorts.
 func newScanCommand(opts *options) *cobra.Command {
-	var portsStr string
+	var portsStr, preset, projectPath string
 
 	cmd := &cobra.Command{
 		Use:   "scan",
@@ -128,26 +138,23 @@ func newScanCommand(opts *options) *cobra.Command {
 		Long: strings.Join([]string{
 			"Concurrently scan local TCP ports.",
 			"",
-			"The default target is DefaultDevPorts; use --ports for a custom comma-separated list.",
+			"The default target is DefaultDevPorts; use --ports for a custom list or --preset for explicit presets.",
+			"The project preset reads .port-detective.json from the selected project root only when requested.",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective scan",
 			"  port-detective scan --ports 3000,8080,5432",
+			"  port-detective scan --preset web",
+			"  port-detective scan --preset project --project ../my-app",
 			"  port-detective scan --json",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := stdout(cmd)
 
-			var targetPorts []int
-			if portsStr != "" {
-				parsed, err := parsePortsList(portsStr)
-				if err != nil {
-					return err
-				}
-				targetPorts = parsed
-			} else {
-				targetPorts = core.DefaultDevPorts
+			targetPorts, scope, err := selectScanPorts(cmd, portsStr, preset, projectPath)
+			if err != nil {
+				return err
 			}
 
 			begin := time.Now()
@@ -161,12 +168,17 @@ func newScanCommand(opts *options) *cobra.Command {
 				return writeJSON(out, infos)
 			}
 			engine := fmt.Sprintf("Concurrent (%d target ports)", len(targetPorts))
+			if scope != "" {
+				fmt.Fprintf(out, "Scope: %s\n", scope)
+			}
 			renderScan(out, newPalette(out), infos, elapsed, engine)
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&portsStr, "ports", "", "comma-separated ports to scan")
+	cmd.Flags().StringVar(&portsStr, "ports", "", "comma-separated ports or ranges, e.g. 3000-3010,8080")
+	cmd.Flags().StringVar(&preset, "preset", "", "explicit port preset: web, python, database, or project")
+	cmd.Flags().StringVar(&projectPath, "project", "", "project directory for --preset project (default: nearest project above current directory)")
 	return cmd
 }
 

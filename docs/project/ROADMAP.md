@@ -2,6 +2,20 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
+## Implemented in source, awaiting release
+
+- Read all local TCP bindings and deduplicate scan inputs.
+- Discover project listeners beyond the default development ports; support an
+  explicit project, port ranges, and preview-before-confirmation cleanup.
+- Select a project explicitly through MCP and report the effective path/scope.
+- Add port waiting, continuous inspection, free-port suggestions, and doctor diagnostics.
+- Offer web, Python, database, and opt-in project scan presets without changing default scans.
+- Check external CLI versions in SDKs and provide Python install/doctor commands.
+- Prefer a one-command npm quick start and document CLI versus SDK/MCP safety defaults.
+
+Validate these changes against the required platform matrix before publishing
+the next release. The published v1.1.1 packages do not contain them yet.
+
 ## Release readiness
 
 - v1.1.1 release completed through GitHub, PyPI, and npm Trusted Publishing.

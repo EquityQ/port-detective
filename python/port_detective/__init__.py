@@ -21,6 +21,7 @@ from .core import (
     download_cli,
     PortDetectiveError,
     PortDetectiveNotFoundError,
+    PortDetectiveVersionError,
     PortDetectiveExecutionError,
 )
 
@@ -41,6 +42,7 @@ __all__ = [
     "download_cli",
     "PortDetectiveError",
     "PortDetectiveNotFoundError",
+    "PortDetectiveVersionError",
     "PortDetectiveExecutionError",
     "DEFAULT_CLI_TIMEOUT",
 ]

@@ -421,12 +421,7 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
 
-	testDir := t.TempDir()
-
-	// Save and restore DefaultDevPorts.
-	origPorts := DefaultDevPorts
-	DefaultDevPorts = []int{port}
-	defer func() { DefaultDevPorts = origPorts }()
+	testDir := projectTestDir(t)
 
 	RegisterProjectDetector(func(ctx context.Context, pid int32) *ProjectInfo {
 		if pid == testHelperPID {
@@ -453,7 +448,7 @@ func TestCleanCurrentProjectPorts(t *testing.T) {
 	}
 
 	// A non-matching directory should return an empty list.
-	cleanedEmpty, err := CleanCurrentProjectPorts(context.Background(), "/non-existent-dir-12345", true)
+	cleanedEmpty, err := CleanCurrentProjectPorts(context.Background(), projectTestDir(t), true)
 	if err != nil {
 		t.Fatalf("CleanCurrentProjectPorts failed: %v", err)
 	}
@@ -468,14 +463,13 @@ func TestCleanCurrentProjectPortsRevalidatesProjectPath(t *testing.T) {
 	ln, port := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
 
-	testDir := t.TempDir()
-	otherDir := t.TempDir()
-	origPorts := DefaultDevPorts
-	DefaultDevPorts = []int{port}
-	defer func() { DefaultDevPorts = origPorts }()
-
+	testDir := projectTestDir(t)
+	otherDir := projectTestDir(t)
 	var calls atomic.Int32
-	RegisterProjectDetector(func(context.Context, int32) *ProjectInfo {
+	RegisterProjectDetector(func(_ context.Context, pid int32) *ProjectInfo {
+		if pid != testHelperPID {
+			return nil
+		}
 		if calls.Add(1) == 1 {
 			return &ProjectInfo{Name: "clean-demo", Path: testDir}
 		}

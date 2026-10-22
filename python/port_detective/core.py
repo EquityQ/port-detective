@@ -7,16 +7,20 @@ Subprocess client wrapper for executing port-detective CLI in --json mode.
 
 import asyncio
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
 
 from .models import PortDiagnostic, KillResult
-from .runtime import RuntimeDownloadError, auto_download_enabled, download_cli
+from .runtime import RuntimeDownloadError, _release_version, auto_download_enabled, download_cli
 
 DEFAULT_CLI_TIMEOUT = 30.0
+_VALIDATED_BINARIES: Dict[str, tuple] = {}
 
 
 class PortDetectiveError(Exception):
@@ -26,6 +30,11 @@ class PortDetectiveError(Exception):
 
 class PortDetectiveNotFoundError(PortDetectiveError):
     """Raised when the port-detective executable cannot be found."""
+    pass
+
+
+class PortDetectiveVersionError(PortDetectiveError):
+    """Raised when an external CLI does not match the SDK's major/minor API."""
     pass
 
 
@@ -47,6 +56,7 @@ def _validate_timeout(timeout: Optional[float]) -> None:
     if timeout is not None and (
         isinstance(timeout, bool)
         or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
         or timeout <= 0
     ):
         raise ValueError(f"timeout must be positive or None, got {timeout!r}")
@@ -76,7 +86,73 @@ async def _terminate_async_process(proc: Any) -> tuple[str, str]:
     return _decode_output(stdout_bytes).strip(), _decode_output(stderr_bytes).strip()
 
 
-def find_binary(explicit_path: Optional[str] = None, *, allow_download: bool = True) -> str:
+def _binary_identity(binary: str) -> Optional[tuple]:
+    try:
+        info = Path(binary).stat()
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    except OSError:
+        return None
+
+
+def _version_cached(binary: str) -> bool:
+    identity = _binary_identity(binary)
+    return identity is not None and _VALIDATED_BINARIES.get(binary) == identity
+
+
+def _remember_binary(binary: str) -> None:
+    identity = _binary_identity(binary)
+    if identity is not None:
+        _VALIDATED_BINARIES[binary] = identity
+
+
+def _accept_cli_version(binary: str, output: str, identity: Optional[tuple]) -> None:
+    match = re.fullmatch(
+        r"(?:port-detective(?:\.exe)? version )?v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?",
+        output.strip(),
+    )
+    expected = _release_version()
+    if match is None or tuple(match.groups()[:2]) != tuple(expected.split(".")[:2]):
+        raise PortDetectiveVersionError(
+            f"Incompatible port-detective CLI at {binary}: {output.strip()!r}. "
+            f"This SDK requires CLI {'.'.join(expected.split('.')[:2])}.x "
+            "(including versioned development builds). Upgrade the CLI or set "
+            "PORT_DETECTIVE_BIN to a compatible binary; run "
+            "'python -m port_detective install' to cache the matching release."
+        )
+    if identity is not None and _binary_identity(binary) != identity:
+        raise PortDetectiveVersionError(f"CLI changed during its version check: {binary}; retry the call")
+    _remember_binary(binary)
+
+
+def _validate_binary_sync(binary: str, timeout: Optional[float]) -> str:
+    if _version_cached(binary):
+        return binary
+    identity = _binary_identity(binary)
+    try:
+        result = subprocess.run(
+            [binary, "--version"], capture_output=True, text=True, encoding="utf-8",
+            check=False, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise PortDetectiveExecutionError(
+            f"CLI version check timed out after {timeout} seconds: {binary}", -1,
+            _decode_output(exc.stderr), _decode_output(exc.stdout),
+        ) from exc
+    except OSError as exc:
+        raise PortDetectiveExecutionError(f"Cannot check CLI version at {binary}: {exc}", exc.errno or -1) from exc
+    if result.returncode != 0:
+        raise PortDetectiveExecutionError(
+            f"CLI version check failed at {binary}: {result.stderr.strip() or result.returncode}",
+            result.returncode, result.stderr, result.stdout,
+        )
+    _accept_cli_version(binary, result.stdout, identity)
+    return binary
+
+
+def find_binary(
+    explicit_path: Optional[str] = None, *, allow_download: bool = True,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT, validate_version: bool = True,
+) -> str:
     """
     Locate the port-detective executable.
 
@@ -87,22 +163,28 @@ def find_binary(explicit_path: Optional[str] = None, *, allow_download: bool = T
     4. Nearby repository binary locations.
     5. A verified, cached binary downloaded from the matching GitHub release.
     """
+    _validate_timeout(timeout)
+
+    def external(path: str) -> str:
+        binary = str(Path(path).resolve())
+        return _validate_binary_sync(binary, timeout) if validate_version else binary
+
     if explicit_path:
         path = Path(explicit_path).resolve()
         if path.is_file():
-            return str(path)
+            return external(str(path))
         raise PortDetectiveNotFoundError(f"Specified binary not found: {explicit_path}")
 
     env_path = os.getenv("PORT_DETECTIVE_BIN")
     if env_path:
         path = Path(env_path).resolve()
         if path.is_file():
-            return str(path)
+            return external(str(path))
         raise PortDetectiveNotFoundError(f"Binary in PORT_DETECTIVE_BIN not found: {env_path}")
 
     which_path = shutil.which("port-detective")
     if which_path:
-        return which_path
+        return external(which_path)
 
     # Search in common repo root / build directories
     candidates = [
@@ -113,7 +195,7 @@ def find_binary(explicit_path: Optional[str] = None, *, allow_download: bool = T
     ]
     for c in candidates:
         if c.is_file():
-            return str(c)
+            return external(str(c))
 
     if not allow_download or not auto_download_enabled():
         raise PortDetectiveNotFoundError(
@@ -123,13 +205,51 @@ def find_binary(explicit_path: Optional[str] = None, *, allow_download: bool = T
         )
 
     try:
-        return download_cli()
+        binary = download_cli()
+        _remember_binary(binary)  # The downloader verifies the exact SDK release.
+        return binary
     except RuntimeDownloadError as exc:
         raise PortDetectiveNotFoundError(
             "Could not find 'port-detective' executable and automatic download failed. "
             "Install the matching CLI, set PORT_DETECTIVE_BIN, or retry with network access: "
             f"{exc}"
         ) from exc
+
+
+async def _find_binary_async(binary_path: Optional[str]) -> str:
+    try:
+        binary = find_binary(binary_path, allow_download=False, validate_version=False)
+    except PortDetectiveNotFoundError:
+        if binary_path or os.getenv("PORT_DETECTIVE_BIN"):
+            raise
+        # Downloading may continue caching after cancellation; it never runs on the event loop.
+        binary = await asyncio.to_thread(find_binary, None, validate_version=False)
+    if _version_cached(binary):
+        return binary
+    identity = _binary_identity(binary)
+    proc = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            binary, "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        output, errors = await proc.communicate()
+    except asyncio.CancelledError:
+        if proc is not None:
+            try:
+                await _terminate_async_process(proc)
+            except Exception:
+                pass  # Preserve cancellation if the child exits during cleanup.
+        raise
+    except OSError as exc:
+        raise PortDetectiveExecutionError(f"Cannot check CLI version at {binary}: {exc}", exc.errno or -1) from exc
+    stdout, stderr = _decode_output(output), _decode_output(errors)
+    if proc.returncode != 0:
+        raise PortDetectiveExecutionError(
+            f"CLI version check failed at {binary}: {stderr.strip() or proc.returncode}",
+            proc.returncode, stderr, stdout,
+        )
+    _accept_cli_version(binary, stdout, identity)
+    return binary
 
 
 def _run_cli_sync(
@@ -140,8 +260,12 @@ def _run_cli_sync(
 ) -> Any:
     _validate_timeout(timeout)
     _validate_cwd(cwd)
-    bin_path = find_binary(binary_path)
+    deadline = None if timeout is None else time.monotonic() + timeout
+    bin_path = find_binary(binary_path, timeout=timeout)
     cmd = [bin_path, *args, "--json"]
+    remaining = None if deadline is None else deadline - time.monotonic()
+    if remaining is not None and remaining <= 0:
+        raise PortDetectiveExecutionError(f"port-detective timed out after {timeout} seconds", -1)
 
     try:
         proc = subprocess.run(
@@ -151,7 +275,7 @@ def _run_cli_sync(
             encoding="utf-8",
             cwd=cwd,
             check=False,
-            timeout=timeout,
+            timeout=remaining,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = _decode_output(exc.stdout).strip()
@@ -202,18 +326,15 @@ async def _run_cli_async(
 ) -> Any:
     _validate_timeout(timeout)
     _validate_cwd(cwd)
-    try:
-        # Resolve local paths immediately so cancellation cannot interrupt process startup.
-        bin_path = find_binary(binary_path, allow_download=False)
-    except PortDetectiveNotFoundError:
-        if binary_path or os.getenv("PORT_DETECTIVE_BIN"):
-            raise
-        # Network and archive work stays off the event loop on first use.
-        bin_path = await asyncio.to_thread(find_binary, None)
-    cmd = [bin_path, *args, "--json"]
-
+    deadline = None if timeout is None else time.monotonic() + timeout
     proc = None
+    bin_path = binary_path or "port-detective"
     try:
+        discovery = _find_binary_async(binary_path)
+        bin_path = await discovery if timeout is None else await asyncio.wait_for(discovery, timeout)
+        cmd = [bin_path, *args, "--json"]
+        if deadline is not None and time.monotonic() >= deadline:
+            raise asyncio.TimeoutError()
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -223,9 +344,10 @@ async def _run_cli_async(
         if timeout is None:
             stdout_bytes, stderr_bytes = await proc.communicate()
         else:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout)
+            remaining = max(0.0, deadline - time.monotonic())
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), remaining)
     except asyncio.TimeoutError as exc:
-        stdout_str, stderr_str = await _terminate_async_process(proc)
+        stdout_str, stderr_str = await _terminate_async_process(proc) if proc is not None else ("", "")
         raise PortDetectiveExecutionError(
             f"port-detective timed out after {timeout} seconds",
             returncode=-1,
@@ -341,6 +463,7 @@ def clean_project(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *, ports: Optional[List[int]] = None,
 ) -> List[PortDiagnostic]:
     """
     Concurrently scan dev ports and process listeners belonging to the project path.
@@ -350,6 +473,10 @@ def clean_project(
     if dry_run:
         args.append("--dry-run")
 
+    if ports:
+        for port in ports:
+            _validate_port(port)
+        args.extend(["--ports", ",".join(map(str, ports))])
     target_cwd = path or os.getcwd()
     data = _run_cli_sync(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     if not isinstance(data, list):
@@ -419,12 +546,17 @@ async def async_clean_project(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *, ports: Optional[List[int]] = None,
 ) -> List[PortDiagnostic]:
     """Asynchronously clean listeners belonging to the project path."""
     args = ["clean", "-y"]
     if dry_run:
         args.append("--dry-run")
 
+    if ports:
+        for port in ports:
+            _validate_port(port)
+        args.extend(["--ports", ",".join(map(str, ports))])
     target_cwd = path or os.getcwd()
     data = await _run_cli_async(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     if not isinstance(data, list):

@@ -155,7 +155,7 @@ func TestParsePortsList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsePortsList returned an unexpected error: %v", err)
 	}
-	if len(ports) != 3 || ports[0] != 3000 || ports[1] != 8080 || ports[2] != 5432 {
+	if len(ports) != 3 || ports[0] != 3000 || ports[1] != 5432 || ports[2] != 8080 {
 		t.Errorf("parsePortsList returned unexpected values: %+v", ports)
 	}
 

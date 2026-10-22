@@ -8,8 +8,9 @@ Communicate with `port-detective mcp` through a real subprocess pipe and verify:
 """
 import json
 import os
-import subprocess
 import sys
+
+from stdio_client import run_requests
 
 # Binary resolution order: PORT_DETECTIVE_BIN, then the repository build artifact.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -37,15 +38,7 @@ REQUESTS = [
     {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
 ]
 
-payload = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in REQUESTS)
-
-proc = subprocess.run(
-    [BIN, "mcp"],
-    input=payload.encode("utf-8"),
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    timeout=60,
-)
+proc = run_requests(BIN, REQUESTS)
 
 out_lines = [l for l in proc.stdout.decode("utf-8", "replace").splitlines() if l.strip()]
 err_text = proc.stderr.decode("utf-8", "replace")
@@ -105,6 +98,10 @@ print("\n--- stderr (allowed diagnostics) ---")
 for line in err_text.splitlines()[:4]:
     print(f"  {line}")
 
-ok = (not bad) and init and tools_resp and expected == {t["name"] for t in (tools_resp.get("result", {}).get("tools", []))}
+ok = proc.returncode == 0 and (not bad) and init and "result" in init and tools_resp and expected == {t["name"] for t in (tools_resp.get("result", {}).get("tools", []))}
+if ok:
+    selected = next(t for t in tools_resp["result"]["tools"] if t["name"] == "clean_current_project")
+    properties = selected["inputSchema"]["properties"]
+    ok = {"project_path", "ports", "dry_run"} <= properties.keys() and properties["dry_run"].get("default") is True
 print(f"\n=== Result: {'PASS' if ok else 'FAIL'} ===")
 sys.exit(0 if ok else 1)
