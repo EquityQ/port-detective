@@ -287,7 +287,9 @@ func TestScanTableHeadersEnglish(t *testing.T) {
 }
 
 func TestCleanCommandDryRun(t *testing.T) {
-	out, _, err := captureRun(t, "clean", "--dry-run")
+	listener := testListener(t)
+	port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+	out, _, err := captureRun(t, "clean", "--ports", port, "--dry-run")
 	if err != nil {
 		t.Fatalf("clean --dry-run failed: %v", err)
 	}
@@ -297,7 +299,9 @@ func TestCleanCommandDryRun(t *testing.T) {
 }
 
 func TestCleanCommandJSON(t *testing.T) {
-	out, _, err := captureRun(t, "clean", "--dry-run", "--json")
+	listener := testListener(t)
+	port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+	out, _, err := captureRun(t, "clean", "--ports", port, "--dry-run", "--json")
 	if err != nil {
 		t.Fatalf("clean --dry-run --json failed: %v", err)
 	}

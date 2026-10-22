@@ -131,7 +131,7 @@ class TestCompatibility(FixtureMixin, unittest.TestCase):
                                 capture_output=True, text=True, env=environment, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"healthy": True})
-        self.assertIn(str(self.binary), result.stderr)
+        self.assertIn(str(self.binary.resolve()), result.stderr)
 
     def test_module_install_reports_status_separately_from_path(self):
         output, errors = io.StringIO(), io.StringIO()

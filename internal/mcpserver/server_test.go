@@ -339,7 +339,9 @@ func TestDevPortsAreUniqueAndSorted(t *testing.T) {
 
 // TestCleanCurrentProjectTool verifies dry-run behavior for clean_current_project.
 func TestCleanCurrentProjectTool(t *testing.T) {
-	res := callTool(t, handleCleanCurrentProject, map[string]any{"dry_run": true})
+	listener, port := listenLoopback(t)
+	t.Cleanup(func() { _ = listener.Close() })
+	res := callTool(t, handleCleanCurrentProject, map[string]any{"dry_run": true, "ports": fmt.Sprint(port)})
 	if res.IsError {
 		t.Fatalf("clean_current_project returned an error: %s", resultText(t, res))
 	}

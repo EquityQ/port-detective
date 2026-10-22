@@ -63,7 +63,11 @@ func TestProjectPresetReadsNearestRootOnlyWhenSelected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ports) != 4 || ports[0] != 3000 || ports[3] != 8081 || scope != filepath.Join(dir, ".port-detective.json") {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ports) != 4 || ports[0] != 3000 || ports[3] != 8081 || scope != filepath.Join(resolved, ".port-detective.json") {
 		t.Fatalf("unexpected project preset %v %q", ports, scope)
 	}
 	defaultRoot := NewRootCommand()
