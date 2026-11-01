@@ -3,7 +3,7 @@ module github.com/EquityQ/port-detective
 go 1.25.5
 
 require (
-	github.com/mark3labs/mcp-go v1.2.1
+	github.com/mark3labs/mcp-go v1.4.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.10.2
 )
