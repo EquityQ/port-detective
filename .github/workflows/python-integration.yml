@@ -34,8 +34,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.13"]
+        # See python.yml: ubuntu-latest is Ubuntu 26.04, which has no prebuilt
+        # Python 3.9, so those legs stay on the last LTS image providing it.
+        include:
+          - os: ubuntu-24.04
+            python-version: "3.9"
+          - os: macos-latest
+            python-version: "3.9"
+          - os: windows-latest
+            python-version: "3.9"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
 
     steps:
       - name: Checkout code

@@ -416,8 +416,11 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         mock_proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError(), (b"", b"")])
         mock_exec.return_value = mock_proc
 
+        # The timeout must outlast the mocked discovery/exec setup: a very small
+        # budget can expire before the child exists, and then there is correctly
+        # nothing to kill. What this test pins is the reap path, not the deadline.
         with self.assertRaises(PortDetectiveExecutionError) as ctx:
-            await async_inspect_port(3000, timeout=0.01)
+            await async_inspect_port(3000, timeout=1.0)
         mock_proc.kill.assert_called_once_with()
         self.assertEqual(ctx.exception.returncode, -1)
 
