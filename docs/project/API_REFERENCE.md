@@ -1,6 +1,6 @@
 # CLI and MCP API Reference
 
-Revision: **v1.2.0**, released 2026-10-22. Published CLI and SDK packages use
+Revision: **v1.3.0**, released 2026-11-03. Published CLI and SDK packages use
 the same major/minor compatibility contract.
 
 Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
@@ -151,7 +151,22 @@ inspection.
 
 ## Compatibility
 
-Within the v1.2 development line, fields may be added. SDK 1.2.x accepts CLI 1.2.x,
-including 1.2.0-dev, and rejects CLI 1.1.x. Changes to field names, command
+Within the v1.3 development line, fields may be added. SDK 1.3.x accepts CLI 1.3.x,
+including 1.3.0-dev, and rejects CLI 1.2.x. Changes to field names, command
 flags, tool names, or safety defaults require updates to this page, SDK models, acceptance
 tests, and the changelog.
+
+## Breaking changes in v1.3.0
+
+Two changes require caller updates; both replace silently unsafe behavior with an
+explicit failure.
+
+- MCP `free_port` and `clean_current_project` reject `dry_run=false` unless it is
+  accompanied by the `preview_id` returned from a prior `dry_run=true` call. Preview
+  first, then execute with the token.
+- The Python and Node.js SDKs raise `ValueError` / `TypeError` for an explicitly empty
+  port selection (`ports=[]` / `[]`). Omit the argument, or pass `None` / `undefined`, to
+  use the documented default.
+
+The CLI is unaffected: `kill --json --yes` still executes without a token, and
+`--preview-id` is an optional hardening path.

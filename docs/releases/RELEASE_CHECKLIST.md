@@ -33,7 +33,7 @@ Run the local version and package check with:
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.2.0 \
+  --expected-version 1.3.0 \
   --cli ./port-detective \
   --python-root python \
   --wheel-dir python/dist
@@ -46,7 +46,7 @@ Run the strict platform-manifest gate against a local GoReleaser `dist` director
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.2.0 \
+  --expected-version 1.3.0 \
   --dist dist \
   --checksums dist/checksums.txt \
   --require-platform-manifest

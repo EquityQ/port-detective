@@ -3,16 +3,21 @@
 A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
 TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
-Version checks, explicit `projectPath`, and cleanup `ports` are available in the
-published v1.2.0 SDK and matching CLI. Major/minor compatibility protects the
-shared API contract and does not add new flags to an older CLI.
+Version checks, explicit `projectPath`, cleanup `ports`, and fail-closed port selection
+are available in the published v1.3.0 SDK and matching CLI. Major/minor compatibility
+protects the shared API contract and does not add new flags to an older CLI.
+
+An explicitly empty port selection is rejected: `scanPorts([])` and
+`cleanProject({ ports: [] })` throw `TypeError` instead of silently scanning the default
+ports or every project listener. Omit the argument, or pass `undefined`/`null`, to use the
+documented default.
 
 ## Install
 
 Install the published package from npm:
 
 ```bash
-npm install port-detective@1.2.0
+npm install port-detective@1.3.0
 ```
 
 Published npm installations include the matching platform CLI binary. Users do not
@@ -35,7 +40,7 @@ or set `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` al
 overrides automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 Resolution order is `binaryPath`, `PORT_DETECTIVE_BIN`, the bundled platform
 binary, then `PATH`. External CLIs must share the SDK's major and minor version:
-SDK `1.2.x` accepts CLI `1.2.x`, including `1.2.0-dev`, and rejects CLI `1.1.x`. Incompatible or unrecognized
+SDK `1.3.x` accepts CLI `1.3.x`, including `1.3.0-dev`, and rejects CLI `1.2.x`. Incompatible or unrecognized
 versions raise `PortDetectiveVersionError` with the resolved executable and repair
 instructions. Successful checks are cached until that file's identity changes.
 

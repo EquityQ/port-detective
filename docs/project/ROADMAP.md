@@ -2,6 +2,22 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
+## Included in v1.3.0
+
+- Bind destructive actions to the process snapshot a caller previewed: signed, short-lived
+  preview tokens are required before MCP execution and available to the CLI.
+- Reject an explicitly empty port selection instead of widening it to default ports or
+  every project listener, across the CLI, MCP, and both SDKs.
+- Report an unreadable listener table as incomplete rather than as proof a port is free,
+  and make `doctor` exit non-zero when its self-check is degraded.
+- Compare project paths by filesystem identity, and bound fingerprint manifest reads by
+  context cancellation and a size cap.
+- Require the exact six-platform release manifest, a checksum per archive, and the platform
+  executable inside each archive before publication.
+
+Version 1.3.0 was published through GitHub, PyPI, and npm. Its release tag passed
+the hosted Go, Python, and MCP checks, and the npm workflow verified a clean install.
+
 ## Included in v1.2.0
 
 - Read all local TCP bindings and deduplicate scan inputs.
@@ -13,12 +29,9 @@ This roadmap tracks post-release improvements for the next development cycle.
 - Check external CLI versions in SDKs and provide Python install/doctor commands.
 - Prefer a one-command npm quick start and document CLI versus SDK/MCP safety defaults.
 
-Version 1.2.0 was published through GitHub, PyPI, and npm. Its release tag passed
-the hosted Go, Python, and MCP checks, and the npm workflow verified a clean install.
-
 ## Release readiness
 
-- v1.2.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
+- v1.3.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Keep supported platforms and known permission limits current in release notes.

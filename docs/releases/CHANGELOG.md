@@ -5,20 +5,45 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No additional changes are recorded after v1.3.0.
+
+## [1.3.0] - 2026-11-03
+
+This release hardens destructive operations, makes degraded results honest, and closes
+release-gate gaps. Two changes are breaking; they turn silently unsafe behavior into
+explicit failures, so they are a minor bump rather than a patch.
+
+### Breaking
+
+- **MCP `free_port` and `clean_current_project` require a preview before executing.**
+  Calling either tool with `dry_run=false` without the `preview_id` returned by a prior
+  dry run now returns a tool error. A dry run and a later execution used to be two
+  independent probes, so a port whose owner changed in between could be terminated on a
+  process the caller never saw. Automation that previously executed directly must now
+  preview first and pass the token back.
+- **The Python and Node.js SDKs reject an explicitly empty port selection.**
+  `scan_ports(ports=[])`, `clean_project(ports=[])`, `scanPorts([])`, and
+  `cleanProject({ports: []})` now raise `ValueError` / `TypeError` instead of silently
+  falling back to the default ports or every project listener. Omit the argument (or pass
+  `None` / `undefined`) to keep the documented default.
+
+The CLI is not affected by the first breaking change: `kill --json --yes` still works
+without a token, and `--preview-id` is an optional hardening path.
+
 ### Added
 
-- Preview-bound destructive actions. `free_port` and `clean_current_project` now return a
-  `preview_id` from a dry run; executing requires that token, so an action can only target
-  the process snapshot that was actually previewed. The CLI exposes the same contract through
-  `kill --json --dry-run` and `--preview-id` on `kill` and `clean`. The token is HMAC-signed
-  with a per-process key and expires quickly, so a token from another process or an earlier
-  server run is rejected. This closes a window where a preview and a later execution were
-  two independent probes that could observe different owners of the same port.
-- `doctor` exits with status `5` when its self-check is degraded, so automation no longer
-  reads a failed self-check as success.
-- `listener_table_missing` and the `undetermined` status make an unreadable listener table
-  explicit. A degraded inspection or scan no longer presents a closed loopback probe as
-  proof that a port is free.
+- Signed, short-lived preview tokens that pin the port, PID, and process creation time of
+  the snapshot a caller previewed. Tokens are HMAC-signed with a per-process key, scoped
+  (a kill preview cannot authorize a project cleanup), bound to an exact port selection,
+  and rejected when expired, tampered with, or issued by another process. Execution
+  restores the pinned snapshot through the existing revalidation path, so live drift fails
+  the action instead of redirecting it to a new owner.
+- `--preview-id` for `kill` and `clean`, and `preview_id` in the JSON preview payload.
+- `preview_id` on MCP dry runs, required by `dry_run=false`.
+- `listener_table_missing` and the `undetermined` status, so an unreadable listener table
+  is never presented as proof that a port is free. Degraded scans report an incomplete
+  result instead of implying the unscanned world is empty.
+- `doctor` exits with status `5` when its self-check is degraded.
 
 ### Changed
 
@@ -29,14 +54,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- An explicitly empty port selection is rejected instead of widening scope into the default
-  development ports or every project listener. This applies to the CLI, MCP tools, and the
-  Python and Node.js SDKs (`ports=[]` raises; omitting the argument keeps the default).
+- An explicitly empty port selection is rejected instead of widening scope, across the CLI,
+  MCP tools, and both SDKs.
 - Project path comparison uses filesystem identity before string comparison, so a
   case-sensitive directory on a case-insensitive volume is matched correctly.
-- Fingerprint detection now bounds manifest reads: cancellation is checked between chunks,
-  and manifests above a size cap are rejected rather than read, so a slow or oversized
-  manifest can no longer outrun the detection budget.
+- Fingerprint detection bounds manifest reads: cancellation is checked between chunks and
+  manifests above a size cap are rejected rather than read, so a slow or oversized manifest
+  can no longer outrun the detection budget.
 - The release verifier requires the exact six-platform archive manifest, a checksum entry
   for every archive, and the platform executable inside each archive.
 - `TestKillDryRunCLI` uses a dynamically reserved port instead of a hardcoded one.

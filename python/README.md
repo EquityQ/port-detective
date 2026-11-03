@@ -4,16 +4,21 @@ A lightweight subprocess client for the `port-detective` CLI. It provides synchr
 and `asyncio` APIs for port diagnostics, project fingerprinting, and safe cleanup on
 Windows, macOS, and Linux.
 
-The `v1.2.0` SDK adds CLI version checks, module entry points, and cleanup port
-selection. Major/minor compatibility protects the shared API contract and does not
-add new commands to an older CLI.
+The `v1.3.0` SDK adds CLI version checks, module entry points, cleanup port
+selection, and fail-closed port selection. Major/minor compatibility protects the shared
+API contract and does not add new commands to an older CLI.
+
+An explicitly empty port selection is rejected: `scan_ports(ports=[])` and
+`clean_project(ports=[])` raise `ValueError` instead of silently scanning the default
+ports or every project listener. Omit the argument, or pass `None`, to use the documented
+default.
 
 ## Install
 
 Install the published SDK from PyPI:
 
 ```bash
-python -m pip install port-detective==1.2.0
+python -m pip install port-detective==1.3.0
 ```
 
 For source development, install this checkout and build the matching CLI from the
@@ -30,8 +35,8 @@ published GitHub Release, or the local CLI can be selected with `PORT_DETECTIVE_
 
 The SDK checks an explicit `binary_path`, `PORT_DETECTIVE_BIN`, `PATH`, and nearby
 checkout binaries, in that order. External CLIs must have the same major and minor
-version as the SDK: SDK `1.2.x` accepts CLI `1.2.x`, including `1.2.0-dev`, and
-rejects CLI `1.1.x`. An
+version as the SDK: SDK `1.3.x` accepts CLI `1.3.x`, including `1.3.0-dev`, and
+rejects CLI `1.2.x`. An
 unrecognized or incompatible version raises `PortDetectiveVersionError` with the
 resolved executable and repair instructions. Successful checks are cached until the
 executable's file identity changes. If no CLI is available, the first API call

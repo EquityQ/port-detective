@@ -4,13 +4,16 @@ With a CLI built from this checkout, start with `port-detective doctor --json`.
 It reports the executable actually running, version, OS/architecture, working
 directory, and process visibility for a disposable local listener. It does not
 change another process or automatically elevate privileges. `doctor` and the
-new workflow commands are available in v1.2.0 and later.
+new workflow commands are available in v1.2.0 and later, and `doctor` exits with
+status `5` when its self-check is degraded.
 
 | Symptom | Check |
 | --- | --- |
-| A port is shown as free but a service is reachable | Confirm a local TCP listener, IPv4/IPv6 binding, network namespace, and the host running the CLI. |
+| A port is shown as free but a service is reachable | Confirm a local TCP listener, IPv4/IPv6 binding, network namespace, and the host running the CLI. A `listener_table_missing` result or an `undetermined` status means the listener table could not be read; the port is unknown, not free. |
 | `permission_required` or empty process fields | The OS restricts process metadata. Retry with appropriate privileges only when understood. |
 | `kill` or `clean` refuses to continue | Start with `--dry-run`; confirm the target and project path. JSON termination also needs `--yes`. |
+| MCP reports that a `preview_id` is required | Dry runs are the preview step. Call the tool with `dry_run=true`, read the returned `preview_id`, then repeat the call with `dry_run=false` and that token. Tokens expire and are invalidated when the port owner changes. |
+| An SDK raises on an empty port selection | `ports=[]` is rejected intentionally; omit the argument (or pass `None`/`undefined`) to use the default selection. |
 | `clean` finds no project listeners | Check the effective project directory. Use `clean --project /absolute/project --dry-run`; a missing fingerprint or another network namespace can hide targets. `--ports` restricts the selection. |
 | MCP cleans the wrong project scope | Supply `project_path` explicitly and review the returned `cwd` and `scope`. |
 | SDK reports an incompatible CLI | Check `port-detective --version` and the configured binary path; use the same major/minor CLI as the SDK, or select the matching binary with `PORT_DETECTIVE_BIN`. |

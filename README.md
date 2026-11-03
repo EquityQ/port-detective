@@ -3,8 +3,8 @@
 Cross-platform CLI, MCP server, and Python/Node.js SDKs for inspecting local TCP ports,
 identifying owning processes, and cleaning project-scoped listeners safely.
 
-> **Latest release:** `v1.2.0` is published on [GitHub](https://github.com/EquityQ/port-detective/releases/tag/v1.2.0),
-> [PyPI](https://pypi.org/project/port-detective/1.2.0/), and [npm](https://www.npmjs.com/package/port-detective/v/1.2.0).
+> **Latest release:** `v1.3.0` is published on [GitHub](https://github.com/EquityQ/port-detective/releases/tag/v1.3.0),
+> [PyPI](https://pypi.org/project/port-detective/1.3.0/), and [npm](https://www.npmjs.com/package/port-detective/v/1.3.0).
 
 ## Quick Start
 
@@ -14,13 +14,13 @@ Python SDK, and Node.js 22+ for the Node.js client and npm-based MCP setup.
 Inspect a port immediately; no Go installation is needed:
 
 ```bash
-npx --yes --package=port-detective@1.2.0 port-detective check 3000
+npx --yes --package=port-detective@1.3.0 port-detective check 3000
 ```
 
 Install the CLI for repeated use:
 
 ```bash
-npm install -g port-detective@1.2.0
+npm install -g port-detective@1.3.0
 ```
 
 ```bash
@@ -59,7 +59,7 @@ go test -race ./...
 
 ## Development Workflows
 
-These examples are available in the published v1.2.0 CLI. They assume it is on
+These examples are available in the published v1.3.0 CLI. They assume it is on
 PATH; otherwise use the local executable path shown above.
 
 ```bash
@@ -98,7 +98,7 @@ macOS and Linux:
   "mcpServers": {
     "port-detective": {
       "command": "npx",
-      "args": ["--yes", "--package=port-detective@1.2.0", "port-detective", "mcp"]
+      "args": ["--yes", "--package=port-detective@1.3.0", "port-detective", "mcp"]
     }
   }
 }
@@ -111,7 +111,7 @@ Windows:
   "mcpServers": {
     "port-detective": {
       "command": "cmd.exe",
-      "args": ["/d", "/s", "/c", "npx --yes --package=port-detective@1.2.0 port-detective mcp"]
+      "args": ["/d", "/s", "/c", "npx --yes --package=port-detective@1.3.0 port-detective mcp"]
     }
   }
 }
@@ -122,7 +122,7 @@ client if it is not obvious:
 
 > Set up the port-detective MCP server for this AI client. Detect my operating
 > system and client, use the official client-specific configuration format, and
-> use the published port-detective v1.2.0 npm package. Make the smallest
+> use the published port-detective v1.3.0 npm package. Make the smallest
 > appropriate config change, then tell me what you
 > changed and how to reload the client. After I reconnect, verify the read-only
 > `inspect_port` and `scan_dev_ports` tools. Show a dry-run preview before any
@@ -148,7 +148,7 @@ Check `port-detective --version` when switching from a source build.
 Install the published Python SDK from PyPI:
 
 ```bash
-python -m pip install port-detective==1.2.0
+python -m pip install port-detective==1.3.0
 ```
 
 The SDK first checks `PORT_DETECTIVE_BIN`, `PATH`, and local checkout binaries. If no
@@ -176,7 +176,7 @@ The npm package provides synchronous, Promise, and TypeScript APIs and installs 
 matching CLI binary for Windows, macOS, and Linux on x64 or arm64:
 
 ```bash
-npm install port-detective@1.2.0
+npm install port-detective@1.3.0
 npx --no-install port-detective check 3000
 ```
 
