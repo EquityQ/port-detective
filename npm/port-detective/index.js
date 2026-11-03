@@ -42,6 +42,21 @@ function validatePorts(ports) {
   ports.forEach(validatePort);
 }
 
+// An omitted selection (undefined/null) means "use the documented default"; an
+// explicitly empty array means "select nothing" and must never be forwarded as an
+// omitted --ports flag, which would silently widen the scope to the default set or
+// to every project listener. Returns a comma-joined list, or null for the default.
+function portSelection(ports, label) {
+  if (ports === undefined || ports === null) return null;
+  validatePorts(ports);
+  if (ports.length === 0) {
+    throw new TypeError(
+      `${label} must not be an empty array; omit it or pass undefined/null to use the default selection`,
+    );
+  }
+  return ports.join(",");
+}
+
 function resolveBundledBinary() {
   const packageName = platformPackageName();
   if (!packageName) return null;
@@ -370,13 +385,8 @@ function inspectPort(port, options = {}) {
 }
 
 function scanPorts(ports, options = {}) {
-  let args = ["scan"];
-  if (ports !== undefined && ports !== null && ports.length > 0) {
-    validatePorts(ports);
-    args = [...args, "--ports", ports.join(",")];
-  } else if (ports !== undefined && ports !== null) {
-    validatePorts(ports);
-  }
+  const selection = portSelection(ports, "ports");
+  const args = selection === null ? ["scan"] : ["scan", "--ports", selection];
   return requireArray(runCliSync(args, options), "scan");
 }
 
@@ -407,13 +417,8 @@ async function asyncInspectPort(port, options = {}) {
 }
 
 async function asyncScanPorts(ports, options = {}) {
-  let args = ["scan"];
-  if (ports !== undefined && ports !== null && ports.length > 0) {
-    validatePorts(ports);
-    args = [...args, "--ports", ports.join(",")];
-  } else if (ports !== undefined && ports !== null) {
-    validatePorts(ports);
-  }
+  const selection = portSelection(ports, "ports");
+  const args = selection === null ? ["scan"] : ["scan", "--ports", selection];
   return requireArray(await runCliAsync(args, options), "scan");
 }
 
@@ -442,10 +447,8 @@ function appendProjectArgs(args, options) {
     }
     args.push("--project", options.projectPath);
   }
-  if (options.ports !== undefined && options.ports !== null) {
-    validatePorts(options.ports);
-    if (options.ports.length > 0) args.push("--ports", options.ports.join(","));
-  }
+  const selection = portSelection(options.ports, "options.ports");
+  if (selection !== null) args.push("--ports", selection);
 }
 
 module.exports = {

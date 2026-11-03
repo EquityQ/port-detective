@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -17,6 +18,13 @@ import (
 const (
 	terminationGracePeriod  = 2 * time.Second
 	terminationPollInterval = 25 * time.Millisecond
+
+	// PostActionStatus values describe what happened to a target after a
+	// destructive action, keeping the rest of the diagnostic a true pre-action
+	// snapshot instead of rewriting history.
+	PostActionReleased          = "released"
+	PostActionReleaseUnverified = "release_unverified"
+	PostActionNotAttempted      = "not_attempted"
 )
 
 // processIdentity returns a process handle and its creation time. The creation
@@ -233,6 +241,9 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 		var groupErr error
 		for _, i := range indices {
 			target := selected[i]
+			// Only the dry-run revalidation happens for every port; the real action
+			// runs once per process, so ports are not pre-marked as released here.
+			selected[i].PostActionStatus = PostActionNotAttempted
 			if !projectDiagnosticMatches(target, projectPath) {
 				groupErr = fmt.Errorf("preview project path for port %d does not match %q; cleanup canceled", target.Port, projectPath)
 				break
@@ -245,8 +256,12 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 		if groupErr == nil && !dryRun {
 			_, _, groupErr = cleanProjectTarget(ctx, selected[indices[0]], projectPath, false)
 			if groupErr == nil {
+				for _, i := range indices {
+					selected[i].PostActionStatus = PostActionReleased
+				}
 				for _, i := range indices[1:] {
 					if err := waitForPortRelease(ctx, selected[i].Port, terminationGracePeriod); err != nil {
+						selected[i].PostActionStatus = PostActionReleaseUnverified
 						groupErr = fmt.Errorf("port %d release could not be confirmed: %w", selected[i].Port, err)
 						break
 					}
@@ -255,6 +270,7 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 		}
 		if groupErr != nil {
 			for _, i := range indices {
+				selected[i].PostActionStatus = PostActionReleaseUnverified
 				selected[i].Status = fmt.Sprintf("kill_failed: %v", groupErr)
 			}
 			failures = append(failures, groupErr)
@@ -293,6 +309,10 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 	if err != nil {
 		return latest, "", err
 	}
+	// The snapshot above is a pre-action observation: it still reports the port as
+	// open with the old status. Record the verified outcome separately so callers
+	// can tell "this is what I killed" from "this is what is there now".
+	latest.PostActionStatus = PostActionNotAttempted
 	if dryRun {
 		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying port %d",
 			latest.ProcessName, latest.PID, target.Port)
@@ -302,22 +322,37 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 		return latest, "", fmt.Errorf("failed to terminate process %d: %w", latest.PID, err)
 	}
 	if err := waitForPortRelease(ctx, target.Port, terminationGracePeriod); err != nil {
+		latest.PostActionStatus = PostActionReleaseUnverified
 		return latest, "", fmt.Errorf("process %d received a termination request, but port %d is still occupied: %w", latest.PID, target.Port, err)
 	}
+	latest.PostActionStatus = PostActionReleased
 	return latest, fmt.Sprintf("terminated process %q (PID: %d) occupying port %d",
 		latest.ProcessName, latest.PID, target.Port), nil
 }
 
-// projectPathsMatch applies the filesystem's path semantics before cleanup.
-// Windows paths are case-insensitive; Unix paths remain case-sensitive.
+// projectPathsMatch compares two project directories using filesystem identity
+// first, then string comparison as a fallback. It avoids hard-coding case rules:
+// os.SameFile consults the actual filesystem, so a case-insensitive volume and a
+// directory with case sensitivity explicitly enabled both behave correctly.
 func projectPathsMatch(targetPath, currentPath string) bool {
-	if runtime.GOOS == "windows" && strings.EqualFold(targetPath, currentPath) {
-		return true
-	}
 	if targetPath == currentPath {
 		return true
 	}
-	fi1, err1 := os.Stat(targetPath)
-	fi2, err2 := os.Stat(currentPath)
-	return err1 == nil && err2 == nil && os.SameFile(fi1, fi2)
+	// Compare file identity first: this is authoritative for the host filesystem.
+	if fi1, err1 := os.Stat(targetPath); err1 == nil {
+		if fi2, err2 := os.Stat(currentPath); err2 == nil && os.SameFile(fi1, fi2) {
+			return true
+		}
+	}
+	// Fall back to a normalized comparison for paths that do not both exist, or
+	// that name the same directory through different volumes/mount points.
+	cleanTarget := filepath.Clean(targetPath)
+	cleanCurrent := filepath.Clean(currentPath)
+	if cleanTarget == cleanCurrent {
+		return true
+	}
+	if runtime.GOOS == "windows" && strings.EqualFold(cleanTarget, cleanCurrent) {
+		return true
+	}
+	return false
 }

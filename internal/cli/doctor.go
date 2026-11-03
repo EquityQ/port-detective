@@ -41,6 +41,7 @@ func newDoctorCommand(opts *options) *cobra.Command {
 			if err != nil {
 				report.Hints = append(report.Hints, "Cannot read the working directory: "+err.Error())
 			}
+			report.ProjectPath = ""
 			report.ProjectPath, err = core.ResolveProjectPath(report.Cwd)
 			if err != nil {
 				report.Hints = append(report.Hints, "Select a valid project using clean --project <directory>: "+err.Error())
@@ -59,6 +60,8 @@ func newDoctorCommand(opts *options) *cobra.Command {
 					report.Hints = append(report.Hints, "Temporary listener inspection failed: "+err.Error())
 				} else if report.SelfCheck == nil || !report.SelfCheck.IsOpen {
 					report.Hints = append(report.Hints, "A local listener was not detected. Run the CLI in the same host and network namespace as the application; check WSL, containers, or sandbox restrictions.")
+				} else if report.SelfCheck.ListenerTableMissing {
+					report.Hints = append(report.Hints, "The local TCP listener table could not be read. Ports bound only to other interfaces may be missed; results are incomplete.")
 				} else {
 					report.MetadataAccessible = report.SelfCheck.PID == int32(os.Getpid()) && report.SelfCheck.Status == core.StatusOccupied
 					if !report.MetadataAccessible {
@@ -74,7 +77,15 @@ func newDoctorCommand(opts *options) *cobra.Command {
 				report.Status = "degraded"
 			}
 			if opts.jsonOutput {
-				return writeJSON(stdout(cmd), report)
+				// Keep the exit status honest: a degraded self-check must not report
+				// success to automation that only inspects the exit code.
+				if err := writeJSON(stdout(cmd), report); err != nil {
+					return err
+				}
+				if report.Status != "ok" {
+					return commandFailure("doctor_degraded", 5, "doctor self-check degraded: see hints in the JSON report")
+				}
+				return nil
 			}
 			out := stdout(cmd)
 			p := newPalette(out)
@@ -89,8 +100,13 @@ func newDoctorCommand(opts *options) *cobra.Command {
 			for _, message := range report.Hints {
 				hint(out, p, message)
 			}
-			fmt.Fprintln(out, "Self-check confirms local listener visibility; it does not test application readiness.")
-			return nil
+			// Only a fully successful self-check earns an unqualified conclusion.
+			if report.Status == "ok" {
+				fmt.Fprintln(out, "Self-check confirms local listener visibility; it does not test application readiness.")
+				return nil
+			}
+			fmt.Fprintf(out, "  %s\n", p.paint(p.warn, "Self-check did not fully pass; the limitations above apply to every result on this host."))
+			return commandFailure("doctor_degraded", 5, "doctor self-check degraded; see the hints above")
 		},
 	}
 }

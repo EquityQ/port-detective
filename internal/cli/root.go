@@ -36,7 +36,7 @@ func NewRootCommand() *cobra.Command {
 			"port-detective —— Local Port Detective & Process Diagnostic CLI",
 			"",
 			"Instantly inspect ports, detect owning processes, identify project frameworks,",
-			"and safely clean orphan dev processes.",
+			"and safely release the processes holding them.",
 			"Native MCP server support for AI Agents (Claude Code / Cursor / Windsurf).",
 		}, "\n"),
 		SilenceUsage:  true,

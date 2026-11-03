@@ -28,6 +28,12 @@ const (
 	StatusFree               = "free"
 	StatusPermissionRequired = "permission_required"
 
+	// StatusUndetermined reports a probe whose result cannot be trusted because
+	// the local listener table could not be read. A closed loopback probe alone
+	// never proves a port is free: a process bound to another interface stays
+	// invisible to it, so callers must not treat this as a safe-to-use port.
+	StatusUndetermined = "undetermined"
+
 	// DefaultDialTimeout is the timeout for a single TCP probe.
 	DefaultDialTimeout = 300 * time.Millisecond
 
@@ -50,18 +56,30 @@ type ProjectInfo struct {
 
 // PortDiagnostic contains a diagnostic report for a port and its owning process.
 type PortDiagnostic struct {
-	Port           int          `json:"port"`
-	IsOpen         bool         `json:"is_open"`
-	Protocol       string       `json:"protocol"`          // "tcp"
-	PID            int32        `json:"pid"`               // Owning process ID, or 0 when unavailable.
-	ProcessName    string       `json:"process_name"`      // Process name, such as "node", "python", or "go".
-	Cmdline        string       `json:"cmdline"`           // Process startup command line.
-	MemoryMB       float64      `json:"memory_mb"`         // Resident memory in megabytes.
-	CPUPercent     float64      `json:"cpu_percent"`       // Process CPU usage percentage.
-	Status         string       `json:"status"`            // "occupied", "free", or "permission_required".
-	Project        *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
-	processCreated int64        // Internal process creation timestamp used for identity checks.
-	ambiguousOwner bool         // Multiple or unknown owners share the local port.
+	Port        int          `json:"port"`
+	IsOpen      bool         `json:"is_open"`
+	Protocol    string       `json:"protocol"`          // "tcp"
+	PID         int32        `json:"pid"`               // Owning process ID, or 0 when unavailable.
+	ProcessName string       `json:"process_name"`      // Process name, such as "node", "python", or "go".
+	Cmdline     string       `json:"cmdline"`           // Process startup command line.
+	MemoryMB    float64      `json:"memory_mb"`         // Resident memory in megabytes.
+	CPUPercent  float64      `json:"cpu_percent"`       // Process CPU usage percentage.
+	Status      string       `json:"status"`            // "occupied", "free", "permission_required", or "undetermined".
+	Project     *ProjectInfo `json:"project,omitempty"` // Project fingerprint metadata.
+
+	// ListenerTableMissing marks a result whose listener table could not be read.
+	// The loopback probe may still have seen an open port, but a closed probe is
+	// inconclusive, so this diagnostic must not be presented as proof of a free
+	// port. Consumers should surface it instead of promising "ready for use".
+	ListenerTableMissing bool `json:"listener_table_missing,omitempty"`
+
+	// PostActionStatus records the verified outcome of a destructive action that
+	// already ran against this snapshot: "released", "release_unverified", or
+	// "not_attempted". The rest of the struct stays a pre-action observation.
+	PostActionStatus string `json:"post_action_status,omitempty"`
+
+	processCreated int64 // Internal process creation timestamp used for identity checks.
+	ambiguousOwner bool  // Multiple or unknown owners share the local port.
 }
 
 // ProjectDetectorFunc defines the process fingerprint detector signature.
@@ -136,7 +154,7 @@ func checkTCPOpenContext(ctx context.Context, port int, timeout time.Duration) b
 // buildProcIndex scans the system connection table once and builds a port-to-PID index.
 // Callers share the resulting read-only index across process-detail lookups.
 func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
-	conns, err := gnet.ConnectionsWithContext(ctx, "tcp")
+	conns, err := listTCPConnections(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +162,23 @@ func buildProcIndex(ctx context.Context) (map[connKey]int32, error) {
 		return nil, err
 	}
 	return indexTCPListeners(conns), nil
+}
+
+// listTCPConnections reads the local TCP connection table. It is a package
+// variable so tests can inject a controlled failure without changing behavior.
+var listTCPConnections = func(ctx context.Context) ([]gnet.ConnectionStat, error) {
+	return gnet.ConnectionsWithContext(ctx, "tcp")
+}
+
+// SetConnectionsListerForTesting replaces the connection-table reader and
+// returns a restore function. It exists so the degraded path can be tested
+// deterministically instead of hoping the host hides its listener table.
+func SetConnectionsListerForTesting(fn func(context.Context) ([]gnet.ConnectionStat, error)) func() {
+	previous := listTCPConnections
+	if fn != nil {
+		listTCPConnections = fn
+	}
+	return func() { listTCPConnections = previous }
 }
 
 // indexTCPListeners keeps every binding, including listeners whose PID is hidden.
@@ -258,9 +293,30 @@ func inspectPortInternal(ctx context.Context, port int, index map[connKey]int32)
 	return diag
 }
 
+// inspectPortWithoutListenerTable inspects a port when the local listener table
+// could not be read. Such a result is never reported as a free port: a closed
+// loopback probe cannot see a process bound only to another interface, so the
+// only honest answer is "undetermined". When the probe does connect, the port is
+// definitely occupied but its owner is unknown.
+func inspectPortWithoutListenerTable(ctx context.Context, port int) *PortDiagnostic {
+	diag := probePort(ctx, port)
+	diag.ListenerTableMissing = true
+	if diag.IsOpen {
+		diag.Status = StatusPermissionRequired
+	} else {
+		diag.Status = StatusUndetermined
+	}
+	return diag
+}
+
 // ============================ Public Core API ============================
 
 // InspectPort checks whether a port is open and associates it with process diagnostics.
+//
+// When the local listener table cannot be read, InspectPort degrades instead of
+// guessing: the result is marked with ListenerTableMissing and a closed loopback
+// probe is reported as StatusUndetermined rather than StatusFree, because a
+// process bound only to another interface stays invisible to that probe.
 func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -269,15 +325,56 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 		return nil, err
 	}
 
-	index, _ := buildProcIndex(ctx)
-	diag := inspectPortInternal(ctx, port, index)
+	index, err := buildProcIndex(ctx)
+	var diag *PortDiagnostic
+	if err != nil {
+		// Context cancellation is a real cancellation, not a degraded host.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		diag = inspectPortWithoutListenerTable(ctx, port)
+	} else {
+		diag = inspectPortInternal(ctx, port, index)
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return diag, nil
 }
 
+// ScanSummary reports a concurrent scan plus whether the result is complete.
+// Diagnostics keeps the historical JSON array shape when serialized alone, so
+// existing consumers of ScanPortsConcurrent are unaffected.
+type ScanSummary struct {
+	Diagnostics []PortDiagnostic `json:"diagnostics"`
+	Degraded    bool             `json:"degraded"`
+	Warning     string           `json:"warning,omitempty"`
+}
+
 // ScanPortsConcurrent probes multiple ports concurrently and returns results in ascending order.
+func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, error) {
+	summary, err := ScanPortsConcurrentSummary(ctx, ports)
+	return summary.Diagnostics, err
+}
+
+// ScanPortsConcurrentSummary scans ports and additionally reports whether the
+// result is complete. A scan whose listener table could not be read cannot rule
+// out a listener bound only to another interface; callers must not present such
+// a result as proof that the scanned ports are free.
+func ScanPortsConcurrentSummary(ctx context.Context, ports []int) (ScanSummary, error) {
+	occupied, degraded, err := scanPortsConcurrentInternal(ctx, ports, nil, false)
+	summary := ScanSummary{Diagnostics: occupied, Degraded: degraded}
+	if degraded {
+		summary.Warning = listenerTableWarning
+	}
+	return summary, err
+}
+
+// listenerTableWarning explains a degraded scan in user-facing terms.
+const listenerTableWarning = "the local TCP listener table could not be read, so ports with no loopback listener are undetermined rather than free; " +
+	"listeners bound only to other interfaces may be missing from this result"
+
+// scanPortsConcurrent optionally reuses a listener snapshot for project discovery.
 //
 // The worker pool uses a producer, a jobs channel, workers, and a results channel.
 //
@@ -287,28 +384,47 @@ func InspectPort(ctx context.Context, port int) (*PortDiagnostic, error) {
 //	└────────────────┘               ▲                └─────────┬────────┘
 //	                                 │                          │
 //	              sync.WaitGroup closes the channel after workers exit; results are sorted.
-func ScanPortsConcurrent(ctx context.Context, ports []int) ([]PortDiagnostic, error) {
-	return scanPortsConcurrent(ctx, ports, nil, false)
+func scanPortsConcurrent(ctx context.Context, ports []int, index map[connKey]int32, indexReady bool) ([]PortDiagnostic, error) {
+	occupied, _, err := scanPortsConcurrentInternal(ctx, ports, index, indexReady)
+	return occupied, err
 }
 
-// scanPortsConcurrent optionally reuses a listener snapshot for project discovery.
-func scanPortsConcurrent(ctx context.Context, ports []int, index map[connKey]int32, indexReady bool) ([]PortDiagnostic, error) {
+// scanPortsConcurrentInternal optionally reuses a listener snapshot for project
+// discovery and reports whether the listener table was unavailable.
+func scanPortsConcurrentInternal(ctx context.Context, ports []int, index map[connKey]int32, indexReady bool) ([]PortDiagnostic, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(ports) == 0 {
-		return []PortDiagnostic{}, nil
+		return []PortDiagnostic{}, false, nil
 	}
 	unique, err := normalizePorts(ports)
 	if err != nil {
-		return []PortDiagnostic{}, err
+		return []PortDiagnostic{}, false, err
 	}
 	ports = unique
+	degraded := false
 	if !indexReady {
-		index, _ = buildProcIndex(ctx)
+		built, buildErr := buildProcIndex(ctx)
+		if buildErr != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, false, ctxErr
+			}
+			// Keep probing: an open port is still a real finding even without the
+			// listener table, but a closed one cannot be called free.
+			degraded = true
+		} else {
+			index = built
+		}
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	inspect := inspectPortInternal
+	if degraded {
+		inspect = func(ctx context.Context, port int, _ map[connKey]int32) *PortDiagnostic {
+			return inspectPortWithoutListenerTable(ctx, port)
+		}
 	}
 
 	// Cap the worker pool to the number of ports being scanned.
@@ -347,7 +463,7 @@ func scanPortsConcurrent(ctx context.Context, ports []int, index map[connKey]int
 				if ctx.Err() != nil {
 					return
 				}
-				diag := inspectPortInternal(ctx, port, index)
+				diag := inspect(ctx, port, index)
 				// Collect open ports only.
 				if diag.IsOpen {
 					select {
@@ -378,7 +494,7 @@ func scanPortsConcurrent(ctx context.Context, ports []int, index map[connKey]int
 	})
 
 	if err := ctx.Err(); err != nil {
-		return occupied, fmt.Errorf("scan canceled: %w", err)
+		return occupied, degraded, fmt.Errorf("scan canceled: %w", err)
 	}
-	return occupied, nil
+	return occupied, degraded, nil
 }

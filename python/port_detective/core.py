@@ -52,6 +52,33 @@ def _validate_port(port: int) -> None:
         raise ValueError(f"port must be an integer between 1 and 65535, got {port!r}")
 
 
+def _normalize_ports(ports: Optional[List[int]]) -> Optional[List[int]]:
+    """Return the explicit port selection, or None to mean "use the documented default".
+
+    An omitted (None) selection means the caller did not choose a scope, so the CLI
+    default applies. An explicitly empty list means "select nothing" and is rejected
+    here, because forwarding it as an omitted argument would silently widen the scope
+    to the whole default set or to every project listener.
+    """
+    if ports is None:
+        return None
+    if isinstance(ports, (str, bytes)):
+        raise ValueError(f"ports must be an iterable of integers or None, got {ports!r}")
+    try:
+        selected = list(ports)
+    except TypeError:
+        raise ValueError(
+            f"ports must be an iterable of integers or None, got {ports!r}"
+        ) from None
+    if not selected:
+        raise ValueError(
+            "ports must not be empty; omit it or pass None to use the default selection"
+        )
+    for port in selected:
+        _validate_port(port)
+    return selected
+
+
 def _validate_timeout(timeout: Optional[float]) -> None:
     if timeout is not None and (
         isinstance(timeout, bool)
@@ -421,12 +448,15 @@ def scan_ports(
 ) -> List[PortDiagnostic]:
     """
     Concurrently scan specified development ports (or default dev ports).
+
+    Omit ``ports`` or pass ``None`` to scan the default development ports. An
+    explicitly empty list is rejected with :exc:`ValueError` rather than scanning
+    the default set, so an empty selection can never widen the scan scope.
     """
     args = ["scan"]
-    if ports:
-        for port in ports:
-            _validate_port(port)
-        ports_str = ",".join(str(p) for p in ports)
+    selected = _normalize_ports(ports)
+    if selected is not None:
+        ports_str = ",".join(str(p) for p in selected)
         args.extend(["--ports", ports_str])
 
     data = _run_cli_sync(args, binary_path=binary_path, timeout=timeout)
@@ -468,15 +498,18 @@ def clean_project(
     """
     Concurrently scan dev ports and process listeners belonging to the project path.
     Set dry_run=False to actually kill the processes.
+
+    Omit ``ports`` or pass ``None`` to keep full project discovery. An explicitly
+    empty list is rejected with :exc:`ValueError`; it never means "discover
+    everything", so an empty selection can only ever narrow the cleanup scope.
     """
     args = ["clean", "-y"]
     if dry_run:
         args.append("--dry-run")
 
-    if ports:
-        for port in ports:
-            _validate_port(port)
-        args.extend(["--ports", ",".join(map(str, ports))])
+    selected = _normalize_ports(ports)
+    if selected is not None:
+        args.extend(["--ports", ",".join(map(str, selected))])
     target_cwd = path or os.getcwd()
     data = _run_cli_sync(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     if not isinstance(data, list):
@@ -507,12 +540,15 @@ async def async_scan_ports(
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
 ) -> List[PortDiagnostic]:
-    """Asynchronously concurrently scan ports."""
+    """Asynchronously concurrently scan ports.
+
+    Omit ``ports`` or pass ``None`` to scan the default development ports; an
+    explicitly empty list raises :exc:`ValueError` instead of scanning the default set.
+    """
     args = ["scan"]
-    if ports:
-        for port in ports:
-            _validate_port(port)
-        ports_str = ",".join(str(p) for p in ports)
+    selected = _normalize_ports(ports)
+    if selected is not None:
+        ports_str = ",".join(str(p) for p in selected)
         args.extend(["--ports", ports_str])
 
     data = await _run_cli_async(args, binary_path=binary_path, timeout=timeout)
@@ -548,15 +584,18 @@ async def async_clean_project(
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
     *, ports: Optional[List[int]] = None,
 ) -> List[PortDiagnostic]:
-    """Asynchronously clean listeners belonging to the project path."""
+    """Asynchronously clean listeners belonging to the project path.
+
+    Omit ``ports`` or pass ``None`` to keep full project discovery; an explicitly
+    empty list raises :exc:`ValueError` instead of widening the cleanup scope.
+    """
     args = ["clean", "-y"]
     if dry_run:
         args.append("--dry-run")
 
-    if ports:
-        for port in ports:
-            _validate_port(port)
-        args.extend(["--ports", ",".join(map(str, ports))])
+    selected = _normalize_ports(ports)
+    if selected is not None:
+        args.extend(["--ports", ",".join(map(str, selected))])
     target_cwd = path or os.getcwd()
     data = await _run_cli_async(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     if not isinstance(data, list):

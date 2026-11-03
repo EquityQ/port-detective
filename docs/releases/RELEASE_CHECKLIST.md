@@ -7,7 +7,7 @@ same release tag to publish the Node.js client and six platform packages:
 
 1. Build the CLI with the tag version and verify `port-detective --version`.
 2. Rewrite the temporary Python build metadata to the same version and verify the wheel and source distribution metadata.
-3. Verify every GoReleaser SHA-256 entry and require `README.md` and `LICENSE` in each archive.
+3. Require exactly the six platform archives declared by `.goreleaser.yaml` (linux/darwin/windows x amd64/arm64, tar.gz except windows zip), a SHA-256 entry for each and no entry for a missing archive, and inside every archive the platform executable (`port-detective`, or `port-detective.exe` on windows) alongside `README.md` and `LICENSE`.
 4. Run the MCP handshake, tool, and stdout-purity checks against the release build.
 5. Generate an SPDX JSON SBOM, sign Go archives, Python distributions, checksums, and the SBOM with keyless Cosign.
 6. Verify every Cosign signature and publish GitHub build provenance attestations.
@@ -41,6 +41,20 @@ python scripts/release/verify_artifacts.py \
 
 Downloaders should verify `checksums.txt` before extraction and keep the matching
 `.sig`/`.pem` files and GitHub attestation with the release record.
+
+Run the strict platform-manifest gate against a local GoReleaser `dist` directory with:
+
+```bash
+python scripts/release/verify_artifacts.py \
+  --expected-version 1.2.0 \
+  --dist dist \
+  --checksums dist/checksums.txt \
+  --require-platform-manifest
+```
+
+The gate is opt-in via `--require-platform-manifest`; without it the earlier checksum and
+archive checks still run. It is intended to catch a future artifact matrix regression
+before publication, and it does not change how already published releases are verified.
 
 The [`v1.2.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.2.0)
 and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/39722738497)

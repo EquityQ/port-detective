@@ -5,7 +5,42 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No additional changes are recorded after v1.2.0.
+### Added
+
+- Preview-bound destructive actions. `free_port` and `clean_current_project` now return a
+  `preview_id` from a dry run; executing requires that token, so an action can only target
+  the process snapshot that was actually previewed. The CLI exposes the same contract through
+  `kill --json --dry-run` and `--preview-id` on `kill` and `clean`. The token is HMAC-signed
+  with a per-process key and expires quickly, so a token from another process or an earlier
+  server run is rejected. This closes a window where a preview and a later execution were
+  two independent probes that could observe different owners of the same port.
+- `doctor` exits with status `5` when its self-check is degraded, so automation no longer
+  reads a failed self-check as success.
+- `listener_table_missing` and the `undetermined` status make an unreadable listener table
+  explicit. A degraded inspection or scan no longer presents a closed loopback probe as
+  proof that a port is free.
+
+### Changed
+
+- `kill --json` and `free_port` name their snapshot `pre_action_diagnostic` and report the
+  verified outcome separately as `post_action_status`. The legacy `diagnostic` key remains
+  as a deprecated alias with the same value.
+- `doctor` no longer prints an unqualified success conclusion when hints were recorded.
+
+### Fixed
+
+- An explicitly empty port selection is rejected instead of widening scope into the default
+  development ports or every project listener. This applies to the CLI, MCP tools, and the
+  Python and Node.js SDKs (`ports=[]` raises; omitting the argument keeps the default).
+- Project path comparison uses filesystem identity before string comparison, so a
+  case-sensitive directory on a case-insensitive volume is matched correctly.
+- Fingerprint detection now bounds manifest reads: cancellation is checked between chunks,
+  and manifests above a size cap are rejected rather than read, so a slow or oversized
+  manifest can no longer outrun the detection budget.
+- The release verifier requires the exact six-platform archive manifest, a checksum entry
+  for every archive, and the platform executable inside each archive.
+- `TestKillDryRunCLI` uses a dynamically reserved port instead of a hardcoded one.
+- Removed the CLI's "clean orphan dev processes" claim, which it cannot verify.
 
 ## [1.2.0] - 2026-10-22
 

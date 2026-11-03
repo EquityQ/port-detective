@@ -41,13 +41,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         call(6, "clean_current_project", {"project_path": str(ROOT), "ports": str(port)}),
         call(7, "inspect_port", {"port": port + 0.5}),
         call(8, "free_port", {"port": port}),
+        # Destructive execution must refuse to run without a preview token.
+        call(9, "free_port", {"port": port, "dry_run": False}),
+        # An explicitly blank selection must not widen into the default scope.
+        call(10, "scan_dev_ports", {"ports": ""}),
     ]
     process = run_requests(BIN, requests)
     assert process.returncode == 0, process.stderr.decode("utf-8", "replace")
     lines = [line for line in process.stdout.splitlines() if line.strip()]
     responses = {response["id"]: response
                  for response in map(json.loads, lines)}
-    assert len(lines) == 8 and set(responses) == set(range(1, 9)), responses
+    assert len(lines) == 10 and set(responses) == set(range(1, 11)), responses
     assert "result" in responses[1], responses[1]
 
     def data(request_id):
@@ -77,8 +81,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         assert clean["cleaned"][0]["port"] == port, clean
     preview = data(8)
     assert preview["dry_run"] is True and preview["diagnostic"]["pid"] == os.getpid(), preview
+    # The preview must be executable: it carries a token and a truthful snapshot name.
+    assert preview.get("preview_id"), preview
+    assert preview["pre_action_diagnostic"]["pid"] == os.getpid(), preview
+    assert preview["pre_action_diagnostic"]["post_action_status"] == "not_attempted", preview
+    assert "preview_expires_at_unix" in preview, preview
+    # Both refusals must be tool errors, and the listener must survive them.
+    for refused in (9, 10):
+        assert responses[refused]["result"].get("isError") is True, responses[refused]
+    assert "preview_id" in responses[9]["result"]["content"][0]["text"], responses[9]
     with socket.create_connection(("127.0.0.1", port), timeout=2):
         pass
 
 print("PASS: MCP inspect, deduplicated range scan, invalid inputs, explicit project,")
-print("      safe default cleanup/free previews, listener survival, and JSON-RPC stdout.")
+print("      preview tokens, refusal of tokenless execution and blank selections,")
+print("      listener survival, and JSON-RPC stdout.")

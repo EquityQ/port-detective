@@ -83,9 +83,12 @@ block the event loop. Both sync and async methods share their timeout budget bet
 the version check and command execution.
 
 `scanPorts` returns occupied ports with diagnostics in ascending port order. An
-omitted list or `[]` scans default development ports. `cleanProject` discovers the
-project's TCP listeners, including ports outside the default list; `ports` limits
-that selection when supplied and nonempty. `projectPath` selects the project
+omitted list or `null` scans default development ports; an explicitly empty array
+throws a `TypeError` instead, so an empty selection can never widen the scan to the
+default ports. `cleanProject` discovers the project's TCP listeners, including ports
+outside the default list; `ports` limits that selection when supplied and nonempty,
+and `{ ports: [] }` likewise throws a `TypeError` rather than silently discovering
+everything. `projectPath` selects the project
 explicitly; otherwise cleanup uses `cwd` or the caller's current directory.
 The directory resolves to the nearest `package.json`, `go.mod`, `pyproject.toml`,
 or `requirements.txt` ancestor, or keeps its own path if no manifest exists. A

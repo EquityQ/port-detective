@@ -133,8 +133,13 @@ provides `inspect_port`, `scan_dev_ports`, `free_port`, and
 `clean_current_project`. Supply `project_path` and optional `ports` to select a
 project explicitly from a global MCP server. Its preview returns the effective
 path and scope.
-Process actions default to dry-run. Review the target and get user confirmation
-before terminating a process. MCP stdout is reserved for JSON-RPC.
+Process actions default to dry-run. A dry run returns a short-lived `preview_id`
+together with the process snapshot it observed; pass that `preview_id` back with
+`dry_run=false` to act. Execution fails if the token expired or the port owner
+changed, so an agent cannot terminate a process it never previewed. Review the
+target and get user confirmation before terminating a process. An omitted `ports`
+argument uses the documented default, while an explicitly blank one is rejected so
+it can never widen into every listener. MCP stdout is reserved for JSON-RPC.
 
 Check `port-detective --version` when switching from a source build.
 

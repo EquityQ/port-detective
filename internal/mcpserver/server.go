@@ -147,7 +147,10 @@ func scanDevPortsTool() mcp.Tool {
 func freePortTool() mcp.Tool {
 	return mcp.NewTool("free_port",
 		mcp.WithDescription(
-			"Terminate the local process occupying the specified port. Set dry_run=false to actually kill the process.",
+			"Preview or terminate the local process occupying a port. "+
+				"dry_run=true (the default) returns a short-lived preview_id plus the exact process snapshot; "+
+				"pass that preview_id back with dry_run=false to terminate exactly the previewed process. "+
+				"Execution fails if the port owner changed since the preview was issued.",
 		),
 		mcp.WithTitleAnnotation("Free port"),
 		mcp.WithDestructiveHintAnnotation(true),
@@ -161,8 +164,11 @@ func freePortTool() mcp.Tool {
 			mcp.Max(65535),
 		),
 		mcp.WithBoolean("dry_run",
-			mcp.Description("Whether to run in dry-run mode without actually terminating the process. Defaults to true for safety."),
+			mcp.Description("Whether to preview without terminating. Defaults to true. Setting dry_run=false requires the preview_id returned by a prior dry run of this server."),
 			mcp.DefaultBool(true),
+		),
+		mcp.WithString("preview_id",
+			mcp.Description("Opaque preview token returned by a previous dry_run=true call. Required when dry_run=false so the action is bound to the process snapshot you actually previewed."),
 		),
 	)
 }
@@ -171,7 +177,10 @@ func freePortTool() mcp.Tool {
 func cleanCurrentProjectTool() mcp.Tool {
 	return mcp.NewTool("clean_current_project",
 		mcp.WithDescription(
-			"Discover local TCP listeners belonging to the selected project, including non-default ports. Defaults to the server working directory project. Set dry_run=false to actually kill processes.",
+			"Discover local TCP listeners belonging to the selected project, including non-default ports. "+
+				"Defaults to the server working directory project. dry_run=true (the default) returns a preview_id plus the exact target snapshot; "+
+				"pass that preview_id back with dry_run=false to terminate exactly the previewed processes. "+
+				"An explicitly empty ports value is rejected rather than widened to all listeners.",
 		),
 		mcp.WithTitleAnnotation("Clean current project"),
 		mcp.WithDestructiveHintAnnotation(true),
@@ -182,11 +191,14 @@ func cleanCurrentProjectTool() mcp.Tool {
 			mcp.Description("Existing project directory on the MCP server host. Prefer an absolute path. Subdirectories resolve to the nearest project manifest; defaults to the server working directory."),
 		),
 		mcp.WithString("ports",
-			mcp.Description("Optional port list or ranges, e.g. '3000-3005,8080'. If omitted, discovers all visible local TCP listeners before matching the project."),
+			mcp.Description("Optional non-empty port list or ranges, e.g. '3000-3005,8080'. Omit the argument to discover all visible local TCP listeners; an empty or blank value is an error."),
 		),
 		mcp.WithBoolean("dry_run",
-			mcp.Description("Whether to run in dry-run mode without actually terminating the processes. Defaults to true for safety."),
+			mcp.Description("Whether to preview without terminating. Defaults to true. Setting dry_run=false requires the preview_id returned by a prior dry run of this server."),
 			mcp.DefaultBool(true),
+		),
+		mcp.WithString("preview_id",
+			mcp.Description("Opaque preview token returned by a previous dry_run=true call. Required when dry_run=false so the action is bound to the targets you actually previewed."),
 		),
 	)
 }
@@ -208,23 +220,45 @@ func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 }
 
 func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	portsStr, err := optionalString(request, "ports")
+	// Presence decides the meaning: an explicitly blank ports value is an error,
+	// while an omitted argument means the documented default development ports.
+	provided, portsStr, err := optionalStringPresent(request, "ports")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	targetPorts := core.DefaultDevPorts
-	if strings.TrimSpace(portsStr) != "" {
+	if provided {
+		if strings.TrimSpace(portsStr) == "" {
+			return mcp.NewToolResultError(
+				"ports was provided but is empty; omit the argument to scan DefaultDevPorts, " +
+					"or provide at least one port"), nil
+		}
 		targetPorts, err = core.ParsePortsList(portsStr)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+		if len(targetPorts) == 0 {
+			return mcp.NewToolResultError("ports resolved to an empty selection; omit the argument to scan DefaultDevPorts"), nil
+		}
 	}
 
-	results, err := core.ScanPortsConcurrent(ctx, targetPorts)
+	summary, err := core.ScanPortsConcurrentSummary(ctx, targetPorts)
 	if err != nil {
 		return mcp.NewToolResultErrorf("scan failed: %v", err), nil
 	}
-	return jsonResult(results)
+	// Keep the stable JSON array shape as the first content item so existing
+	// clients keep parsing it, and append a warning when the result is incomplete.
+	response, jsonErr := jsonResult(summary.Diagnostics)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	if summary.Degraded {
+		response.Content = append(response.Content, mcp.TextContent{
+			Type: "text",
+			Text: "incomplete result: " + summary.Warning,
+		})
+	}
+	return response, nil
 }
 
 func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -238,18 +272,74 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	diag, msg, err := core.KillPortProcess(ctx, port, dryRun)
+	if dryRun {
+		return previewFreePort(ctx, port)
+	}
+	return executeFreePort(ctx, request, port)
+}
+
+// previewFreePort inspects the port and returns a signed preview token that binds
+// the confirmed process identity to a later execution.
+func previewFreePort(ctx context.Context, port int) (*mcp.CallToolResult, error) {
+	diag, err := core.InspectPort(ctx, port)
+	if err != nil {
+		return mcp.NewToolResultErrorf("free port %d preview failed: %v", port, err), nil
+	}
+	if !diag.IsOpen {
+		return mcp.NewToolResultErrorf("port %d is currently free; no process to terminate", port), nil
+	}
+	token, expiresAt, err := core.IssueKillPreview(*diag, core.DefaultPreviewTTL)
+	if err != nil {
+		return mcp.NewToolResultErrorf("cannot preview port %d safely: %v", port, err), nil
+	}
+	// No action ran, so the outcome is explicitly "not attempted" rather than absent.
+	diag.PostActionStatus = core.PostActionNotAttempted
+
+	return jsonResult(map[string]any{
+		"port":                    port,
+		"dry_run":                 true,
+		"preview_id":              token,
+		"preview_expires_at_unix": expiresAt,
+		"pre_action_diagnostic":   diag,
+		"diagnostic":              diag, // Deprecated alias kept for older clients.
+		"message": fmt.Sprintf(
+			"dry run: would terminate process %q (PID: %d) occupying port %d; pass preview_id with dry_run=false within %s to execute",
+			diag.ProcessName, diag.PID, port, core.DefaultPreviewTTL),
+	})
+}
+
+// executeFreePort terminates exactly the process recorded in the preview token.
+func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int) (*mcp.CallToolResult, error) {
+	token, err := optionalString(request, "preview_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if strings.TrimSpace(token) == "" {
+		return mcp.NewToolResultError(
+			"dry_run=false requires the preview_id returned by a dry_run=true call; " +
+				"this binds the action to the process you actually previewed"), nil
+	}
+
+	targets, expiresAt, err := core.RestorePreviewToken(core.PreviewScopeKill, token, []int{port})
+	if err != nil {
+		return mcp.NewToolResultErrorf("preview_id rejected for port %d: %v", port, err), nil
+	}
+	// The token proves what was previewed; core still revalidates the live port and
+	// fails on any drift instead of redirecting the action to a new owner.
+	diag, msg, err := core.KillPortTarget(ctx, targets[0], false)
 	if err != nil {
 		return mcp.NewToolResultErrorf("free port %d failed: %v", port, err), nil
 	}
 
-	result := map[string]any{
-		"port":       port,
-		"dry_run":    dryRun,
-		"diagnostic": diag,
-		"message":    msg,
-	}
-	return jsonResult(result)
+	return jsonResult(map[string]any{
+		"port":                    port,
+		"dry_run":                 false,
+		"preview_expires_at_unix": expiresAt,
+		"pre_action_diagnostic":   diag,
+		"diagnostic":              diag, // Deprecated alias kept for older clients.
+		"post_action_status":      diag.PostActionStatus,
+		"message":                 msg,
+	})
 }
 
 func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -257,7 +347,9 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	portsStr, err := optionalString(request, "ports")
+	// Presence, not blankness, decides the meaning of "ports": an explicitly
+	// supplied blank value must fail instead of widening scope to every listener.
+	portsProvided, portsStr, err := optionalStringPresent(request, "ports")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -271,24 +363,96 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 	}
 	var ports []int
 	scope := "all visible local TCP listeners"
-	if strings.TrimSpace(portsStr) != "" {
+	if portsProvided {
+		if strings.TrimSpace(portsStr) == "" {
+			return mcp.NewToolResultError(
+				"ports was provided but is empty; omit the argument to discover all listeners, " +
+					"or provide at least one port. Refusing to widen an empty selection"), nil
+		}
 		ports, err = core.ParsePortsList(portsStr)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+		if len(ports) == 0 {
+			return mcp.NewToolResultError(
+				"ports resolved to an empty selection; omit the argument to discover all listeners"), nil
+		}
 		scope = "specified TCP ports"
 	}
+	if dryRun {
+		return previewCleanCurrentProject(ctx, request, cwd, ports, scope)
+	}
+	return executeCleanCurrentProject(ctx, request, cwd, ports, scope)
+}
+
+// previewCleanCurrentProject discovers targets, revalidates them, and binds them
+// into a preview token. The `cleaned` field keeps its historical dry-run meaning
+// so existing clients are unaffected; `targets` and `preview_id` are additive.
+func previewCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
 	targets, err := core.DiscoverProjectPorts(ctx, cwd, ports)
 	if err != nil {
 		return mcp.NewToolResultErrorf("project discovery failed: %v", err), nil
 	}
-	cleaned, cleanErr := core.CleanProjectTargets(ctx, cwd, targets, dryRun)
+	// Dry-run through the normal path so the preview validates exactly what an
+	// execution would act on, and reports the same partial failures it always has.
+	cleaned, previewErr := core.CleanProjectTargets(ctx, cwd, targets, true)
 	result := map[string]any{
 		"cwd":     cwd,
 		"scope":   scope,
-		"dry_run": dryRun,
+		"dry_run": true,
 		"count":   len(cleaned),
+		"targets": targets,
 		"cleaned": cleaned,
+	}
+	if len(targets) == 0 {
+		result["message"] = "no project-scoped listeners found in this scope; nothing to preview"
+	} else if token, expiresAt, tokenErr := core.IssueCleanPreview(targets, core.DefaultPreviewTTL); tokenErr != nil {
+		result["message"] = "preview is not executable: " + tokenErr.Error()
+	} else {
+		result["preview_id"] = token
+		result["preview_expires_at_unix"] = expiresAt
+		result["message"] = fmt.Sprintf(
+			"dry run: would terminate %d project listener(s); pass preview_id with dry_run=false within %s to execute",
+			len(targets), core.DefaultPreviewTTL)
+	}
+	if previewErr != nil {
+		result["error"] = previewErr.Error()
+	}
+	response, jsonErr := jsonResult(result)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	response.IsError = previewErr != nil
+	return response, nil
+}
+
+// executeCleanCurrentProject acts only on the targets pinned by the preview token.
+func executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
+	token, err := optionalString(request, "preview_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if strings.TrimSpace(token) == "" {
+		return mcp.NewToolResultError(
+			"dry_run=false requires the preview_id returned by a dry_run=true call; " +
+				"this binds the action to the targets you actually previewed"), nil
+	}
+	var expected []int
+	if ports != nil {
+		expected = ports
+	}
+	targets, expiresAt, err := core.RestorePreviewToken(core.PreviewScopeClean, token, expected)
+	if err != nil {
+		return mcp.NewToolResultErrorf("preview_id rejected for project cleanup: %v", err), nil
+	}
+	cleaned, cleanErr := core.CleanProjectTargets(ctx, cwd, targets, false)
+	result := map[string]any{
+		"cwd":                     cwd,
+		"scope":                   scope,
+		"dry_run":                 false,
+		"preview_expires_at_unix": expiresAt,
+		"count":                   len(cleaned),
+		"cleaned":                 cleaned,
 	}
 	if cleanErr != nil {
 		result["error"] = cleanErr.Error()
@@ -330,6 +494,21 @@ func optionalString(request mcp.CallToolRequest, name string) (string, error) {
 		return "", fmt.Errorf("%s must be a string", name)
 	}
 	return text, nil
+}
+
+// optionalStringPresent distinguishes "argument omitted" from "argument supplied
+// but empty". Destructive scope decisions must never treat those as equivalent:
+// an explicitly empty selection is rejected instead of widening to everything.
+func optionalStringPresent(request mcp.CallToolRequest, name string) (bool, string, error) {
+	value, found := request.GetArguments()[name]
+	if !found {
+		return false, "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return true, "", fmt.Errorf("%s must be a string", name)
+	}
+	return true, text, nil
 }
 
 func optionalDryRun(request mcp.CallToolRequest) (bool, error) {

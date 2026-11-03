@@ -29,6 +29,16 @@ test("validates ports before starting the CLI", () => {
   assert.throws(() => freePort(true), RangeError);
 });
 
+test("rejects an explicitly empty port selection instead of widening scope", () => {
+  // "argument absent" and "argument explicitly empty" are different requests: an
+  // empty array selects nothing and must never fall back to the default sweep.
+  assert.throws(() => scanPorts([]), TypeError);
+  assert.throws(() => scanPorts([]), /must not be an empty array/);
+  assert.throws(() => cleanProject({ ports: [] }), TypeError);
+  assert.throws(() => cleanProject({ ports: [] }), /must not be an empty array/);
+  assert.throws(() => cleanProject({ projectPath: ".", ports: [] }), TypeError);
+});
+
 let fixtureRoot;
 let fixtureNumber = 0;
 test.before(() => {
@@ -129,7 +139,17 @@ test("async API rejects incompatible versions and supports project selection", a
   assert.deepEqual(cleanProject({ binaryPath, projectPath: fixtureRoot, ports: [3010, 3011] }), []);
   assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["clean", "--dry-run", "--project", fixtureRoot, "--ports", "3010,3011", "--json"]);
   assert.deepEqual(await asyncCleanProject({ binaryPath, cwd: fixtureRoot }), []);
-  assert.deepEqual(await asyncScanPorts([], { binaryPath }), []);
+  // An omitted selection keeps the documented default scan (no --ports flag).
+  assert.deepEqual(await asyncScanPorts(undefined, { binaryPath }), []);
+  assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["scan", "--json"]);
+  // An explicitly empty selection is rejected before any child process starts.
+  await assert.rejects(() => asyncScanPorts([], { binaryPath }), TypeError);
+});
+
+test("rejects an explicitly empty port selection in async methods too", async () => {
+  await assert.rejects(() => asyncScanPorts([]), TypeError);
+  await assert.rejects(() => asyncScanPorts([]), /must not be an empty array/);
+  await assert.rejects(() => asyncCleanProject({ ports: [] }), TypeError);
 });
 
 test("validates timeouts and output limits", () => {

@@ -54,7 +54,10 @@ export interface AsyncFreePortOptions extends AsyncClientOptions {
 export interface CleanProjectOptions extends FreePortOptions {
   /** Explicit project directory; defaults to cwd or the caller's working directory. */
   projectPath?: string;
-  /** Limit cleanup to these ports; omitted or empty discovers project listeners. */
+  /**
+   * Limit cleanup to these ports. Omitted or `null` discovers project listeners.
+   * An explicitly empty array throws a TypeError; it never means "discover everything".
+   */
   ports?: number[] | null;
 }
 export interface AsyncCleanProjectOptions extends AsyncFreePortOptions {
@@ -74,11 +77,16 @@ export class PortDetectiveExecutionError extends PortDetectiveError {
 }
 
 export function inspectPort(port: number, options?: ClientOptions): PortDiagnostic;
+/**
+ * Scan the given ports, or the default development ports when `ports` is omitted or
+ * `null`. An explicitly empty array throws a TypeError instead of scanning defaults.
+ */
 export function scanPorts(ports?: number[] | null, options?: ClientOptions): PortDiagnostic[];
 export function freePort(port: number, options?: FreePortOptions): KillResult;
 export function cleanProject(options?: CleanProjectOptions): PortDiagnostic[];
 
 export function asyncInspectPort(port: number, options?: AsyncClientOptions): Promise<PortDiagnostic>;
+/** @see {@link scanPorts} — an explicitly empty array also throws a TypeError. */
 export function asyncScanPorts(ports?: number[] | null, options?: AsyncClientOptions): Promise<PortDiagnostic[]>;
 export function asyncFreePort(port: number, options?: AsyncFreePortOptions): Promise<KillResult>;
 export function asyncCleanProject(options?: AsyncCleanProjectOptions): Promise<PortDiagnostic[]>;

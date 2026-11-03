@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,12 +30,40 @@ const (
 	maxTraverseLevels = 3
 	// defaultDetectionTimeout bounds fingerprint detection for one process.
 	defaultDetectionTimeout = 50 * time.Millisecond
+	// maxManifestFileSize is the largest manifest file the analyzer is willing to
+	// read. A file at or above this limit is treated as "not a usable manifest"
+	// and is rejected before it is read, so an oversized or hostile manifest can
+	// never stall detection or exhaust memory.
+	maxManifestFileSize int64 = 1 << 20 // 1 MiB
+	// manifestReadChunkSize is the read granularity for manifest files. Reads are
+	// chunked so a slow filesystem (network share, antivirus scan, cold disk) can
+	// be abandoned at a chunk boundary as soon as the detection context is done.
+	manifestReadChunkSize = 32 << 10 // 32 KiB
+	// maxManifestReadStalls is the number of consecutive zero-byte, error-free
+	// reads tolerated before a reader is treated as stalled. It prevents a broken
+	// reader from spinning forever instead of reporting no fingerprint.
+	maxManifestReadStalls = 100
 )
 
 var (
 	pyprojectReName    = regexp.MustCompile(`(?m)^\s*name\s*=\s*["']([^"']+)["']`)
 	pyprojectReVersion = regexp.MustCompile(`(?m)^\s*version\s*=\s*["']([^"']+)["']`)
+
+	// errManifestTooLarge reports a manifest at or above maxManifestFileSize.
+	errManifestTooLarge = errors.New("fingerprint: manifest file exceeds the size limit")
+	// errManifestNotRegular reports a manifest path that is not a plain file.
+	errManifestNotRegular = errors.New("fingerprint: manifest path is not a regular file")
+	// errManifestReadStalled reports a reader that repeatedly returns no data.
+	errManifestReadStalled = errors.New("fingerprint: manifest read stalled")
 )
+
+// manifestFileReader loads at most limit bytes from a manifest file, aborting as
+// soon as ctx is done. It is a package-level seam so tests can substitute a
+// blocking reader and prove the detection walk honors context cancellation.
+type manifestFileReader func(ctx context.Context, path string, limit int64) ([]byte, error)
+
+// readManifestFile is the reader used for every manifest file in the walk.
+var readManifestFile manifestFileReader = readManifestFileLimited
 
 type packageJSON struct {
 	Name            string            `json:"name"`
@@ -43,10 +73,14 @@ type packageJSON struct {
 }
 
 // DetectProject identifies project metadata and the framework for a process.
-// Errors and permission limitations return nil; detection is bounded by a timeout.
+// Errors and permission limitations return nil; detection, including all
+// directory traversal and manifest reads, is bounded by the same timeout.
 func DetectProject(ctx context.Context, pid int32) (res *core.ProjectInfo) {
 	if pid <= 1 {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	// Recover from unexpected errors and enforce the timeout.
@@ -59,6 +93,10 @@ func DetectProject(ctx context.Context, pid int32) (res *core.ProjectInfo) {
 	tCtx, cancel := context.WithTimeout(ctx, defaultDetectionTimeout)
 	defer cancel()
 
+	if contextErr(tCtx) != nil {
+		return nil
+	}
+
 	proc, err := process.NewProcessWithContext(tCtx, pid)
 	if err != nil {
 		return nil
@@ -67,11 +105,21 @@ func DetectProject(ctx context.Context, pid int32) (res *core.ProjectInfo) {
 	cwd, _ := proc.CwdWithContext(tCtx)
 	cmdline, _ := proc.CmdlineWithContext(tCtx)
 
-	return DetectFromDirAndCmdline(cwd, cmdline)
+	// The filesystem walk shares the same deadline as the gopsutil calls: every
+	// read checks tCtx, so a slow or huge manifest cannot blow the 50ms budget.
+	return detectFromDirAndCmdlineContext(tCtx, cwd, cmdline)
 }
 
 // DetectFromDirAndCmdline detects project metadata from a working directory and command line.
+// It is the context-free wrapper around the context-aware walk, so it keeps its
+// historical behavior: it runs to completion unless a manifest breaks a limit.
 func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
+	return detectFromDirAndCmdlineContext(context.Background(), cwd, cmdline)
+}
+
+// detectFromDirAndCmdlineContext is the context-aware detection walk. It returns
+// nil as soon as ctx is done instead of reporting a possibly stale fingerprint.
+func detectFromDirAndCmdlineContext(ctx context.Context, cwd, cmdline string) *core.ProjectInfo {
 	lowerCmd := strings.ToLower(cmdline)
 
 	// Search the working directory and up to two parent directories for project manifests.
@@ -80,23 +128,38 @@ func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 		currDir := cleanCwd
 
 		for level := 0; level < maxTraverseLevels; level++ {
+			// Never start another traversal level once the budget is spent; the
+			// level cap stays fixed, cancellation only ever shortens the walk.
+			if contextErr(ctx) != nil {
+				return nil
+			}
+
 			// Node.js project detection (package.json).
 			pkgPath := filepath.Join(currDir, "package.json")
-			if info := checkNodeProject(pkgPath, currDir); info != nil {
+			if info := checkNodeProject(ctx, pkgPath, currDir); info != nil {
 				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
 			}
 
 			// Go project detection (go.mod).
 			goModPath := filepath.Join(currDir, "go.mod")
-			if info := checkGoProject(goModPath, currDir); info != nil {
+			if info := checkGoProject(ctx, goModPath, currDir); info != nil {
 				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
 			}
 
 			// Python project detection (pyproject.toml or requirements.txt).
 			pyprojectPath := filepath.Join(currDir, "pyproject.toml")
 			reqPath := filepath.Join(currDir, "requirements.txt")
-			if info := checkPythonProject(pyprojectPath, reqPath, currDir, lowerCmd); info != nil {
+			if info := checkPythonProject(ctx, pyprojectPath, reqPath, currDir, lowerCmd); info != nil {
 				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
 			}
 
 			parent := filepath.Dir(currDir)
@@ -105,6 +168,10 @@ func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 			}
 			currDir = parent
 		}
+	}
+
+	if contextErr(ctx) != nil {
+		return nil
 	}
 
 	// Fall back to command-line signatures when no project manifest is found.
@@ -126,9 +193,11 @@ func DetectFromDirAndCmdline(cwd, cmdline string) *core.ProjectInfo {
 }
 
 // checkNodeProject parses package.json for the project name, version, and framework.
-func checkNodeProject(pkgPath, projectDir string) *core.ProjectInfo {
-	data, err := os.ReadFile(pkgPath)
-	if err != nil {
+func checkNodeProject(ctx context.Context, pkgPath, projectDir string) *core.ProjectInfo {
+	// A canceled detection must never report a fingerprint, even when the read
+	// happened to finish just before the cancellation was observed.
+	data, err := readManifestFile(ctx, pkgPath, maxManifestFileSize)
+	if err != nil || contextErr(ctx) != nil {
 		return nil
 	}
 
@@ -183,9 +252,9 @@ func checkNodeProject(pkgPath, projectDir string) *core.ProjectInfo {
 }
 
 // checkGoProject parses go.mod for the module name and Go web framework.
-func checkGoProject(goModPath, projectDir string) *core.ProjectInfo {
-	data, err := os.ReadFile(goModPath)
-	if err != nil {
+func checkGoProject(ctx context.Context, goModPath, projectDir string) *core.ProjectInfo {
+	data, err := readManifestFile(ctx, goModPath, maxManifestFileSize)
+	if err != nil || contextErr(ctx) != nil {
 		return nil
 	}
 
@@ -226,7 +295,7 @@ func checkGoProject(goModPath, projectDir string) *core.ProjectInfo {
 }
 
 // checkPythonProject analyzes pyproject.toml, requirements.txt, and command-line arguments.
-func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *core.ProjectInfo {
+func checkPythonProject(ctx context.Context, pyprojectPath, reqPath, projectDir, lowerCmd string) *core.ProjectInfo {
 	var (
 		name      string
 		version   string
@@ -237,8 +306,13 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 	// Check the command line for common framework signatures first.
 	framework = identifyFrameworkFromCmdline(lowerCmd)
 
-	// Inspect pyproject.toml.
-	if data, err := os.ReadFile(pyprojectPath); err == nil {
+	// Inspect pyproject.toml. A canceled context aborts the walk before the
+	// second manifest is even considered.
+	data, err := readManifestFile(ctx, pyprojectPath, maxManifestFileSize)
+	if contextErr(ctx) != nil {
+		return nil
+	}
+	if err == nil {
 		found = true
 		content := string(data)
 		if m := pyprojectReName.FindStringSubmatch(content); len(m) > 1 {
@@ -255,7 +329,11 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 	}
 
 	// Inspect requirements.txt.
-	if data, err := os.ReadFile(reqPath); err == nil {
+	data, err = readManifestFile(ctx, reqPath, maxManifestFileSize)
+	if contextErr(ctx) != nil {
+		return nil
+	}
+	if err == nil {
 		found = true
 		if framework == "" {
 			lowerContent := strings.ToLower(string(data))
@@ -280,6 +358,96 @@ func checkPythonProject(pyprojectPath, reqPath, projectDir, lowerCmd string) *co
 		Path:      projectDir,
 		Version:   version,
 	}
+}
+
+// readManifestFileLimited reads a manifest file without trusting its size: the
+// path is stat'ed first so an oversized file is rejected unread, then the body
+// is read in chunks with a cancellation check before every chunk.
+func readManifestFileLimited(ctx context.Context, path string, limit int64) ([]byte, error) {
+	if err := contextErr(ctx); err != nil {
+		return nil, err
+	}
+
+	// Open fail-closed: permission errors, missing files, and directories are all
+	// "not a usable manifest" for the caller.
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errManifestNotRegular
+	}
+	// Reject an oversized manifest before any of its bytes are read.
+	if info.Size() >= limit {
+		return nil, errManifestTooLarge
+	}
+
+	data, err := readManifestLimited(ctx, f, limit)
+	if err != nil {
+		return nil, err
+	}
+	if err := contextErr(ctx); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// readManifestLimited buffers at most limit bytes from r, checking ctx before
+// every chunk so a slow or growing file cannot outrun the detection budget.
+func readManifestLimited(ctx context.Context, r io.Reader, limit int64) ([]byte, error) {
+	var (
+		buf    bytes.Buffer
+		chunk  = make([]byte, manifestReadChunkSize)
+		total  int64
+		stalls int
+	)
+
+	for {
+		if err := contextErr(ctx); err != nil {
+			return nil, err
+		}
+
+		n, readErr := r.Read(chunk)
+		if n > 0 {
+			stalls = 0
+			total += int64(n)
+			// The file grew past the cap between the stat and the read.
+			if total >= limit {
+				return nil, errManifestTooLarge
+			}
+			buf.Write(chunk[:n])
+		} else if readErr == nil {
+			stalls++
+			if stalls >= maxManifestReadStalls {
+				return nil, errManifestReadStalled
+			}
+		}
+
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				if err := contextErr(ctx); err != nil {
+					return nil, err
+				}
+				return buf.Bytes(), nil
+			}
+			return nil, readErr
+		}
+	}
+}
+
+// contextErr returns ctx's cancellation error, treating a nil context as
+// "no deadline" so callers never panic on an unset context.
+func contextErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Err()
 }
 
 // identifyFrameworkFromCmdline detects frameworks from process command lines.

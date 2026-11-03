@@ -78,7 +78,15 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 	field(w, p, "Summary", keyWidth, info.Status)
 
 	if !info.IsOpen {
-		field(w, p, "Conclusion", keyWidth, "Port is free and ready for use.")
+		// Never promise a free port when the listener table was unreadable: a
+		// process bound only to another interface would be invisible to the probe.
+		if info.ListenerTableMissing || info.Status == core.StatusUndetermined {
+			field(w, p, "Conclusion", keyWidth, "Inconclusive: the local listener table could not be read.")
+			hint(w, p, "A closed loopback probe cannot rule out a listener bound to another interface.")
+			fmt.Fprintf(w, "    %s\n", p.paint(p.dim, "Check the host/network scope and run port-detective doctor before treating this port as available."))
+		} else {
+			field(w, p, "Conclusion", keyWidth, "No loopback listener detected; the port is not reserved for you.")
+		}
 		fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
 		summaryLine(w, p, fmt.Sprintf("Elapsed: %s", humanDuration(elapsed)))
 		return
@@ -158,10 +166,16 @@ func newScanCommand(opts *options) *cobra.Command {
 			}
 
 			begin := time.Now()
-			infos, err := core.ScanPortsConcurrent(cmd.Context(), targetPorts)
+			summary, err := core.ScanPortsConcurrentSummary(cmd.Context(), targetPorts)
 			elapsed := time.Since(begin)
 			if err != nil {
 				return err
+			}
+			infos := summary.Diagnostics
+			// A degraded scan cannot prove the unscanned-but-listening world is empty,
+			// so the warning goes to stderr and stays out of the JSON array shape.
+			if summary.Degraded && summary.Warning != "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: incomplete result: %s\n", summary.Warning)
 			}
 
 			if opts.jsonOutput {
@@ -172,6 +186,9 @@ func newScanCommand(opts *options) *cobra.Command {
 				fmt.Fprintf(out, "Scope: %s\n", scope)
 			}
 			renderScan(out, newPalette(out), infos, elapsed, engine)
+			if summary.Degraded && summary.Warning != "" {
+				fmt.Fprintf(out, "%s\n", newPalette(out).paint(newPalette(out).warn, "Incomplete result: "+summary.Warning))
+			}
 			return nil
 		},
 	}

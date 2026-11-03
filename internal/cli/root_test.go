@@ -207,8 +207,18 @@ func TestScanJSONIsArray(t *testing.T) {
 }
 
 func TestKillDryRunCLI(t *testing.T) {
-	// Test an idle port.
-	out, _, err := captureRun(t, "kill", "65432", "--dry-run")
+	// Bind an ephemeral port and release it, so the test cannot collide with a
+	// service that happens to occupy a hardcoded port number on the host.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to reserve an ephemeral port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatalf("failed to release the ephemeral port: %v", err)
+	}
+
+	out, _, err := captureRun(t, "kill", strconv.Itoa(port), "--dry-run")
 	if err == nil {
 		t.Errorf("an idle port should return an error, got: %s", out)
 	}

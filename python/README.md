@@ -89,10 +89,12 @@ synchronous calls; async calls include discovery in the requested timeout.
 Process actions default to dry-run; set `dry_run=False` only after reviewing the target.
 
 `scan_ports` returns occupied ports with diagnostics in ascending port order. An
-omitted list or `[]` scans the default development ports; it is not an empty scan.
-Project cleanup discovers the project's TCP listeners, including ports outside the
-default list. An optional `ports` list restricts cleanup to those ports; `[]` keeps
-discovery enabled. The `path` directory scopes cleanup without changing the Python
+omitted list or `None` scans the default development ports; an explicitly empty list
+raises `ValueError` instead. Project cleanup discovers the project's TCP listeners,
+including ports outside the default list. An optional `ports` list restricts cleanup
+to those ports; `ports=[]` likewise raises `ValueError` rather than silently keeping
+discovery enabled, so an empty selection can never widen the scope. The `path`
+directory scopes cleanup without changing the Python
 process's working directory.
 An existing directory resolves to its nearest `package.json`, `go.mod`,
 `pyproject.toml`, or `requirements.txt` ancestor, or retains its own path when no

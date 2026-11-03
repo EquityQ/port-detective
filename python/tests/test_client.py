@@ -255,6 +255,76 @@ class TestSyncClient(unittest.TestCase):
         self.assertIn("timed out", str(ctx.exception))
 
 
+class TestEmptySelectionIsFailClosed(unittest.TestCase):
+    """An explicitly empty selection must never widen scope to the default sweep.
+
+    "Argument absent" and "argument explicitly empty" are different requests: the
+    former uses the documented default, the latter selects nothing and is an error.
+    """
+
+    def test_scan_ports_rejects_empty_but_defaults_on_none(self):
+        with self.assertRaises(ValueError) as ctx:
+            scan_ports([])
+        self.assertIn("must not be empty", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            scan_ports(tuple())
+        self.assertIn("must not be empty", str(ctx.exception))
+
+        # None / omitted keep the documented default scan.
+        with self.assertRaises(ValueError):
+            scan_ports(None, timeout=0)  # reaches timeout validation, not port logic
+
+    def test_clean_project_rejects_empty_but_defaults_on_none(self):
+        with self.assertRaises(ValueError) as ctx:
+            clean_project(ports=[])
+        self.assertIn("must not be empty", str(ctx.exception))
+
+        with self.assertRaises(ValueError):
+            clean_project(ports=None, timeout=0)
+
+    def test_non_sequence_ports_are_rejected(self):
+        for invalid in ["3000,8080", b"3000", 3000]:
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    scan_ports(invalid)
+
+    def test_empty_set_and_generator_are_also_fail_closed(self):
+        with self.assertRaises(ValueError):
+            scan_ports(set())
+        with self.assertRaises(ValueError):
+            scan_ports(p for p in ())
+
+    def test_port_elements_are_still_validated(self):
+        with self.assertRaises(ValueError) as ctx:
+            scan_ports([3000, 70000])
+        self.assertIn("between 1 and 65535", str(ctx.exception))
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("subprocess.run")
+    def test_omitted_and_none_omit_the_ports_flag(self, mock_run, mock_find):
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+        scan_ports()
+        scan_ports(None)
+        for call in mock_run.call_args_list:
+            self.assertEqual(call.args[0], ["/mock/port-detective", "scan", "--json"])
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("subprocess.run")
+    def test_non_empty_selection_still_forwards_ports(self, mock_run, mock_find):
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+        scan_ports([3000, 8080])
+        scan_ports((3000,))
+        clean_project(path=os.getcwd(), ports=[3010])
+        forwarded = [call.args[0] for call in mock_run.call_args_list]
+        self.assertEqual(forwarded[0], ["/mock/port-detective", "scan", "--ports", "3000,8080", "--json"])
+        self.assertEqual(forwarded[1], ["/mock/port-detective", "scan", "--ports", "3000", "--json"])
+        self.assertEqual(
+            forwarded[2],
+            ["/mock/port-detective", "clean", "-y", "--dry-run", "--ports", "3010", "--json"],
+        )
+
+
 class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
     @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")
@@ -287,6 +357,39 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         res = await async_scan_ports([6379])
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0].port, 6379)
+
+    async def test_async_empty_selection_is_fail_closed(self):
+        """Async variants must reject [] before spawning any child process."""
+        with self.assertRaises(ValueError) as ctx:
+            await async_scan_ports([])
+        self.assertIn("must not be empty", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            await async_clean_project(ports=[])
+        self.assertIn("must not be empty", str(ctx.exception))
+
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
+    @patch("asyncio.create_subprocess_exec")
+    async def test_async_default_vs_explicit_selection_arguments(self, mock_exec, mock_find):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"[]", b""))
+        mock_exec.return_value = mock_proc
+
+        await async_scan_ports()
+        await async_scan_ports(None)
+        await async_scan_ports([3000])
+        await async_clean_project(ports=None)
+        await async_clean_project(ports=[3010])
+        commands = [call.args for call in mock_exec.call_args_list]
+        self.assertEqual(commands[0], ("/mock/port-detective", "scan", "--json"))
+        self.assertEqual(commands[1], ("/mock/port-detective", "scan", "--json"))
+        self.assertEqual(commands[2], ("/mock/port-detective", "scan", "--ports", "3000", "--json"))
+        self.assertEqual(commands[3], ("/mock/port-detective", "clean", "-y", "--dry-run", "--json"))
+        self.assertEqual(
+            commands[4],
+            ("/mock/port-detective", "clean", "-y", "--dry-run", "--ports", "3010", "--json"),
+        )
 
     @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
     @patch("asyncio.create_subprocess_exec")

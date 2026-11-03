@@ -6,6 +6,10 @@
 *.so
 *.dylib
 *.test
+# Editor and backup leftovers, such as a stale port-detective.exe~ backup file.
+*~
+*.bak
+*.orig
 
 # ===== OS files =====
 .DS_Store

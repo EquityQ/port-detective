@@ -14,8 +14,9 @@ import (
 // kill releases a port and supports --dry-run.
 func newKillCommand(opts *options) *cobra.Command {
 	var (
-		dryRun bool
-		yes    bool
+		dryRun    bool
+		yes       bool
+		previewID string
 	)
 
 	cmd := &cobra.Command{
@@ -24,13 +25,17 @@ func newKillCommand(opts *options) *cobra.Command {
 		Long: strings.Join([]string{
 			"Terminate the process occupying a port.",
 			"",
-			"Use --dry-run to preview the target without terminating it.",
+			"Use --dry-run to preview the target without terminating it. In --json mode the",
+			"dry run also returns a preview_id; pass it back with --preview-id so the action",
+			"is bound to the process you actually previewed.",
 			"Interactive confirmation is required by default; use -y to skip it.",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective kill 8080",
 			"  port-detective kill 8080 --dry-run",
 			"  port-detective kill 8080 -y",
+			"  port-detective kill 8080 --json --dry-run --yes",
+			"  port-detective kill 8080 --json --yes --preview-id <token>",
 		}, "\n"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -99,19 +104,45 @@ func newKillCommand(opts *options) *cobra.Command {
 				}
 			}
 
+			// A supplied preview token is the authoritative target: it proves which
+			// process snapshot a caller previewed, so a live inspection cannot
+			// substitute a different process.
+			target := *diag
+			if strings.TrimSpace(previewID) != "" {
+				targets, _, err := core.RestorePreviewToken(core.PreviewScopeKill, previewID, []int{port})
+				if err != nil {
+					return commandFailure("preview_rejected", 6, "preview id rejected for port %d: %v", port, err)
+				}
+				target = targets[0]
+			}
+
 			// Keep the displayed process identity pinned across the confirmation.
-			resultDiag, msg, err := core.KillPortTarget(cmd.Context(), *diag, dryRun)
+			resultDiag, msg, err := core.KillPortTarget(cmd.Context(), target, dryRun)
 			if err != nil {
 				return err
 			}
 
 			if opts.jsonOutput {
-				return writeJSON(out, map[string]any{
-					"port":       port,
-					"dry_run":    dryRun,
+				payload := map[string]any{
+					"port":                  port,
+					"dry_run":               dryRun,
+					"pre_action_diagnostic": resultDiag,
+					// Deprecated alias: kept so existing consumers keep working, but the
+					// truthful name is pre_action_diagnostic because the snapshot below
+					// describes the port BEFORE the action ran.
 					"diagnostic": resultDiag,
 					"message":    msg,
-				})
+				}
+				if resultDiag != nil && resultDiag.PostActionStatus != "" {
+					payload["post_action_status"] = resultDiag.PostActionStatus
+				}
+				if dryRun {
+					if token, expiresAt, tokenErr := core.IssueKillPreview(*resultDiag, core.DefaultPreviewTTL); tokenErr == nil {
+						payload["preview_id"] = token
+						payload["preview_expires_at_unix"] = expiresAt
+					}
+				}
+				return writeJSON(out, payload)
 			}
 
 			statusText := "Done"
@@ -125,6 +156,7 @@ func newKillCommand(opts *options) *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview without terminating the process")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip interactive confirmation")
+	cmd.Flags().StringVar(&previewID, "preview-id", "", "token from a --json --dry-run preview; binds the action to the previewed process")
 	return cmd
 }
 
@@ -135,6 +167,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 		yes         bool
 		projectPath string
 		portsStr    string
+		previewID   string
 	)
 
 	cmd := &cobra.Command{
@@ -168,6 +201,10 @@ func newCleanCommand(opts *options) *cobra.Command {
 				ports, err = parsePortsList(portsStr)
 				if err != nil {
 					return err
+				}
+				// An explicitly empty --ports must not widen into a full listener sweep.
+				if len(ports) == 0 {
+					return usageError(fmt.Errorf("--ports was provided but selected no ports; omit the flag to scan all local listeners"))
 				}
 				scope = fmt.Sprintf("%d selected TCP port(s): %v", len(ports), ports)
 			}
@@ -210,6 +247,49 @@ func newCleanCommand(opts *options) *cobra.Command {
 				}
 			}
 
+			// A supplied preview token is the authoritative target set: it pins the
+			// identities a caller previewed, so a fresh discovery cannot substitute
+			// different processes.
+			if strings.TrimSpace(previewID) != "" {
+				targets, _, err = core.RestorePreviewToken(core.PreviewScopeClean, previewID, ports)
+				if err != nil {
+					return commandFailure("preview_rejected", 6, "preview id rejected for project cleanup: %v", err)
+				}
+				// Execution is only allowed against a token; skip re-discovery prompts.
+				if !dryRun && !yes && !opts.jsonOutput {
+					promptMsg := fmt.Sprintf("Terminate %d previewed project listener(s) in %s?", len(targets), cwd)
+					fmt.Fprintf(out, "  %s %s ", promptMsg, p.paint(p.dim, "[y/N]:"))
+					confirmed, err := confirm(cmd.Context(), cmd.InOrStdin())
+					if err != nil {
+						return err
+					}
+					if !confirmed {
+						fmt.Fprintf(out, "  %s\n", p.paint(p.dim, "Cancelled. No processes were touched."))
+						return nil
+					}
+				}
+				cleaned, cleanErr := core.CleanProjectTargets(cmd.Context(), cwd, targets, dryRun)
+				if opts.jsonOutput {
+					if err := writeJSON(out, cleaned); err != nil {
+						return err
+					}
+					return cleanErr
+				}
+				title := "Project Ports Clean"
+				if dryRun {
+					title += " (Dry Run)"
+				}
+				sectionTitle(out, p, title, 80)
+				if len(cleaned) > 0 {
+					fmt.Fprintf(out, "\n")
+					renderPortTable(out, p, cleaned)
+					fmt.Fprintf(out, "\n")
+				}
+				summaryLine(out, p, fmt.Sprintf("Processed %d previewed port(s) for current project (dry-run: %v)", len(cleaned), dryRun))
+				fmt.Fprintf(out, "%s\n", p.paint(p.dim, rule(80)))
+				return cleanErr
+			}
+
 			// Execute exactly the previewed snapshot; the core revalidates every target.
 			cleaned, cleanErr := core.CleanProjectTargets(cmd.Context(), cwd, targets, dryRun)
 
@@ -248,6 +328,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip interactive confirmation")
 	cmd.Flags().StringVar(&projectPath, "project", "", "project directory (default: nearest project above current directory)")
 	cmd.Flags().StringVar(&portsStr, "ports", "", "limit discovery to comma-separated ports or ranges, e.g. 3000-3010,8080")
+	cmd.Flags().StringVar(&previewID, "preview-id", "", "token from a preview; binds the action to the previewed targets")
 	return cmd
 }
 
