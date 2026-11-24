@@ -5,7 +5,58 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No additional changes are recorded after v1.3.0.
+### Added
+
+- Cross-process CLI preview signing keystore (`PORT_DETECTIVE_PREVIEW_KEY_FILE`, defaulting
+  to a `0600` user-cache key rotated every 24h) so `kill --dry-run` and `clean --dry-run`
+  tokens can be redeemed across separate CLI invocations while MCP keeps strict per-process
+  memory isolation.
+- Local `bind_addresses` reporting on `PortDiagnostic` (Go, CLI `check`, MCP, Python SDK,
+  and TypeScript definitions).
+- Optional UDP inspection and concurrent scanning (`--protocol udp` on CLI `check`/`scan`,
+  `protocol="udp"` on MCP `inspect_port`/`scan_dev_ports` and both SDKs, plus
+  `core.InspectPortProtocol` / `core.ScanPortsProtocolSummary`), with honest `undetermined`
+  degradation when the UDP socket table is unreadable.
+- Explicit dependency injection via `core.Inspector` (`core.NewInspector`) without mutating
+  global detector state.
+- Multi-language project fingerprinting and root resolution for Rust (`Cargo.toml`: Axum,
+  Actix Web, Rocket, Warp, Tonic), Java/Kotlin (`pom.xml`, `build.gradle`,
+  `build.gradle.kts`: Spring Boot, Quarkus, Micronaut, Ktor, Vert.x), Ruby (`Gemfile`:
+  Rails, Sinatra, Hanami, Puma), and PHP (`composer.json`: Laravel, Symfony, Slim,
+  WordPress), plus `core.SupportedProjectManifests()`.
+- Full Python SDK and Node.js client workflow parity: `wait_for_port` / `waitForPort`,
+  `find_free_port` / `findFreePort`, `doctor` / `async_doctor` / `asyncDoctor` (parsing
+  degraded exit-5 JSON reports cleanly), `protocol`, `preset`, `preview_id` / `previewId`,
+  `FreePortResult`, `DoctorReport`, and PEP 561 `py.typed` packaging for Python.
+- Unified cross-platform local verification runner (`scripts/quality/run_checks.py`),
+  `scripts/README.md`, cross-language `PortDiagnostic` / TypeScript export drift checks in
+  `scripts/quality/verify_api_reference.py`, Python `mypy` CI check, and TypeScript
+  `tsc --noEmit` CI check.
+
+### Changed
+
+- Relocated the shared SDK test fixture from `npm/port-detective/test/fixtures/cli.go` to
+  `testdata/sdk-cli/main.go`, decoupling Python tests/CI from `npm/` and keeping it out of
+  `go test ./...`.
+- Modularized `internal/mcpserver` (`server.go`, `tools.go`, `handlers.go`, `args.go`),
+  `internal/fingerprint` (`analyzer.go`, `manifest.go`, `detectors.go`), `internal/cli`
+  (`kill.go`, `clean.go`, `confirm.go`, `terminal.go`, `output.go`), `npm/port-detective`
+  (`lib/{errors,validation,runner}.js`, shared `platform.resolveBundledBinary()`), Python
+  SDK (`errors.py`, shared command/parsing helpers), and release scripts
+  (`scripts/release/release_common.py`).
+- Raised CI coverage thresholds to Go 75/65/75/75%, Python 70/90/70%, and Node.js
+  75/70/80%, and enabled `--require-platform-manifest` in `npm-publish.yml`.
+
+### Fixed
+
+- CLI `clean --preview-id` and `kill --preview-id` now validate tokens before live discovery
+  or probing, preventing forged tokens from returning `[]` on empty scopes or double-prompting
+  in interactive mode.
+- CLI `wait --state free` no longer treats an `undetermined` / `listener_table_missing`
+  diagnostic as proof that a port is free.
+- Protected core test hooks (`listTCPConnections`, `previewKey`) with `sync.RWMutex` and
+  restored `fingerprint.DetectProject` instead of `nil` in CLI/MCP preview tests.
+- Fixed stale `SDK 1.2.x` compatibility strings in `README.md`.
 
 ## [1.3.0] - 2026-11-03
 

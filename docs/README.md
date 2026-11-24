@@ -31,6 +31,7 @@ project.
 - [Troubleshooting](operations/TROUBLESHOOTING.md)
 - [Shell completion](operations/SHELL_COMPLETION.md)
 - [Reproducible CLI demo](../scripts/demo/README.md)
+- [Automation scripts index](../scripts/README.md)
 
 ## Releases
 

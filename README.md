@@ -1,7 +1,7 @@
 # port-detective
 
-Cross-platform CLI, MCP server, and Python/Node.js SDKs for inspecting local TCP ports,
-identifying owning processes, and cleaning project-scoped listeners safely.
+Cross-platform CLI, MCP server, and Python/Node.js SDKs for inspecting local TCP/UDP ports,
+identifying owning processes and project frameworks, and cleaning project-scoped listeners safely.
 
 > **Latest release:** `v1.3.0` is published on [GitHub](https://github.com/EquityQ/port-detective/releases/tag/v1.3.0),
 > [PyPI](https://pypi.org/project/port-detective/1.3.0/), and [npm](https://www.npmjs.com/package/port-detective/v/1.3.0).
@@ -63,6 +63,7 @@ These examples are available in the published v1.3.0 CLI. They assume it is on
 PATH; otherwise use the local executable path shown above.
 
 ```bash
+port-detective check 5353 --protocol udp
 port-detective scan --ports 3000-3005,8080
 port-detective scan --preset web
 port-detective scan --preset project --project /path/to/project
@@ -76,9 +77,13 @@ port-detective doctor
 
 Cleanup discovers all visible TCP listeners, matches the resolved project directory,
 and shows the target list before confirmation. Running from a subdirectory resolves
-to the nearest supported project manifest. Wait observes port state rather than
-application readiness; a suggested free port is a snapshot, not a reservation.
-See the [API reference](docs/project/API_REFERENCE.md) for JSON and error contracts.
+to the nearest supported project manifest (Node.js, Go, Python, Rust, Java/Kotlin,
+Ruby, or PHP on `main`; Node.js, Go, and Python in `v1.3.0`). Wait observes port
+state rather than application readiness; a suggested free port is a snapshot, not a
+reservation. Note that `--protocol udp`, `bind_addresses`, expanded fingerprinting,
+and cross-process CLI `--preview-id` persistence are available on `main` (unreleased
+after `v1.3.0`). See the [API reference](docs/project/API_REFERENCE.md) for JSON and
+error contracts.
 
 ## Set Up with an AI Agent
 
@@ -155,8 +160,8 @@ The SDK first checks `PORT_DETECTIVE_BIN`, `PATH`, and local checkout binaries. 
 CLI is found, the first API call downloads the matching GitHub Release archive,
 verifies its SHA-256 checksum, and caches it under the user cache directory. This
 needs network access once. For offline use, select a local CLI with
-`PORT_DETECTIVE_BIN`. SDK `1.2.x` accepts
-CLI `1.2.x`; a `1.1.x` CLI must be upgraded or replaced. Set
+`PORT_DETECTIVE_BIN`. SDK `1.3.x` accepts
+CLI `1.3.x`; a `1.2.x` CLI must be upgraded or replaced. Set
 `PORT_DETECTIVE_AUTO_DOWNLOAD=0` for offline use and
 provide a CLI with `PORT_DETECTIVE_BIN`, or set `PORT_DETECTIVE_CACHE_DIR` to choose
 the cache location.
@@ -182,7 +187,7 @@ npx --no-install port-detective check 3000
 
 The published npm package includes the matching CLI binary, so Go and a local CLI build
 are unnecessary on supported platforms. Source checkouts require a built CLI or
-`PORT_DETECTIVE_BIN`. SDK `1.2.x` accepts CLI `1.2.x`.
+`PORT_DETECTIVE_BIN`. SDK `1.3.x` accepts CLI `1.3.x`.
 
 Process actions default to dry-run;
 set `dryRun: false` only after reviewing the target. See the [Node.js client guide](npm/port-detective/README.md).

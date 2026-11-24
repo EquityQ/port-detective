@@ -63,26 +63,38 @@ const {
   inspectPort,
   scanPorts,
   freePort,
-  asyncInspectPort,
   cleanProject,
+  waitForPort,
+  findFreePort,
+  doctor,
+  asyncInspectPort,
 } = require("port-detective");
 
 const diagnostic = inspectPort(3000);
+const udpDiag = inspectPort(5353, { protocol: "udp" });
 const matches = scanPorts([3000, 8080]);
+const webMatches = scanPorts(undefined, { preset: "web" });
 const preview = freePort(3000); // dryRun defaults to true
 const projectPreview = cleanProject({
   projectPath: "/workspace/my-app",
   ports: [3000, 8080],
 });
+const ready = waitForPort(3000, { state: "open", waitTimeout: 10_000 });
+const free = findFreePort({ from: 3000, to: 3100 });
+const envReport = doctor();
 
 async function inspectAgain() {
   return asyncInspectPort(3000);
 }
 ```
 
-Async methods accept an `AbortSignal`. Process actions require
-`{ dryRun: false }`; the wrapper then passes the CLI's `--yes` flag. Type
-declarations are included in `index.d.ts`.
+Async methods (`asyncInspectPort`, `asyncScanPorts`, `asyncFreePort`,
+`asyncCleanProject`, `asyncWaitForPort`, `asyncFindFreePort`, `asyncDoctor`) accept
+an `AbortSignal`. Process actions require `{ dryRun: false }`; the wrapper then passes
+the CLI's `--yes` flag and supports `{ previewId }` to bind execution to a prior
+dry-run snapshot. Type declarations are included in `index.d.ts`. Workflow helpers
+(`waitForPort`, `findFreePort`, `doctor`, `protocol: "udp"`, `preset`, `previewId`,
+and `bind_addresses`) are available on `main` (unreleased after `v1.3.0`).
 Timeouts and aborts also apply to asynchronous CLI version checks, which do not
 block the event loop. Both sync and async methods share their timeout budget between
 the version check and command execution.
@@ -95,7 +107,8 @@ outside the default list; `ports` limits that selection when supplied and nonemp
 and `{ ports: [] }` likewise throws a `TypeError` rather than silently discovering
 everything. `projectPath` selects the project
 explicitly; otherwise cleanup uses `cwd` or the caller's current directory.
-The directory resolves to the nearest `package.json`, `go.mod`, `pyproject.toml`,
-or `requirements.txt` ancestor, or keeps its own path if no manifest exists. A
-subdirectory can therefore select its parent project; unrelated nested projects
-are excluded.
+The directory resolves to the nearest supported project manifest (`package.json`,
+`go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `pom.xml`,
+`build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json`), or keeps its
+own path if no manifest exists. A subdirectory can therefore select its parent
+project; unrelated nested projects are excluded.

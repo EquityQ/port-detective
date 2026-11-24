@@ -37,6 +37,13 @@ platform binary workflow are published with the formal npm release. Process meta
 unavailable for protected or system-owned processes; the CLI reports that limitation
 instead of treating it as proof that a port is free.
 
+Unreleased work on `main` (scheduled for the next release after `v1.3.0`) adds cross-process
+CLI preview token persistence, `bind_addresses` reporting, optional UDP inspection/scanning,
+Rust/Java/Kotlin/Ruby/PHP project fingerprinting, `core.Inspector` dependency injection,
+Python/Node SDK workflow parity (`wait`, `find-free`, `doctor`, `protocol`, `preset`,
+`preview_id`, `py.typed`), modular package splits across Go/Python/Node/release scripts,
+cross-language schema parity verification, `mypy`/`tsc` CI checks, and raised coverage gates.
+
 See [platform support](PLATFORM_SUPPORT.md), [contributing](../community/CONTRIBUTING.md),
 [security](../community/SECURITY.md), [quality review](../project/QUALITY_REVIEW.md), and
 the [roadmap](../project/ROADMAP.md) for current constraints and next steps.

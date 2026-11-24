@@ -25,9 +25,9 @@ destructive actions.
 
 ## Release evidence
 
-The [v1.2.0 release workflow](https://github.com/EquityQ/port-detective/actions/runs/39722738497)
-passed Go, Python, MCP, artifact, signature, provenance, and PyPI installation checks.
-The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/39723082681)
+The [v1.3.0 release workflow](https://github.com/EquityQ/port-detective/actions/runs/41576379395)
+passed Go, Python, MCP, strict six-platform archive manifest, signature, provenance, and PyPI installation checks.
+The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/41576720972)
 published the client and platform packages and passed clean-install CLI integration.
 
 ## Quality gates
@@ -49,15 +49,24 @@ still cover positive project matching and disposable-child termination.
 Every change should pass:
 
 ```text
+python scripts/quality/run_checks.py
+```
+
+Or individually:
+
+```text
 go build ./...
 go test -race ./...
 go vet ./...
 gofmt -l .
+python -m mypy python/port_detective
 python -m unittest discover -s python/tests -v
 npm test --prefix npm/port-detective
 python scripts/quality/verify_api_reference.py
 ```
 
-CI enforces reviewed thresholds: Go core/CLI/MCP/fingerprint 60/45/70/70 percent;
-Python core/models/overall 60/85/65 percent; Node.js lines/branches/functions
-45/65/55 percent. Go and Python coverage reports remain CI artifacts.
+CI enforces reviewed thresholds: Go core/CLI/MCP/fingerprint 75/65/75/75 percent;
+Python core/models/overall 70/90/70 percent plus `mypy`; Node.js lines/branches/functions
+75/70/80 percent plus `tsc --noEmit` on `index.d.ts`; and cross-language `PortDiagnostic`
+schema parity across Go, Python, TypeScript, and `docs/project/API_REFERENCE.md`. Go and
+Python coverage reports remain CI artifacts.

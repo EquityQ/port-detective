@@ -77,21 +77,39 @@ locally with Go, while unsupported platforms must provide a compatible CLI throu
 ## Quickstart
 
 ```python
-from port_detective import inspect_port, scan_ports, free_port, clean_project
+from port_detective import (
+    inspect_port,
+    scan_ports,
+    free_port,
+    clean_project,
+    wait_for_port,
+    find_free_port,
+    doctor,
+)
 
 diagnostic = inspect_port(8080)
+udp_diag = inspect_port(5353, protocol="udp")
 occupied = scan_ports([3000, 5173, 8080])
+web_ports = scan_ports(preset="web")
 preview = free_port(3000, dry_run=True)
 project_listeners = clean_project(dry_run=True)
 selected = clean_project(path="/workspace/my-app", ports=[3000, 8080])
+ready = wait_for_port(3000, state="open", wait_timeout=10.0)
+free = find_free_port(port_from=3000, port_to=3100)
+env_report = doctor()
 
-print(diagnostic.status, len(occupied), preview.message, len(project_listeners))
+print(diagnostic.status, diagnostic.bind_addresses, len(occupied), preview.preview_id, free.port, env_report.status)
 ```
 
 All calls accept an optional timeout in seconds, shared by CLI version checking and
 command execution. A first-use download uses its own bounded network timeout for
 synchronous calls; async calls include discovery in the requested timeout.
-Process actions default to dry-run; set `dry_run=False` only after reviewing the target.
+Process actions default to dry-run; set `dry_run=False` only after reviewing the target,
+and optionally pass `preview_id=preview.preview_id` to bind execution to the exact
+previewed snapshot. Workflow APIs (`wait_for_port`, `find_free_port`, `doctor`,
+`protocol="udp"`, `preset`, `preview_id`, and `bind_addresses`) are available on `main`
+(unreleased after `v1.3.0`) together with async counterparts (`async_wait_for_port`,
+`async_find_free_port`, `async_doctor`) and PEP 561 `py.typed` typing metadata.
 
 `scan_ports` returns occupied ports with diagnostics in ascending port order. An
 omitted list or `None` scans the default development ports; an explicitly empty list
@@ -101,10 +119,11 @@ to those ports; `ports=[]` likewise raises `ValueError` rather than silently kee
 discovery enabled, so an empty selection can never widen the scope. The `path`
 directory scopes cleanup without changing the Python
 process's working directory.
-An existing directory resolves to its nearest `package.json`, `go.mod`,
-`pyproject.toml`, or `requirements.txt` ancestor, or retains its own path when no
-manifest exists. Selecting a subdirectory can therefore select its parent project;
-unrelated nested projects are excluded.
+An existing directory resolves to its nearest supported project manifest
+(`package.json`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`,
+`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json`), or
+retains its own path when no manifest exists. Selecting a subdirectory can therefore
+select its parent project; unrelated nested projects are excluded.
 
 ### Async API
 
@@ -130,9 +149,12 @@ finish populating the cache after cancellation; it never terminates a target pro
 ## Models
 
 `PortDiagnostic` includes `port`, `is_open`, `protocol`, `pid`,
-`process_name`, `cmdline`, `memory_mb`, `cpu_percent`, `status`, and optional
-project metadata. `ProjectInfo` includes `name`, `framework`, `path`, and
-`version`.
+`process_name`, `cmdline`, `memory_mb`, `cpu_percent`, `status`, `bind_addresses`,
+`listener_table_missing`, `post_action_status`, and optional `project` metadata.
+`ProjectInfo` includes `name`, `framework`, `path`, and `version`.
+`KillResult` exposes `port`, `dry_run`, `message`, `pre_action_diagnostic`,
+`diagnostic`, `post_action_status`, `preview_id`, and `preview_expires_at_unix`.
+`FreePortResult` and `DoctorReport` model `find_free_port` and `doctor` outputs.
 
 See the [API reference](../docs/project/API_REFERENCE.md), [platform support policy](../docs/operations/PLATFORM_SUPPORT.md),
 and [quality review](../docs/project/QUALITY_REVIEW.md) for release constraints.

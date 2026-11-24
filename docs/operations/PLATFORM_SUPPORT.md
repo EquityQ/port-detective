@@ -19,10 +19,15 @@ compatible CLI through `PORT_DETECTIVE_BIN`.
 
 - Protected processes and services may hide metadata or deny termination.
 - Containers, WSL, sandboxes, firewall rules, and network namespaces can change results.
-- Source builds read local TCP listener tables, including bindings to specific
-  interfaces. If table access fails, inspection falls back to IPv4/IPv6 loopback
-  probes; that fallback cannot rule out interface-only listeners. Full project
-  discovery fails explicitly when it cannot read the listener table.
+- Source builds read local TCP and UDP socket tables, including bindings to specific
+  interfaces (`bind_addresses`). If TCP table access fails, inspection falls back to
+  IPv4/IPv6 loopback probes; that fallback cannot rule out interface-only listeners.
+  UDP has no reliable handshake probe, so an unreadable UDP table always reports
+  `undetermined`. Full project discovery fails explicitly when it cannot read the
+  listener table.
+- CLI `--preview-id` tokens are signed with a user-scoped key file under the OS user
+  cache directory (rotated every 24h; override with `PORT_DETECTIVE_PREVIEW_KEY_FILE`),
+  while MCP keeps a strictly in-memory per-process key.
 - `find-free` tests loopback binding and releases its test sockets before returning;
   another process may claim the suggestion before your application binds it.
 - Review `--dry-run` output before using `--yes` or `dry_run=false`.

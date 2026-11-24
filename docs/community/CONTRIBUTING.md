@@ -17,6 +17,14 @@ For compatibility, benchmark, or maintenance evidence, follow the [community sub
 
 Requirements: Go 1.25+, Python 3.9+, and Node.js 22+ when changing the SDKs.
 
+Run the unified local verification suite:
+
+```bash
+python scripts/quality/run_checks.py
+```
+
+Or run individual checks directly:
+
 ```bash
 go build ./...
 go test -race ./...
@@ -24,6 +32,7 @@ go vet ./...
 gofmt -l .
 python -m unittest discover -s python/tests -v
 npm test --prefix npm/port-detective
+python scripts/quality/verify_api_reference.py
 ```
 
 For MCP changes, build the CLI and run the scripts in `scripts/mcp/`. Use a temporary

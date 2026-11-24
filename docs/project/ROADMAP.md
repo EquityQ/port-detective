@@ -2,6 +2,22 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
+## Completed on main (unreleased)
+
+- Persist a user-scoped, 24h-rotated CLI preview signing key so `--preview-id` works across
+  separate CLI invocations while MCP retains per-process memory isolation; validate tokens
+  before live discovery/probing.
+- Expose `bind_addresses` on `PortDiagnostic` and add optional TCP/UDP inspection and
+  concurrent scanning across core, CLI, MCP, Python, and Node.js.
+- Expand project fingerprinting and manifest resolution to Rust, Java/Kotlin, Ruby, and PHP,
+  and add `core.Inspector` for explicit dependency injection.
+- Bring the Python SDK and Node.js client to CLI parity (`wait`, `find-free`, `doctor`,
+  `protocol`, `preset`, `preview_id`, `FreePortResult`, `DoctorReport`, PEP 561 `py.typed`).
+- Refactor monolithic Go, Node.js, Python, and release-script modules by responsibility and
+  move the shared SDK fixture to `testdata/sdk-cli/main.go`.
+- Enforce cross-language `PortDiagnostic` schema parity, Python `mypy`, TypeScript `tsc`,
+  raised coverage thresholds, and `--require-platform-manifest` in npm publishing.
+
 ## Included in v1.3.0
 
 - Bind destructive actions to the process snapshot a caller previewed: signed, short-lived
