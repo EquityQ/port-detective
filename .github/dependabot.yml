@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 10
+    ignore:
+      # cosign-installer v4 installs Cosign v3, which requires --bundle instead of
+      # --output-signature/--output-certificate. Keep v3.x until release signing and
+      # verification docs migrate to Sigstore bundles.
+      - dependency-name: "sigstore/cosign-installer"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: gomod
     directory: "/"
