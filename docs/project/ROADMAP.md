@@ -2,7 +2,7 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
-## Completed on main (unreleased)
+## Included in v1.4.0
 
 - Persist a user-scoped, 24h-rotated CLI preview signing key so `--preview-id` works across
   separate CLI invocations while MCP retains per-process memory isolation; validate tokens

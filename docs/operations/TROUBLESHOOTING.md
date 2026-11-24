@@ -13,6 +13,8 @@ status `5` when its self-check is degraded.
 | `permission_required` or empty process fields | The OS restricts process metadata. Retry with appropriate privileges only when understood. |
 | `kill` or `clean` refuses to continue | Start with `--dry-run`; confirm the target and project path. JSON termination also needs `--yes`. |
 | MCP reports that a `preview_id` is required | Dry runs are the preview step. Call the tool with `dry_run=true`, read the returned `preview_id`, then repeat the call with `dry_run=false` and that token. Tokens expire and are invalidated when the port owner changes. |
+| CLI `--preview-id` is rejected across invocations | CLI previews use a user-scoped key file under the OS cache directory (rotated every 24h; override with `PORT_DETECTIVE_PREVIEW_KEY_FILE`). Re-run `--dry-run` if the token expired, the key rotated, or the target changed. |
+| UDP inspection reports `undetermined` | UDP sockets have no reliable loopback handshake probe; when the OS UDP socket table cannot be read, `listener_table_missing` is set and the result stays `undetermined` rather than `free`. |
 | An SDK raises on an empty port selection | `ports=[]` is rejected intentionally; omit the argument (or pass `None`/`undefined`) to use the default selection. |
 | `clean` finds no project listeners | Check the effective project directory. Use `clean --project /absolute/project --dry-run`; a missing fingerprint or another network namespace can hide targets. `--ports` restricts the selection. |
 | MCP cleans the wrong project scope | Supply `project_path` explicitly and review the returned `cwd` and `scope`. |

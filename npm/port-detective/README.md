@@ -3,9 +3,11 @@
 A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
 TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
-Version checks, explicit `projectPath`, cleanup `ports`, and fail-closed port selection
-are available in the published v1.3.0 SDK and matching CLI. Major/minor compatibility
-protects the shared API contract and does not add new flags to an older CLI.
+Workflow helpers (`waitForPort`, `findFreePort`, `doctor`, `protocol`, `preset`,
+`previewId`, `bind_addresses`), version checks, explicit `projectPath`, cleanup `ports`,
+and fail-closed port selection are available in `v1.4.0` with the matching CLI.
+Major/minor compatibility protects the shared API contract and does not add new flags to
+an older CLI.
 
 An explicitly empty port selection is rejected: `scanPorts([])` and
 `cleanProject({ ports: [] })` throw `TypeError` instead of silently scanning the default
@@ -17,7 +19,7 @@ documented default.
 Install the published package from npm:
 
 ```bash
-npm install port-detective@1.3.0
+npm install port-detective@1.4.0
 ```
 
 Published npm installations include the matching platform CLI binary. Users do not
@@ -40,7 +42,7 @@ or set `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` al
 overrides automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 Resolution order is `binaryPath`, `PORT_DETECTIVE_BIN`, the bundled platform
 binary, then `PATH`. External CLIs must share the SDK's major and minor version:
-SDK `1.3.x` accepts CLI `1.3.x`, including `1.3.0-dev`, and rejects CLI `1.2.x`. Incompatible or unrecognized
+SDK `1.4.x` accepts CLI `1.4.x`, including `1.4.0-dev`, and rejects CLI `1.3.x`. Incompatible or unrecognized
 versions raise `PortDetectiveVersionError` with the resolved executable and repair
 instructions. Successful checks are cached until that file's identity changes.
 
@@ -94,7 +96,7 @@ an `AbortSignal`. Process actions require `{ dryRun: false }`; the wrapper then 
 the CLI's `--yes` flag and supports `{ previewId }` to bind execution to a prior
 dry-run snapshot. Type declarations are included in `index.d.ts`. Workflow helpers
 (`waitForPort`, `findFreePort`, `doctor`, `protocol: "udp"`, `preset`, `previewId`,
-and `bind_addresses`) are available on `main` (unreleased after `v1.3.0`).
+and `bind_addresses`) are included in `v1.4.0`.
 Timeouts and aborts also apply to asynchronous CLI version checks, which do not
 block the event loop. Both sync and async methods share their timeout budget between
 the version check and command execution.

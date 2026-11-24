@@ -5,6 +5,17 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No additional changes are recorded after v1.4.0.
+
+## [1.4.0] - 2026-11-24
+
+This minor release adds cross-process CLI preview token persistence, local bind-address
+reporting, optional UDP inspection and concurrent scanning, expanded multi-language
+project fingerprinting, explicit dependency injection (`core.Inspector`), full Python
+and Node.js SDK workflow parity, and modularized internals with stricter CI gates. All
+changes are backward compatible with v1.3.x APIs; SDK `1.4.x` requires CLI `1.4.x` to
+protect the new flags and JSON fields.
+
 ### Added
 
 - Cross-process CLI preview signing keystore (`PORT_DETECTIVE_PREVIEW_KEY_FILE`, defaulting

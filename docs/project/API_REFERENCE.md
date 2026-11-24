@@ -1,6 +1,6 @@
 # CLI and MCP API Reference
 
-Revision: **v1.3.0**, released 2026-11-03. Published CLI and SDK packages use
+Revision: **v1.4.0**, released 2026-11-24. Published CLI and SDK packages use
 the same major/minor compatibility contract.
 
 Keep the CLI, Python SDK, and Node.js client on the same reviewed commit or release.
@@ -162,8 +162,8 @@ SDKs consume the CLI JSON contract instead of reimplementing process inspection.
 
 ## Compatibility
 
-Within the v1.3 development line, fields may be added. SDK 1.3.x accepts CLI 1.3.x,
-including 1.3.0-dev, and rejects CLI 1.2.x. Changes to field names, command
+Within the v1.4 development line, fields may be added. SDK 1.4.x accepts CLI 1.4.x,
+including 1.4.0-dev, and rejects CLI 1.3.x. Changes to field names, command
 flags, tool names, or safety defaults require updates to this page, SDK models, acceptance
 tests, and the changelog.
 

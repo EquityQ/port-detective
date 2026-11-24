@@ -3,8 +3,8 @@
 Cross-platform CLI, MCP server, and Python/Node.js SDKs for inspecting local TCP/UDP ports,
 identifying owning processes and project frameworks, and cleaning project-scoped listeners safely.
 
-> **Latest release:** `v1.3.0` is published on [GitHub](https://github.com/EquityQ/port-detective/releases/tag/v1.3.0),
-> [PyPI](https://pypi.org/project/port-detective/1.3.0/), and [npm](https://www.npmjs.com/package/port-detective/v/1.3.0).
+> **Latest release:** `v1.4.0` is published on [GitHub](https://github.com/EquityQ/port-detective/releases/tag/v1.4.0),
+> [PyPI](https://pypi.org/project/port-detective/1.4.0/), and [npm](https://www.npmjs.com/package/port-detective/v/1.4.0).
 
 ## Quick Start
 
@@ -14,13 +14,13 @@ Python SDK, and Node.js 22+ for the Node.js client and npm-based MCP setup.
 Inspect a port immediately; no Go installation is needed:
 
 ```bash
-npx --yes --package=port-detective@1.3.0 port-detective check 3000
+npx --yes --package=port-detective@1.4.0 port-detective check 3000
 ```
 
 Install the CLI for repeated use:
 
 ```bash
-npm install -g port-detective@1.3.0
+npm install -g port-detective@1.4.0
 ```
 
 ```bash
@@ -59,7 +59,7 @@ go test -race ./...
 
 ## Development Workflows
 
-These examples are available in the published v1.3.0 CLI. They assume it is on
+These examples are available in the `v1.4.0` CLI. They assume it is on
 PATH; otherwise use the local executable path shown above.
 
 ```bash
@@ -78,12 +78,9 @@ port-detective doctor
 Cleanup discovers all visible TCP listeners, matches the resolved project directory,
 and shows the target list before confirmation. Running from a subdirectory resolves
 to the nearest supported project manifest (Node.js, Go, Python, Rust, Java/Kotlin,
-Ruby, or PHP on `main`; Node.js, Go, and Python in `v1.3.0`). Wait observes port
-state rather than application readiness; a suggested free port is a snapshot, not a
-reservation. Note that `--protocol udp`, `bind_addresses`, expanded fingerprinting,
-and cross-process CLI `--preview-id` persistence are available on `main` (unreleased
-after `v1.3.0`). See the [API reference](docs/project/API_REFERENCE.md) for JSON and
-error contracts.
+Ruby, or PHP). Wait observes port state rather than application readiness; a suggested
+free port is a snapshot, not a reservation. See the [API reference](docs/project/API_REFERENCE.md)
+for JSON and error contracts.
 
 ## Set Up with an AI Agent
 
@@ -103,7 +100,7 @@ macOS and Linux:
   "mcpServers": {
     "port-detective": {
       "command": "npx",
-      "args": ["--yes", "--package=port-detective@1.3.0", "port-detective", "mcp"]
+      "args": ["--yes", "--package=port-detective@1.4.0", "port-detective", "mcp"]
     }
   }
 }
@@ -116,7 +113,7 @@ Windows:
   "mcpServers": {
     "port-detective": {
       "command": "cmd.exe",
-      "args": ["/d", "/s", "/c", "npx --yes --package=port-detective@1.3.0 port-detective mcp"]
+      "args": ["/d", "/s", "/c", "npx --yes --package=port-detective@1.4.0 port-detective mcp"]
     }
   }
 }
@@ -127,7 +124,7 @@ client if it is not obvious:
 
 > Set up the port-detective MCP server for this AI client. Detect my operating
 > system and client, use the official client-specific configuration format, and
-> use the published port-detective v1.3.0 npm package. Make the smallest
+> use the published port-detective v1.4.0 npm package. Make the smallest
 > appropriate config change, then tell me what you
 > changed and how to reload the client. After I reconnect, verify the read-only
 > `inspect_port` and `scan_dev_ports` tools. Show a dry-run preview before any
@@ -153,15 +150,15 @@ Check `port-detective --version` when switching from a source build.
 Install the published Python SDK from PyPI:
 
 ```bash
-python -m pip install port-detective==1.3.0
+python -m pip install port-detective==1.4.0
 ```
 
 The SDK first checks `PORT_DETECTIVE_BIN`, `PATH`, and local checkout binaries. If no
 CLI is found, the first API call downloads the matching GitHub Release archive,
 verifies its SHA-256 checksum, and caches it under the user cache directory. This
 needs network access once. For offline use, select a local CLI with
-`PORT_DETECTIVE_BIN`. SDK `1.3.x` accepts
-CLI `1.3.x`; a `1.2.x` CLI must be upgraded or replaced. Set
+`PORT_DETECTIVE_BIN`. SDK `1.4.x` accepts
+CLI `1.4.x`; a `1.3.x` CLI must be upgraded or replaced. Set
 `PORT_DETECTIVE_AUTO_DOWNLOAD=0` for offline use and
 provide a CLI with `PORT_DETECTIVE_BIN`, or set `PORT_DETECTIVE_CACHE_DIR` to choose
 the cache location.
@@ -181,13 +178,13 @@ The npm package provides synchronous, Promise, and TypeScript APIs and installs 
 matching CLI binary for Windows, macOS, and Linux on x64 or arm64:
 
 ```bash
-npm install port-detective@1.3.0
+npm install port-detective@1.4.0
 npx --no-install port-detective check 3000
 ```
 
 The published npm package includes the matching CLI binary, so Go and a local CLI build
 are unnecessary on supported platforms. Source checkouts require a built CLI or
-`PORT_DETECTIVE_BIN`. SDK `1.3.x` accepts CLI `1.3.x`.
+`PORT_DETECTIVE_BIN`. SDK `1.4.x` accepts CLI `1.4.x`.
 
 Process actions default to dry-run;
 set `dryRun: false` only after reviewing the target. See the [Node.js client guide](npm/port-detective/README.md).
