@@ -56,7 +56,8 @@ jobs:
           python scripts/release/verify_artifacts.py \
             --expected-version "${RELEASE_TAG#v}" \
             --dist "$RUNNER_TEMP/release" \
-            --checksums "$RUNNER_TEMP/release/checksums.txt"
+            --checksums "$RUNNER_TEMP/release/checksums.txt" \
+            --require-platform-manifest
 
       - name: Stage npm packages
         env:

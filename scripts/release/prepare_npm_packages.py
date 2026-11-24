@@ -4,21 +4,23 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 import stat
-import tarfile
-import zipfile
-from pathlib import Path, PurePosixPath
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_common import (  # noqa: E402
+    RELEASE_TARGETS,
+    VERSION_PATTERN,
+    extract_binary_from_archive,
+    safe_archive_member,
+)
 
 
-TARGETS = (
-    ("win32", "x64", "windows", "amd64", "port-detective.exe"),
-    ("win32", "arm64", "windows", "arm64", "port-detective.exe"),
-    ("darwin", "x64", "darwin", "amd64", "port-detective"),
-    ("darwin", "arm64", "darwin", "arm64", "port-detective"),
-    ("linux", "x64", "linux", "amd64", "port-detective"),
-    ("linux", "arm64", "linux", "arm64", "port-detective"),
+TARGETS = tuple(
+    (t.node_platform, t.node_arch, t.goos, t.goarch, t.executable_name)
+    for t in RELEASE_TARGETS
 )
 
 
@@ -27,7 +29,7 @@ def package_name(platform: str, arch: str) -> str:
 
 
 def validate_version(version: str) -> None:
-    if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
+    if not VERSION_PATTERN.fullmatch(version):
         raise SystemExit(f"invalid release version: {version}")
 
 
@@ -43,29 +45,8 @@ def find_archive(dist: Path, version: str, goos: str, goarch: str) -> Path:
     raise SystemExit(f"release archive not found for {goos}/{goarch} in {dist}")
 
 
-def safe_archive_member(name: str) -> PurePosixPath:
-    path = PurePosixPath(name.replace("\\", "/"))
-    if path.is_absolute() or ".." in path.parts:
-        raise SystemExit(f"unsafe archive member path: {name}")
-    return path
-
-
 def extract_binary(archive: Path, binary_name: str) -> bytes:
-    if archive.suffix == ".zip":
-        with zipfile.ZipFile(archive) as source:
-            for member in source.infolist():
-                path = safe_archive_member(member.filename)
-                if not member.is_dir() and path.name == binary_name:
-                    return source.read(member)
-    else:
-        with tarfile.open(archive, "r:gz") as source:
-            for member in source.getmembers():
-                path = safe_archive_member(member.name)
-                if member.isfile() and path.name == binary_name:
-                    handle = source.extractfile(member)
-                    if handle is not None:
-                        return handle.read()
-    raise SystemExit(f"{binary_name} not found in {archive}")
+    return extract_binary_from_archive(archive, binary_name)
 
 
 def write_json(path: Path, value: dict[str, object]) -> None:

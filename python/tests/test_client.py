@@ -14,16 +14,22 @@ from unittest.mock import patch, MagicMock, AsyncMock, ANY
 # Ensure parent directory is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from port_detective.models import PortDiagnostic, ProjectInfo, KillResult
+from port_detective.models import PortDiagnostic, ProjectInfo, KillResult, FreePortResult, DoctorReport
 from port_detective.core import (
     inspect_port,
     scan_ports,
     free_port,
     clean_project,
+    wait_for_port,
+    find_free_port,
+    doctor,
     async_inspect_port,
     async_scan_ports,
     async_free_port,
     async_clean_project,
+    async_wait_for_port,
+    async_find_free_port,
+    async_doctor,
     find_binary,
     PortDetectiveError,
     PortDetectiveNotFoundError,
@@ -86,20 +92,59 @@ class TestModels(unittest.TestCase):
             "port": 8080,
             "dry_run": True,
             "message": "Dry-run preview success",
-            "diagnostic": {
+            "preview_id": "tok.sig",
+            "preview_expires_at_unix": 1900000000,
+            "post_action_status": "not_attempted",
+            "pre_action_diagnostic": {
                 "port": 8080,
                 "is_open": True,
                 "pid": 9999,
                 "process_name": "python",
                 "memory_mb": 45.0,
+                "listener_table_missing": True,
+                "post_action_status": "not_attempted",
             },
         }
         res = KillResult.from_dict(data)
         self.assertEqual(res.port, 8080)
         self.assertTrue(res.dry_run)
         self.assertIn("preview", res.message)
+        self.assertEqual(res.preview_id, "tok.sig")
+        self.assertEqual(res.preview_expires_at_unix, 1900000000)
+        self.assertEqual(res.post_action_status, "not_attempted")
         self.assertIsNotNone(res.diagnostic)
+        self.assertIsNotNone(res.pre_action_diagnostic)
         self.assertEqual(res.diagnostic.pid, 9999)
+        self.assertTrue(res.diagnostic.listener_table_missing)
+        self.assertEqual(res.diagnostic.post_action_status, "not_attempted")
+        serialized = res.to_dict()
+        self.assertEqual(serialized["preview_id"], "tok.sig")
+        self.assertEqual(serialized["pre_action_diagnostic"]["pid"], 9999)
+        self.assertTrue(serialized["diagnostic"]["listener_table_missing"])
+
+    def test_free_port_and_doctor_models(self):
+        free_res = FreePortResult.from_dict({
+            "port": 3005, "protocol": "tcp", "ipv4": True, "ipv6": False, "reserved": False, "message": "ok",
+        })
+        self.assertEqual(free_res.port, 3005)
+        self.assertEqual(free_res.to_dict()["ipv4"], True)
+
+        report = DoctorReport.from_dict({
+            "version": "1.3.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd",
+            "cwd": "/app", "project_path": "/app", "status": "degraded",
+            "metadata_accessible": False,
+            "self_check": {"port": 40000, "is_open": True, "bind_addresses": ["127.0.0.1"]},
+            "hints": ["limited"],
+        })
+        self.assertEqual(report.status, "degraded")
+        self.assertEqual(report.self_check.bind_addresses, ["127.0.0.1"])
+        d = report.to_dict()
+        self.assertEqual(d["self_check"]["bind_addresses"], ["127.0.0.1"])
+        self.assertEqual(d["hints"], ["limited"])
+
+        minimal = DoctorReport.from_dict({"version": "1.3.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok"})
+        self.assertNotIn("project_path", minimal.to_dict())
+        self.assertNotIn("self_check", minimal.to_dict())
 
 
 class TestSyncClient(unittest.TestCase):
@@ -253,6 +298,58 @@ class TestSyncClient(unittest.TestCase):
             inspect_port(3000, timeout=0.01)
         self.assertEqual(ctx.exception.returncode, -1)
         self.assertIn("timed out", str(ctx.exception))
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("subprocess.run")
+    def test_protocol_preset_preview_and_workflow_apis(self, mock_run, mock_find):
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=json.dumps({"port": 5353, "is_open": True, "protocol": "udp", "bind_addresses": ["0.0.0.0"]}), stderr=""),
+            MagicMock(returncode=0, stdout="[]", stderr=""),
+            MagicMock(returncode=0, stdout=json.dumps({"port": 3000, "dry_run": False, "message": "killed"}), stderr=""),
+            MagicMock(returncode=0, stdout="[]", stderr=""),
+            MagicMock(returncode=0, stdout=json.dumps({"port": 3000, "is_open": True}), stderr=""),
+            MagicMock(returncode=0, stdout=json.dumps({"port": 3005, "protocol": "tcp", "ipv4": True, "ipv6": False, "reserved": False, "message": "ok"}), stderr=""),
+            MagicMock(returncode=5, stdout=json.dumps({"version": "1.3.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "degraded", "metadata_accessible": False, "hints": ["restricted"]}), stderr=""),
+        ]
+        diag = inspect_port(5353, protocol="udp")
+        self.assertEqual(diag.protocol, "udp")
+        self.assertEqual(diag.bind_addresses, ["0.0.0.0"])
+        scan_ports(preset="project", project_path="/app", protocol="udp")
+        free_port(3000, dry_run=False, preview_id="tok.sig")
+        clean_project(path=os.getcwd(), dry_run=False, preview_id="tok.clean")
+        waited = wait_for_port(3000, state="open", wait_timeout=1.5, interval=0.1)
+        self.assertTrue(waited.is_open)
+        found = find_free_port(port_from=3000, port_to=3010)
+        self.assertEqual(found.port, 3005)
+        report = doctor()
+        self.assertEqual(report.status, "degraded")
+
+        cmds = [call.args[0] for call in mock_run.call_args_list]
+        self.assertEqual(cmds[0], ["/mock/port-detective", "check", "5353", "--protocol", "udp", "--json"])
+        self.assertEqual(cmds[1], ["/mock/port-detective", "scan", "--preset", "project", "--project", "/app", "--protocol", "udp", "--json"])
+        self.assertEqual(cmds[2], ["/mock/port-detective", "kill", "3000", "-y", "--preview-id", "tok.sig", "--json"])
+        self.assertEqual(cmds[3], ["/mock/port-detective", "clean", "-y", "--preview-id", "tok.clean", "--json"])
+        self.assertEqual(cmds[4], ["/mock/port-detective", "wait", "3000", "--state", "open", "--timeout", "1500ms", "--interval", "100ms", "--json"])
+        self.assertEqual(cmds[5], ["/mock/port-detective", "find-free", "--from", "3000", "--to", "3010", "--json"])
+        self.assertEqual(cmds[6], ["/mock/port-detective", "doctor", "--json"])
+
+    def test_workflow_validation_errors(self):
+        with self.assertRaises(ValueError):
+            inspect_port(3000, protocol="sctp")
+        with self.assertRaises(ValueError):
+            scan_ports([3000], preset="web")
+        with self.assertRaises(ValueError):
+            scan_ports(preset="web", project_path="/app")
+        with self.assertRaises(ValueError):
+            scan_ports(preset="unknown")
+        with self.assertRaises(ValueError):
+            free_port(3000, preview_id="  ")
+        with self.assertRaises(ValueError):
+            wait_for_port(3000, state="closed")
+        with self.assertRaises(ValueError):
+            wait_for_port(3000, wait_timeout=0)
+        with self.assertRaises(ValueError):
+            find_free_port(port_from=3100, port_to=3000)
 
 
 class TestEmptySelectionIsFailClosed(unittest.TestCase):
@@ -451,6 +548,22 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
             await task
         mock_proc.kill.assert_called_once_with()
         self.assertEqual(mock_proc.communicate.await_count, 2)
+
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
+    @patch("asyncio.create_subprocess_exec")
+    async def test_async_workflow_apis(self, mock_exec, mock_find):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(side_effect=[
+            (json.dumps({"port": 3000, "is_open": True}).encode("utf-8"), b""),
+            (json.dumps({"port": 3006, "protocol": "tcp", "ipv4": True, "ipv6": False, "reserved": False, "message": "ok"}).encode("utf-8"), b""),
+            (json.dumps({"version": "1.3.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok", "metadata_accessible": True, "hints": []}).encode("utf-8"), b""),
+        ])
+        mock_exec.return_value = mock_proc
+
+        self.assertTrue((await async_wait_for_port(3000, wait_timeout=1.0, interval=0.1)).is_open)
+        self.assertEqual((await async_find_free_port(port_from=3000, port_to=3010)).port, 3006)
+        self.assertEqual((await async_doctor()).status, "ok")
 
 
 if __name__ == "__main__":

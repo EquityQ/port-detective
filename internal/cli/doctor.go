@@ -41,7 +41,6 @@ func newDoctorCommand(opts *options) *cobra.Command {
 			if err != nil {
 				report.Hints = append(report.Hints, "Cannot read the working directory: "+err.Error())
 			}
-			report.ProjectPath = ""
 			report.ProjectPath, err = core.ResolveProjectPath(report.Cwd)
 			if err != nil {
 				report.Hints = append(report.Hints, "Select a valid project using clean --project <directory>: "+err.Error())

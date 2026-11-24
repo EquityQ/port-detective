@@ -28,7 +28,7 @@ class FixtureMixin:
             raise unittest.SkipTest("Real executable lifecycle tests require the project's Go toolchain")
         cls.directory = tempfile.TemporaryDirectory()
         cls.binary = Path(cls.directory.name) / ("port-detective.exe" if os.name == "nt" else "port-detective")
-        source = Path(__file__).resolve().parents[2] / "npm/port-detective/test/fixtures/cli.go"
+        source = Path(__file__).resolve().parents[2] / "testdata/sdk-cli/main.go"
         subprocess.run([go, "build", "-o", str(cls.binary), str(source)], check=True, capture_output=True)
 
     @classmethod
@@ -130,7 +130,7 @@ class TestCompatibility(FixtureMixin, unittest.TestCase):
         result = subprocess.run([sys.executable, "-m", "port_detective", "doctor", "--json"],
                                 capture_output=True, text=True, env=environment, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), {"healthy": True})
+        self.assertTrue(json.loads(result.stdout)["healthy"])
         self.assertIn(str(self.binary.resolve()), result.stderr)
 
     def test_module_install_reports_status_separately_from_path(self):

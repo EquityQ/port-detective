@@ -65,6 +65,21 @@ func TestResolveProjectPathNearestManifest(t *testing.T) {
 	if _, err := ResolveProjectPath(filepath.Join(root, "go.mod")); err == nil {
 		t.Fatal("file path was accepted as a project directory")
 	}
+
+	rustDir := filepath.Join(t.TempDir(), "crate")
+	rustSub := filepath.Join(rustDir, "src")
+	if err := os.MkdirAll(rustSub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rustDir, "Cargo.toml"), []byte("[package]\nname = \"demo\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ResolveProjectPath(rustSub); err != nil || !projectPathsMatch(got, rustDir) {
+		t.Fatalf("Rust subdirectory resolved to %q, %v; want %q", got, err, rustDir)
+	}
+	if len(SupportedProjectManifests()) < 8 {
+		t.Fatalf("expected expanded manifest registry, got %v", SupportedProjectManifests())
+	}
 }
 
 func projectTestDir(t *testing.T) string {
@@ -127,12 +142,15 @@ func TestListenerIndexRejectsAmbiguousOwners(t *testing.T) {
 		{Type: sockStream, Status: "ESTABLISHED", Laddr: gnet.Addr{Port: 6000}, Pid: 50},
 	}
 	index := indexTCPListeners(connections)
-	if len(index) != 3 || index[connKey{3000, sockStream}] != -1 || index[connKey{4000, sockStream}] != 50 {
+	if len(index) != 3 || index[connKey{3000, sockStream}].pid != -1 || index[connKey{4000, sockStream}].pid != 50 {
 		t.Fatalf("listener ownership index is incorrect: %v", index)
 	}
 	diag := inspectPortInternal(context.Background(), 3000, index)
 	if !diag.IsOpen || !diag.ambiguousOwner || diag.Status != StatusPermissionRequired {
 		t.Fatalf("ambiguous binding must remain occupied and protected: %+v", diag)
+	}
+	if !reflect.DeepEqual(diag.BindAddresses, []string{"127.0.0.1", "192.0.2.1"}) {
+		t.Fatalf("bind addresses = %v, want [127.0.0.1 192.0.2.1]", diag.BindAddresses)
 	}
 	if _, _, err := KillPortTarget(context.Background(), *diag, false); err == nil || !strings.Contains(err.Error(), "multiple or unknown owners") {
 		t.Fatalf("ambiguous owner termination was not rejected: %v", err)

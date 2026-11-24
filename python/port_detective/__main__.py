@@ -4,12 +4,13 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional, Sequence
 
 from .core import PortDetectiveError, find_binary
 from .runtime import RuntimeDownloadError, download_cli
 
 
-def main(argv=None) -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m port_detective")
     commands = parser.add_subparsers(dest="command", required=True)
     install = commands.add_parser("install", help="Download and verify the matching CLI in the user cache")

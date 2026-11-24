@@ -14,42 +14,56 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Tuple
 
-from .models import PortDiagnostic, KillResult
+from .errors import (
+    PortDetectiveError,
+    PortDetectiveNotFoundError,
+    PortDetectiveVersionError,
+    PortDetectiveExecutionError,
+)
+from .models import PortDiagnostic, KillResult, FreePortResult, DoctorReport
 from .runtime import RuntimeDownloadError, _release_version, auto_download_enabled, download_cli
 
 DEFAULT_CLI_TIMEOUT = 30.0
-_VALIDATED_BINARIES: Dict[str, tuple] = {}
-
-
-class PortDetectiveError(Exception):
-    """Base exception for port-detective errors."""
-    pass
-
-
-class PortDetectiveNotFoundError(PortDetectiveError):
-    """Raised when the port-detective executable cannot be found."""
-    pass
-
-
-class PortDetectiveVersionError(PortDetectiveError):
-    """Raised when an external CLI does not match the SDK's major/minor API."""
-    pass
-
-
-class PortDetectiveExecutionError(PortDetectiveError):
-    """Raised when port-detective exits with a non-zero exit code."""
-    def __init__(self, message: str, returncode: int, stderr: str = "", stdout: str = ""):
-        super().__init__(message)
-        self.returncode = returncode
-        self.stderr = stderr
-        self.stdout = stdout
+_VALIDATED_BINARIES: Dict[str, Tuple[int, ...]] = {}
+_VALID_PROTOCOLS = {"tcp", "udp"}
+_VALID_PRESETS = {"web", "python", "database", "project"}
+_VALID_WAIT_STATES = {"open", "free"}
 
 
 def _validate_port(port: int) -> None:
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError(f"port must be an integer between 1 and 65535, got {port!r}")
+
+
+def _validate_protocol(protocol: str) -> str:
+    if not isinstance(protocol, str) or protocol.strip().lower() not in _VALID_PROTOCOLS:
+        raise ValueError(f"protocol must be 'tcp' or 'udp', got {protocol!r}")
+    return protocol.strip().lower()
+
+
+def _validate_preview_id(preview_id: Optional[str]) -> Optional[str]:
+    if preview_id is None:
+        return None
+    if not isinstance(preview_id, str) or not preview_id.strip():
+        raise ValueError("preview_id must be a non-empty string or None")
+    return preview_id
+
+
+def _validate_preset(preset: Optional[str]) -> Optional[str]:
+    if preset is None:
+        return None
+    if not isinstance(preset, str) or preset not in _VALID_PRESETS:
+        raise ValueError(f"preset must be one of {sorted(_VALID_PRESETS)}, got {preset!r}")
+    return preset
+
+
+def _format_duration_ms(seconds: float, label: str) -> str:
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError(f"{label} must be a positive number of seconds, got {seconds!r}")
+    ms = max(1, int(round(seconds * 1000)))
+    return f"{ms}ms"
 
 
 def _normalize_ports(ports: Optional[List[int]]) -> Optional[List[int]]:
@@ -273,7 +287,7 @@ async def _find_binary_async(binary_path: Optional[str]) -> str:
     if proc.returncode != 0:
         raise PortDetectiveExecutionError(
             f"CLI version check failed at {binary}: {stderr.strip() or proc.returncode}",
-            proc.returncode, stderr, stdout,
+            proc.returncode if proc.returncode is not None else 1, stderr, stdout,
         )
     _accept_cli_version(binary, stdout, identity)
     return binary
@@ -284,6 +298,8 @@ def _run_cli_sync(
     cwd: Optional[str] = None,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    allow_exit_codes: Tuple[int, ...] = (0,),
 ) -> Any:
     _validate_timeout(timeout)
     _validate_cwd(cwd)
@@ -321,7 +337,7 @@ def _run_cli_sync(
             returncode=exc.errno or -1,
         ) from exc
 
-    if proc.returncode != 0:
+    if proc.returncode not in allow_exit_codes:
         err_msg = proc.stderr.strip() or f"CLI returned code {proc.returncode}"
         raise PortDetectiveExecutionError(
             err_msg,
@@ -350,6 +366,8 @@ async def _run_cli_async(
     cwd: Optional[str] = None,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    allow_exit_codes: Tuple[int, ...] = (0,),
 ) -> Any:
     _validate_timeout(timeout)
     _validate_cwd(cwd)
@@ -368,7 +386,7 @@ async def _run_cli_async(
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        if timeout is None:
+        if deadline is None:
             stdout_bytes, stderr_bytes = await proc.communicate()
         else:
             remaining = max(0.0, deadline - time.monotonic())
@@ -400,7 +418,7 @@ async def _run_cli_async(
     stdout_str = stdout_bytes.decode("utf-8", errors="replace").strip()
     stderr_str = stderr_bytes.decode("utf-8", errors="replace").strip()
 
-    if proc.returncode != 0:
+    if proc.returncode not in allow_exit_codes:
         err_msg = stderr_str or f"CLI returned code {proc.returncode}"
         raise PortDetectiveExecutionError(
             err_msg,
@@ -423,6 +441,122 @@ async def _run_cli_async(
         ) from exc
 
 
+# ============================ Command Helpers ============================
+
+
+def _check_args(port: int, protocol: str) -> List[str]:
+    _validate_port(port)
+    proto = _validate_protocol(protocol)
+    args = ["check", str(port)]
+    if proto != "tcp":
+        args.extend(["--protocol", proto])
+    return args
+
+
+def _scan_args(
+    ports: Optional[List[int]],
+    protocol: str = "tcp",
+    preset: Optional[str] = None,
+    project_path: Optional[str] = None,
+) -> List[str]:
+    proto = _validate_protocol(protocol)
+    checked_preset = _validate_preset(preset)
+    selected = _normalize_ports(ports)
+    if selected is not None and checked_preset is not None:
+        raise ValueError("ports and preset cannot be used together")
+    if project_path is not None and checked_preset != "project":
+        raise ValueError("project_path requires preset='project'")
+    args = ["scan"]
+    if selected is not None:
+        args.extend(["--ports", ",".join(str(p) for p in selected)])
+    if checked_preset is not None:
+        args.extend(["--preset", checked_preset])
+    if project_path is not None:
+        if not isinstance(project_path, str) or not project_path.strip():
+            raise ValueError("project_path must be a non-empty directory path")
+        args.extend(["--project", project_path])
+    if proto != "tcp":
+        args.extend(["--protocol", proto])
+    return args
+
+
+def _free_args(port: int, dry_run: bool, preview_id: Optional[str] = None) -> List[str]:
+    _validate_port(port)
+    token = _validate_preview_id(preview_id)
+    args = ["kill", str(port), "-y"]
+    if dry_run:
+        args.append("--dry-run")
+    if token is not None:
+        args.extend(["--preview-id", token])
+    return args
+
+
+def _clean_args(
+    dry_run: bool,
+    ports: Optional[List[int]],
+    preview_id: Optional[str] = None,
+) -> List[str]:
+    token = _validate_preview_id(preview_id)
+    args = ["clean", "-y"]
+    if dry_run:
+        args.append("--dry-run")
+    selected = _normalize_ports(ports)
+    if selected is not None:
+        args.extend(["--ports", ",".join(map(str, selected))])
+    if token is not None:
+        args.extend(["--preview-id", token])
+    return args
+
+
+def _wait_args(port: int, state: str, wait_timeout: float, interval: float) -> List[str]:
+    _validate_port(port)
+    if not isinstance(state, str) or state not in _VALID_WAIT_STATES:
+        raise ValueError(f"state must be 'open' or 'free', got {state!r}")
+    timeout_arg = _format_duration_ms(wait_timeout, "wait_timeout")
+    interval_arg = _format_duration_ms(interval, "interval")
+    return ["wait", str(port), "--state", state, "--timeout", timeout_arg, "--interval", interval_arg]
+
+
+def _find_free_args(port_from: int, port_to: int) -> List[str]:
+    _validate_port(port_from)
+    _validate_port(port_to)
+    if port_from > port_to:
+        raise ValueError(f"port_from ({port_from}) must be <= port_to ({port_to})")
+    return ["find-free", "--from", str(port_from), "--to", str(port_to)]
+
+
+def _parse_diagnostic(data: Any, command: str) -> PortDiagnostic:
+    if not isinstance(data, dict):
+        raise PortDetectiveExecutionError(f"Expected dict response for {command}, got {type(data)}", returncode=0)
+    return PortDiagnostic.from_dict(data)
+
+
+def _parse_diagnostics(data: Any, command: str) -> List[PortDiagnostic]:
+    if not isinstance(data, list):
+        if data is None:
+            return []
+        raise PortDetectiveExecutionError(f"Expected list response for {command}, got {type(data)}", returncode=0)
+    return [PortDiagnostic.from_dict(item) for item in data]
+
+
+def _parse_kill_result(data: Any) -> KillResult:
+    if not isinstance(data, dict):
+        raise PortDetectiveExecutionError(f"Expected dict response for kill, got {type(data)}", returncode=0)
+    return KillResult.from_dict(data)
+
+
+def _parse_free_port_result(data: Any) -> FreePortResult:
+    if not isinstance(data, dict):
+        raise PortDetectiveExecutionError(f"Expected dict response for find-free, got {type(data)}", returncode=0)
+    return FreePortResult.from_dict(data)
+
+
+def _parse_doctor_report(data: Any) -> DoctorReport:
+    if not isinstance(data, dict):
+        raise PortDetectiveExecutionError(f"Expected dict response for doctor, got {type(data)}", returncode=0)
+    return DoctorReport.from_dict(data)
+
+
 # ============================ Synchronous API ============================
 
 
@@ -430,21 +564,24 @@ def inspect_port(
     port: int,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    protocol: str = "tcp",
 ) -> PortDiagnostic:
     """
-    Inspect a single port and retrieve process health and framework fingerprint.
+    Inspect a single TCP or UDP port and retrieve process health and framework fingerprint.
     """
-    _validate_port(port)
-    data = _run_cli_sync(["check", str(port)], binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, dict):
-        raise PortDetectiveExecutionError(f"Expected dict response for check, got {type(data)}", returncode=0)
-    return PortDiagnostic.from_dict(data)
+    data = _run_cli_sync(_check_args(port, protocol), binary_path=binary_path, timeout=timeout)
+    return _parse_diagnostic(data, "check")
 
 
 def scan_ports(
     ports: Optional[List[int]] = None,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    protocol: str = "tcp",
+    preset: Optional[str] = None,
+    project_path: Optional[str] = None,
 ) -> List[PortDiagnostic]:
     """
     Concurrently scan specified development ports (or default dev ports).
@@ -453,18 +590,9 @@ def scan_ports(
     explicitly empty list is rejected with :exc:`ValueError` rather than scanning
     the default set, so an empty selection can never widen the scan scope.
     """
-    args = ["scan"]
-    selected = _normalize_ports(ports)
-    if selected is not None:
-        ports_str = ",".join(str(p) for p in selected)
-        args.extend(["--ports", ports_str])
-
+    args = _scan_args(ports, protocol=protocol, preset=preset, project_path=project_path)
     data = _run_cli_sync(args, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, list):
-        if data is None:
-            return []
-        raise PortDetectiveExecutionError(f"Expected list response for scan, got {type(data)}", returncode=0)
-    return [PortDiagnostic.from_dict(item) for item in data]
+    return _parse_diagnostics(data, "scan")
 
 
 def free_port(
@@ -472,20 +600,16 @@ def free_port(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    preview_id: Optional[str] = None,
 ) -> KillResult:
     """
     Terminate the process occupying the specified port.
-    Set dry_run=False to actually kill the process.
+    Set dry_run=False to actually kill the process; pass preview_id from a prior
+    dry run to bind execution to the previewed process snapshot.
     """
-    _validate_port(port)
-    args = ["kill", str(port), "-y"]
-    if dry_run:
-        args.append("--dry-run")
-
-    data = _run_cli_sync(args, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, dict):
-        raise PortDetectiveExecutionError(f"Expected dict response for kill, got {type(data)}", returncode=0)
-    return KillResult.from_dict(data)
+    data = _run_cli_sync(_free_args(port, dry_run, preview_id), binary_path=binary_path, timeout=timeout)
+    return _parse_kill_result(data)
 
 
 def clean_project(
@@ -493,7 +617,9 @@ def clean_project(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
-    *, ports: Optional[List[int]] = None,
+    *,
+    ports: Optional[List[int]] = None,
+    preview_id: Optional[str] = None,
 ) -> List[PortDiagnostic]:
     """
     Concurrently scan dev ports and process listeners belonging to the project path.
@@ -503,20 +629,50 @@ def clean_project(
     empty list is rejected with :exc:`ValueError`; it never means "discover
     everything", so an empty selection can only ever narrow the cleanup scope.
     """
-    args = ["clean", "-y"]
-    if dry_run:
-        args.append("--dry-run")
-
-    selected = _normalize_ports(ports)
-    if selected is not None:
-        args.extend(["--ports", ",".join(map(str, selected))])
+    args = _clean_args(dry_run, ports, preview_id)
     target_cwd = path or os.getcwd()
     data = _run_cli_sync(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, list):
-        if data is None:
-            return []
-        raise PortDetectiveExecutionError(f"Expected list response for clean, got {type(data)}", returncode=0)
-    return [PortDiagnostic.from_dict(item) for item in data]
+    return _parse_diagnostics(data, "clean")
+
+
+def wait_for_port(
+    port: int,
+    *,
+    state: str = "open",
+    wait_timeout: float = 30.0,
+    interval: float = 0.25,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> PortDiagnostic:
+    """Wait until a TCP port becomes open or free within wait_timeout seconds."""
+    args = _wait_args(port, state, wait_timeout, interval)
+    cli_timeout = (wait_timeout + 5.0) if timeout is None else timeout
+    data = _run_cli_sync(args, binary_path=binary_path, timeout=cli_timeout)
+    return _parse_diagnostic(data, "wait")
+
+
+def find_free_port(
+    *,
+    port_from: int = 3000,
+    port_to: int = 3100,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+) -> FreePortResult:
+    """Find a currently bindable loopback TCP port within [port_from, port_to]."""
+    args = _find_free_args(port_from, port_to)
+    data = _run_cli_sync(args, binary_path=binary_path, timeout=timeout)
+    return _parse_free_port_result(data)
+
+
+def doctor(
+    *,
+    binary_path: Optional[str] = None,
+    cwd: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+) -> DoctorReport:
+    """Run CLI self-diagnostics and return a structured DoctorReport (including degraded exit 5)."""
+    data = _run_cli_sync(["doctor"], cwd=cwd, binary_path=binary_path, timeout=timeout, allow_exit_codes=(0, 5))
+    return _parse_doctor_report(data)
 
 
 # ============================ Asynchronous API ============================
@@ -526,37 +682,31 @@ async def async_inspect_port(
     port: int,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    protocol: str = "tcp",
 ) -> PortDiagnostic:
-    """Asynchronously inspect a single port."""
-    _validate_port(port)
-    data = await _run_cli_async(["check", str(port)], binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, dict):
-        raise PortDetectiveExecutionError(f"Expected dict response for check, got {type(data)}", returncode=0)
-    return PortDiagnostic.from_dict(data)
+    """Asynchronously inspect a single TCP or UDP port."""
+    data = await _run_cli_async(_check_args(port, protocol), binary_path=binary_path, timeout=timeout)
+    return _parse_diagnostic(data, "check")
 
 
 async def async_scan_ports(
     ports: Optional[List[int]] = None,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    protocol: str = "tcp",
+    preset: Optional[str] = None,
+    project_path: Optional[str] = None,
 ) -> List[PortDiagnostic]:
     """Asynchronously concurrently scan ports.
 
     Omit ``ports`` or pass ``None`` to scan the default development ports; an
     explicitly empty list raises :exc:`ValueError` instead of scanning the default set.
     """
-    args = ["scan"]
-    selected = _normalize_ports(ports)
-    if selected is not None:
-        ports_str = ",".join(str(p) for p in selected)
-        args.extend(["--ports", ports_str])
-
+    args = _scan_args(ports, protocol=protocol, preset=preset, project_path=project_path)
     data = await _run_cli_async(args, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, list):
-        if data is None:
-            return []
-        raise PortDetectiveExecutionError(f"Expected list response for scan, got {type(data)}", returncode=0)
-    return [PortDiagnostic.from_dict(item) for item in data]
+    return _parse_diagnostics(data, "scan")
 
 
 async def async_free_port(
@@ -564,17 +714,12 @@ async def async_free_port(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    preview_id: Optional[str] = None,
 ) -> KillResult:
     """Asynchronously terminate the process occupying the specified port."""
-    _validate_port(port)
-    args = ["kill", str(port), "-y"]
-    if dry_run:
-        args.append("--dry-run")
-
-    data = await _run_cli_async(args, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, dict):
-        raise PortDetectiveExecutionError(f"Expected dict response for kill, got {type(data)}", returncode=0)
-    return KillResult.from_dict(data)
+    data = await _run_cli_async(_free_args(port, dry_run, preview_id), binary_path=binary_path, timeout=timeout)
+    return _parse_kill_result(data)
 
 
 async def async_clean_project(
@@ -582,24 +727,56 @@ async def async_clean_project(
     dry_run: bool = True,
     binary_path: Optional[str] = None,
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
-    *, ports: Optional[List[int]] = None,
+    *,
+    ports: Optional[List[int]] = None,
+    preview_id: Optional[str] = None,
 ) -> List[PortDiagnostic]:
     """Asynchronously clean listeners belonging to the project path.
 
     Omit ``ports`` or pass ``None`` to keep full project discovery; an explicitly
     empty list raises :exc:`ValueError` instead of widening the cleanup scope.
     """
-    args = ["clean", "-y"]
-    if dry_run:
-        args.append("--dry-run")
-
-    selected = _normalize_ports(ports)
-    if selected is not None:
-        args.extend(["--ports", ",".join(map(str, selected))])
+    args = _clean_args(dry_run, ports, preview_id)
     target_cwd = path or os.getcwd()
     data = await _run_cli_async(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
-    if not isinstance(data, list):
-        if data is None:
-            return []
-        raise PortDetectiveExecutionError(f"Expected list response for clean, got {type(data)}", returncode=0)
-    return [PortDiagnostic.from_dict(item) for item in data]
+    return _parse_diagnostics(data, "clean")
+
+
+async def async_wait_for_port(
+    port: int,
+    *,
+    state: str = "open",
+    wait_timeout: float = 30.0,
+    interval: float = 0.25,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> PortDiagnostic:
+    """Asynchronously wait until a TCP port becomes open or free."""
+    args = _wait_args(port, state, wait_timeout, interval)
+    cli_timeout = (wait_timeout + 5.0) if timeout is None else timeout
+    data = await _run_cli_async(args, binary_path=binary_path, timeout=cli_timeout)
+    return _parse_diagnostic(data, "wait")
+
+
+async def async_find_free_port(
+    *,
+    port_from: int = 3000,
+    port_to: int = 3100,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+) -> FreePortResult:
+    """Asynchronously find a bindable loopback TCP port within [port_from, port_to]."""
+    args = _find_free_args(port_from, port_to)
+    data = await _run_cli_async(args, binary_path=binary_path, timeout=timeout)
+    return _parse_free_port_result(data)
+
+
+async def async_doctor(
+    *,
+    binary_path: Optional[str] = None,
+    cwd: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+) -> DoctorReport:
+    """Asynchronously run CLI self-diagnostics and return a DoctorReport."""
+    data = await _run_cli_async(["doctor"], cwd=cwd, binary_path=binary_path, timeout=timeout, allow_exit_codes=(0, 5))
+    return _parse_doctor_report(data)

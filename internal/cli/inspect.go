@@ -15,12 +15,14 @@ import (
 func newCheckCommand(opts *options) *cobra.Command {
 	var watch bool
 	var interval time.Duration
+	var protocol string
 	cmd := &cobra.Command{
 		Use:   "check <port>",
 		Short: "Inspect a port and its owning process",
-		Long:  "Inspect a TCP port and report its listener, process, framework, and resource usage. With --watch --json, emit compact newline-delimited JSON (NDJSON). TCP occupancy does not prove application readiness.",
+		Long:  "Inspect a TCP or UDP port and report its listener, bind addresses, process, framework, and resource usage. With --watch --json, emit compact newline-delimited JSON (NDJSON). Port occupancy does not prove application readiness.",
 		Example: strings.Join([]string{
 			"  port-detective check 8080",
+			"  port-detective check 5353 --protocol udp",
 			"  port-detective check 5432 --json",
 		}, "\n"),
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -36,14 +38,18 @@ func newCheckCommand(opts *options) *cobra.Command {
 			if interval <= 0 {
 				return usageError(fmt.Errorf("--interval must be greater than zero"))
 			}
+			proto, err := core.NormalizeProtocol(protocol)
+			if err != nil {
+				return usageError(err)
+			}
 			port, _ := parsePort(args[0])
 			if watch {
-				return watchPort(cmd, opts, port, interval)
+				return watchPort(cmd, opts, port, proto, interval)
 			}
 			out := stdout(cmd)
 
 			start := time.Now()
-			info, err := core.InspectPort(cmd.Context(), port)
+			info, err := core.InspectPortProtocol(cmd.Context(), port, proto)
 			if err != nil {
 				return err
 			}
@@ -58,6 +64,7 @@ func newCheckCommand(opts *options) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&watch, "watch", false, "repeat inspection until canceled; --json emits NDJSON")
 	cmd.Flags().DurationVar(&interval, "interval", time.Second, "delay between watched inspections")
+	cmd.Flags().StringVar(&protocol, "protocol", core.ProtocolTCP, "transport protocol to inspect: tcp or udp")
 	return cmd
 }
 
@@ -69,13 +76,16 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 		state = p.paint(p.title, "Free")
 	}
 
-	titleText := fmt.Sprintf("Port Diagnostic  TCP/%s", p.paint(p.accent, strconv.Itoa(info.Port)))
+	titleText := fmt.Sprintf("Port Diagnostic  %s/%s", strings.ToUpper(info.Protocol), p.paint(p.accent, strconv.Itoa(info.Port)))
 	sectionTitle(w, p, titleText, width)
 
 	fmt.Fprintf(w, "  %s\n", p.paint(p.head, "Connection State"))
 	field(w, p, "Status", keyWidth, state)
 	field(w, p, "Protocol", keyWidth, strings.ToUpper(info.Protocol))
 	field(w, p, "Summary", keyWidth, info.Status)
+	if len(info.BindAddresses) > 0 {
+		field(w, p, "Bind", keyWidth, strings.Join(info.BindAddresses, ", "))
+	}
 
 	if !info.IsOpen {
 		// Never promise a free port when the listener table was unreadable: a
@@ -138,13 +148,13 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 
 // scan concurrently scans ports, defaulting to DefaultDevPorts.
 func newScanCommand(opts *options) *cobra.Command {
-	var portsStr, preset, projectPath string
+	var portsStr, preset, projectPath, protocol string
 
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Concurrently scan occupied ports",
 		Long: strings.Join([]string{
-			"Concurrently scan local TCP ports.",
+			"Concurrently scan local TCP or UDP ports.",
 			"",
 			"The default target is DefaultDevPorts; use --ports for a custom list or --preset for explicit presets.",
 			"The project preset reads .port-detective.json from the selected project root only when requested.",
@@ -152,6 +162,7 @@ func newScanCommand(opts *options) *cobra.Command {
 		Example: strings.Join([]string{
 			"  port-detective scan",
 			"  port-detective scan --ports 3000,8080,5432",
+			"  port-detective scan --ports 53,5353 --protocol udp",
 			"  port-detective scan --preset web",
 			"  port-detective scan --preset project --project ../my-app",
 			"  port-detective scan --json",
@@ -159,6 +170,10 @@ func newScanCommand(opts *options) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := stdout(cmd)
+			proto, err := core.NormalizeProtocol(protocol)
+			if err != nil {
+				return usageError(err)
+			}
 
 			targetPorts, scope, err := selectScanPorts(cmd, portsStr, preset, projectPath)
 			if err != nil {
@@ -166,7 +181,7 @@ func newScanCommand(opts *options) *cobra.Command {
 			}
 
 			begin := time.Now()
-			summary, err := core.ScanPortsConcurrentSummary(cmd.Context(), targetPorts)
+			summary, err := core.ScanPortsProtocolSummary(cmd.Context(), targetPorts, proto)
 			elapsed := time.Since(begin)
 			if err != nil {
 				return err
@@ -185,9 +200,10 @@ func newScanCommand(opts *options) *cobra.Command {
 			if scope != "" {
 				fmt.Fprintf(out, "Scope: %s\n", scope)
 			}
-			renderScan(out, newPalette(out), infos, elapsed, engine)
+			p := newPalette(out)
+			renderScan(out, p, infos, elapsed, engine, proto)
 			if summary.Degraded && summary.Warning != "" {
-				fmt.Fprintf(out, "%s\n", newPalette(out).paint(newPalette(out).warn, "Incomplete result: "+summary.Warning))
+				fmt.Fprintf(out, "%s\n", p.paint(p.warn, "Incomplete result: "+summary.Warning))
 			}
 			return nil
 		},
@@ -196,13 +212,14 @@ func newScanCommand(opts *options) *cobra.Command {
 	cmd.Flags().StringVar(&portsStr, "ports", "", "comma-separated ports or ranges, e.g. 3000-3010,8080")
 	cmd.Flags().StringVar(&preset, "preset", "", "explicit port preset: web, python, database, or project")
 	cmd.Flags().StringVar(&projectPath, "project", "", "project directory for --preset project (default: nearest project above current directory)")
+	cmd.Flags().StringVar(&protocol, "protocol", core.ProtocolTCP, "transport protocol to scan: tcp or udp")
 	return cmd
 }
 
-func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed time.Duration, engine string) {
+func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed time.Duration, engine, protocol string) {
 	const width = 80
 
-	sectionTitle(w, p, "Port Scanner  TCP", width)
+	sectionTitle(w, p, fmt.Sprintf("Port Scanner  %s", strings.ToUpper(protocol)), width)
 
 	if len(infos) == 0 {
 		fmt.Fprintf(w, "  %s\n\n", p.paint(p.dim, "No occupied ports found."))

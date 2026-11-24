@@ -12,7 +12,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI_DIR = ROOT / "internal" / "cli"
-MCP_SOURCE = ROOT / "internal" / "mcpserver" / "server.go"
+MCP_DIR = ROOT / "internal" / "mcpserver"
 SCHEMA_VERSION = 1
 EXPECTED_CORE_TYPES = ("PortDiagnostic",)
 EXPECTED_CORE_CONSTANTS = ("DefaultDevPorts",)
@@ -62,35 +62,49 @@ def extract_cli() -> dict[str, list[dict[str, Any]]]:
 
 
 def extract_mcp() -> list[dict[str, Any]]:
-    source = read(MCP_SOURCE)
     tools: list[dict[str, Any]] = []
     function_pattern = re.compile(
         r"(?m)^func\s+(\w+Tool)\(\)\s+mcp\.Tool\s*\{"
     )
-    matches = list(function_pattern.finditer(source))
-    for index, match in enumerate(matches):
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
-        body = source[match.start() : end]
-        tool_match = re.search(r'mcp\.NewTool\("([a-z][a-z0-9_]*)"', body)
-        if tool_match is None:
-            continue
-        arguments = sorted(
-            {
-                argument
-                for argument in re.findall(
-                    r'mcp\.With(?:Number|String|Boolean)\("([a-z][a-z0-9_]*)"',
-                    body,
-                )
-            }
-        )
-        tools.append(
-            {
-                "name": tool_match.group(1),
-                "source": relative(MCP_SOURCE),
-                "arguments": arguments,
-            }
-        )
+    for path in go_sources(MCP_DIR):
+        source = read(path)
+        source_name = relative(path)
+        matches = list(function_pattern.finditer(source))
+        for index, match in enumerate(matches):
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+            body = source[match.start() : end]
+            tool_match = re.search(r'mcp\.NewTool\("([a-z][a-z0-9_]*)"', body)
+            if tool_match is None:
+                continue
+            arguments = sorted(
+                {
+                    argument
+                    for argument in re.findall(
+                        r'mcp\.With(?:Number|String|Boolean)\("([a-z][a-z0-9_]*)"',
+                        body,
+                    )
+                }
+            )
+            tools.append(
+                {
+                    "name": tool_match.group(1),
+                    "source": source_name,
+                    "arguments": arguments,
+                }
+            )
     return sorted(tools, key=lambda tool: tool["name"])
+
+
+def extract_diagnostic_fields(source: str) -> list[str]:
+    match = re.search(r"type\s+PortDiagnostic\s+struct\s*\{(.*?)\n\}", source, flags=re.DOTALL)
+    if match is None:
+        return []
+    body = match.group(1)
+    fields: list[str] = []
+    for tag in re.findall(r'`json:"([a-z][a-z0-9_]*)(?:,[^"]*)?"`', body):
+        if tag not in fields:
+            fields.append(tag)
+    return fields
 
 
 def extract_core() -> dict[str, list[str]]:
@@ -104,6 +118,7 @@ def extract_core() -> dict[str, list[str]]:
         "types": declared(r"\btype\s+{name}\s+struct\b", EXPECTED_CORE_TYPES),
         "constants": declared(r"\b(?:var|const)\s+{name}\b", EXPECTED_CORE_CONSTANTS),
         "functions": declared(r"\bfunc\s+{name}\s*\(", EXPECTED_CORE_FUNCTIONS),
+        "diagnostic_fields": extract_diagnostic_fields(source),
     }
 
 
@@ -129,10 +144,10 @@ def build_manifest() -> dict[str, Any]:
         "source_files": [
             *(relative(path) for path in go_sources(CLI_DIR)),
             *(relative(path) for path in go_sources(ROOT / "internal" / "core")),
-            relative(MCP_SOURCE),
+            *(relative(path) for path in go_sources(MCP_DIR)),
         ],
         "cli": cli,
-        "mcp": {"source": relative(MCP_SOURCE), "tools": mcp},
+        "mcp": {"source": relative(MCP_DIR), "tools": mcp},
         "core": core,
         "reference_terms": list(REFERENCE_TERMS),
     }

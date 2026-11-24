@@ -24,8 +24,8 @@ while IFS=' ' read -r package minimum; do
   printf '| %s | %s%% | %s%% |\n' "$package" "$actual" "$minimum" >> "$report_dir/summary.md"
   go tool cover -html="$profile" -o "$report_dir/$package.html"
 done <<'THRESHOLDS'
-core 60
-cli 45
-mcpserver 70
-fingerprint 70
+core 75
+cli 65
+mcpserver 75
+fingerprint 75
 THRESHOLDS

@@ -9,9 +9,12 @@ from typing import Optional
 
 from port_detective import (
     async_inspect_port,
+    doctor,
+    find_free_port,
     free_port,
     inspect_port,
     scan_ports,
+    wait_for_port,
 )
 
 
@@ -49,6 +52,17 @@ def main() -> int:
         require(preview.dry_run, "free_port did not preserve dry-run mode")
         require(preview.diagnostic is not None, "dry-run response omitted its diagnostic")
         require(preview.diagnostic.pid == diagnostic.pid, "dry-run resolved a different PID")
+        require(bool(preview.preview_id), "dry-run response omitted preview_id")
+        require(bool(diagnostic.bind_addresses), "inspect did not report bind_addresses")
+
+        waited = wait_for_port(port, state="open", wait_timeout=2.0, interval=0.05, binary_path=binary_path)
+        require(waited.is_open and waited.port == port, "wait_for_port did not detect the listener")
+
+        suggestion = find_free_port(port_from=45000, port_to=45100, binary_path=binary_path)
+        require(45000 <= suggestion.port <= 45100, "find_free_port returned out-of-range port")
+
+        report = doctor(binary_path=binary_path)
+        require(report.status in {"ok", "degraded"}, f"unexpected doctor status: {report.status}")
 
         asyncio.run(verify_async(port, binary_path))
 

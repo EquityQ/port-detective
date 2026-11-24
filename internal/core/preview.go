@@ -84,34 +84,44 @@ type previewPayload struct {
 }
 
 var (
-	previewKeyOnce sync.Once
-	previewKey     []byte
-	previewKeyErr  error
+	previewKeyMu sync.RWMutex
+	previewKey   []byte
 )
 
 // previewSigningKey lazily creates the per-process signing key.
 func previewSigningKey() ([]byte, error) {
-	previewKeyOnce.Do(func() {
-		key := make([]byte, previewKeyBytes)
-		if _, err := rand.Read(key); err != nil {
-			previewKeyErr = fmt.Errorf("generate preview signing key: %w", err)
-			return
-		}
-		previewKey = key
-	})
-	return previewKey, previewKeyErr
+	previewKeyMu.RLock()
+	if len(previewKey) > 0 {
+		key := previewKey
+		previewKeyMu.RUnlock()
+		return key, nil
+	}
+	previewKeyMu.RUnlock()
+
+	previewKeyMu.Lock()
+	defer previewKeyMu.Unlock()
+	if len(previewKey) > 0 {
+		return previewKey, nil
+	}
+	key := make([]byte, previewKeyBytes)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("generate preview signing key: %w", err)
+	}
+	previewKey = key
+	return previewKey, nil
 }
 
 // setPreviewSigningKeyForTesting installs a deterministic key and returns a
 // restore function. Tests use it to simulate a token issued by another process.
 func setPreviewSigningKeyForTesting(key []byte) func() {
-	previewKeyOnce.Do(func() {}) // Freeze lazy initialization so the swap is visible.
+	previewKeyMu.Lock()
+	previous := previewKey
 	previewKey = key
-	previewKeyErr = nil
+	previewKeyMu.Unlock()
 	return func() {
-		previewKey = nil
-		previewKeyErr = nil
-		previewKeyOnce = sync.Once{}
+		previewKeyMu.Lock()
+		previewKey = previous
+		previewKeyMu.Unlock()
 	}
 }
 
@@ -126,9 +136,18 @@ func previewTTL(ttl time.Duration) (time.Duration, error) {
 	return ttl, nil
 }
 
-// IssuePreviewToken pins the supplied snapshot into a signed, short-lived token.
-// Only actionable identities are accepted: a port with a unique, confirmed owner.
+// IssuePreviewToken pins the supplied snapshot into a signed, short-lived token
+// using the per-process in-memory key. Long-lived servers such as MCP use this
+// so tokens cannot be replayed across server restarts.
 func IssuePreviewToken(scope string, targets []PortDiagnostic, ttl time.Duration) (string, int64, error) {
+	key, err := previewSigningKey()
+	if err != nil {
+		return "", 0, err
+	}
+	return issuePreviewTokenWithKey(scope, targets, ttl, key)
+}
+
+func issuePreviewTokenWithKey(scope string, targets []PortDiagnostic, ttl time.Duration, key []byte) (string, int64, error) {
 	if err := validatePreviewScope(scope); err != nil {
 		return "", 0, err
 	}
@@ -183,7 +202,7 @@ func IssuePreviewToken(scope string, targets []PortDiagnostic, ttl time.Duration
 	}
 	payload.Nonce = base64.RawURLEncoding.EncodeToString(nonce)
 
-	token, err := signPreviewPayload(&payload)
+	token, err := signPreviewPayload(&payload, key)
 	if err != nil {
 		return "", 0, err
 	}
@@ -217,15 +236,14 @@ func validatePreviewScope(scope string) error {
 	}
 }
 
-// signPreviewPayload encodes and signs a payload.
-func signPreviewPayload(payload *previewPayload) (string, error) {
+// signPreviewPayload encodes and signs a payload with the supplied key.
+func signPreviewPayload(payload *previewPayload, key []byte) (string, error) {
+	if len(key) < previewKeyBytes {
+		return "", fmt.Errorf("preview signing key is invalid")
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("encode preview payload: %w", err)
-	}
-	key, err := previewSigningKey()
-	if err != nil {
-		return "", err
 	}
 	mac := hmac.New(sha256.New, key)
 	mac.Write(body)
@@ -235,10 +253,19 @@ func signPreviewPayload(payload *previewPayload) (string, error) {
 	return encoded.EncodeToString(body) + "." + encoded.EncodeToString(signature), nil
 }
 
-// RestorePreviewToken verifies a token and returns the pinned snapshots. When
-// expectedPorts is non-nil the token must cover exactly that selection: a token
-// is never silently widened or narrowed to fit the request.
+// RestorePreviewToken verifies a token against the per-process in-memory key
+// and returns the pinned snapshots. When expectedPorts is non-nil the token
+// must cover exactly that selection: a token is never silently widened or
+// narrowed to fit the request.
 func RestorePreviewToken(scope, token string, expectedPorts []int) ([]PortDiagnostic, int64, error) {
+	key, err := previewSigningKey()
+	if err != nil {
+		return nil, 0, err
+	}
+	return restorePreviewTokenWithKey(scope, token, expectedPorts, key)
+}
+
+func restorePreviewTokenWithKey(scope, token string, expectedPorts []int, key []byte) ([]PortDiagnostic, int64, error) {
 	if err := validatePreviewScope(scope); err != nil {
 		return nil, 0, err
 	}
@@ -249,7 +276,7 @@ func RestorePreviewToken(scope, token string, expectedPorts []int) ([]PortDiagno
 		return nil, 0, fmt.Errorf("%w: token is too large", ErrPreviewTokenInvalid)
 	}
 
-	payload, err := openPreviewToken(token)
+	payload, err := openPreviewToken(token, key)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -293,7 +320,7 @@ func RestorePreviewToken(scope, token string, expectedPorts []int) ([]PortDiagno
 }
 
 // openPreviewToken splits, authenticates, and expiry-checks a token.
-func openPreviewToken(token string) (*previewPayload, error) {
+func openPreviewToken(token string, key []byte) (*previewPayload, error) {
 	separator := -1
 	for i := 0; i < len(token); i++ {
 		if token[i] == '.' {
@@ -317,9 +344,8 @@ func openPreviewToken(token string) (*previewPayload, error) {
 		return nil, fmt.Errorf("%w: undecodable signature", ErrPreviewTokenInvalid)
 	}
 
-	key, err := previewSigningKey()
-	if err != nil {
-		return nil, err
+	if len(key) < previewKeyBytes {
+		return nil, fmt.Errorf("%w: signing key unavailable", ErrPreviewTokenInvalid)
 	}
 	mac := hmac.New(sha256.New, key)
 	mac.Write(body)

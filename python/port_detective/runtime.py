@@ -94,8 +94,9 @@ def cache_directory() -> Path:
         return Path(root) / "port-detective" / "bin"
     if platform.system().lower() == "darwin":
         return Path.home() / "Library" / "Caches" / "port-detective" / "bin"
-    root = os.getenv("XDG_CACHE_HOME") or (Path.home() / ".cache")
-    return Path(root) / "port-detective" / "bin"
+    xdg_root = os.getenv("XDG_CACHE_HOME")
+    base = Path(xdg_root) if xdg_root else (Path.home() / ".cache")
+    return base / "port-detective" / "bin"
 
 
 def _download(url: str) -> bytes:
@@ -154,27 +155,25 @@ def _cached_target_valid(path: Path) -> bool:
 def _extract_binary(archive: bytes, archive_name: str, executable: str) -> bytes:
     try:
         if archive_name.endswith(".zip"):
-            source = zipfile.ZipFile(io.BytesIO(archive))
-            with source:
-                for member in source.infolist():
-                    path = _safe_member(member.filename)
-                    if not member.is_dir() and path.name == executable:
-                        if member.file_size > MAX_BINARY_BYTES:
+            with zipfile.ZipFile(io.BytesIO(archive)) as zip_source:
+                for zip_member in zip_source.infolist():
+                    path = _safe_member(zip_member.filename)
+                    if not zip_member.is_dir() and path.name == executable:
+                        if zip_member.file_size > MAX_BINARY_BYTES:
                             raise RuntimeDownloadError(
                                 f"Extracted CLI is larger than {MAX_BINARY_BYTES} bytes"
                             )
-                        return source.read(member)
+                        return zip_source.read(zip_member)
         else:
-            source = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
-            with source:
-                for member in source.getmembers():
-                    path = _safe_member(member.name)
-                    if member.isfile() and path.name == executable:
-                        if member.size > MAX_BINARY_BYTES:
+            with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar_source:
+                for tar_member in tar_source.getmembers():
+                    path = _safe_member(tar_member.name)
+                    if tar_member.isfile() and path.name == executable:
+                        if tar_member.size > MAX_BINARY_BYTES:
                             raise RuntimeDownloadError(
                                 f"Extracted CLI is larger than {MAX_BINARY_BYTES} bytes"
                             )
-                        handle = source.extractfile(member)
+                        handle = tar_source.extractfile(tar_member)
                         if handle is not None:
                             return handle.read()
     except (OSError, tarfile.TarError, zipfile.BadZipFile) as exc:

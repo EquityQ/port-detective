@@ -26,13 +26,13 @@ func pause(ctx context.Context, interval time.Duration) error {
 	}
 }
 
-func watchPort(cmd *cobra.Command, opts *options, port int, interval time.Duration) error {
+func watchPort(cmd *cobra.Command, opts *options, port int, protocol string, interval time.Duration) error {
 	out := stdout(cmd)
 	encoder := json.NewEncoder(out)
 	encoder.SetEscapeHTML(false)
 	for {
 		begin := time.Now()
-		diag, err := core.InspectPort(cmd.Context(), port)
+		diag, err := core.InspectPortProtocol(cmd.Context(), port, protocol)
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,12 @@ func newWaitCommand(opts *options) *cobra.Command {
 				if err != nil {
 					return waitError(cmd.Context(), ctx, port, state, timeout, err)
 				}
-				if diag.IsOpen == (state == "open") {
+				matched := diag.IsOpen
+				if state == "free" {
+					// Never treat an unreadable listener table as proof that a port is free.
+					matched = !diag.IsOpen && !diag.ListenerTableMissing && diag.Status != core.StatusUndetermined
+				}
+				if matched {
 					if opts.jsonOutput {
 						return writeJSON(stdout(cmd), diag)
 					}

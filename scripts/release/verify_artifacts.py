@@ -14,69 +14,29 @@ import hashlib
 import re
 import stat
 import subprocess
+import sys
 import tarfile
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_common import (  # noqa: E402
+    EXECUTABLE_NAME_BY_GOOS,
+    RELEASE_TARGETS,
+    ReleaseTarget,
+    VERSION_PATTERN,
+)
+
 
 REQUIRED_ARCHIVE_FILES = {"README.md", "LICENSE"}
-
-# Authoritative release matrix, mirrored from .goreleaser.yaml: builds over
-# goos [linux, darwin, windows] x goarch [amd64, arm64], tar.gz archives with a
-# zip override for windows, and one `port-detective` executable per archive.
-GOOS_TARGETS = ("linux", "darwin", "windows")
-GOARCH_TARGETS = ("amd64", "arm64")
-ARCHIVE_SUFFIX_BY_GOOS = {"linux": ".tar.gz", "darwin": ".tar.gz", "windows": ".zip"}
-EXECUTABLE_NAME_BY_GOOS = {
-    "linux": "port-detective",
-    "darwin": "port-detective",
-    "windows": "port-detective.exe",
-}
 CHECKSUM_FILE_NAME = "checksums.txt"
-VERSION_PATTERN = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?")
 
 
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(message)
-
-
-@dataclass(frozen=True)
-class ReleaseTarget:
-    """One build/archive combination in the release matrix."""
-
-    goos: str
-    goarch: str
-    archive_suffix: str
-    executable_name: str
-
-    @property
-    def platform(self) -> str:
-        return f"{self.goos}/{self.goarch}"
-
-
-def _release_targets() -> tuple[ReleaseTarget, ...]:
-    targets: list[ReleaseTarget] = []
-    for goos in GOOS_TARGETS:
-        for goarch in GOARCH_TARGETS:
-            check(
-                goos in ARCHIVE_SUFFIX_BY_GOOS and goos in EXECUTABLE_NAME_BY_GOOS,
-                f"release matrix has no archive convention for {goos}",
-            )
-            targets.append(
-                ReleaseTarget(
-                    goos=goos,
-                    goarch=goarch,
-                    archive_suffix=ARCHIVE_SUFFIX_BY_GOOS[goos],
-                    executable_name=EXECUTABLE_NAME_BY_GOOS[goos],
-                )
-            )
-    return tuple(targets)
-
-
-RELEASE_TARGETS: tuple[ReleaseTarget, ...] = _release_targets()
 
 
 def expected_archive_name(version: str, target: ReleaseTarget) -> str:

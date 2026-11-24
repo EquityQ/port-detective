@@ -15,11 +15,17 @@ const {
   inspectPort,
   scanPorts,
   freePort,
+  waitForPort,
+  findFreePort,
+  doctor,
   asyncInspectPort,
   cleanProject,
   asyncCleanProject,
   asyncScanPorts,
   asyncFreePort,
+  asyncWaitForPort,
+  asyncFindFreePort,
+  asyncDoctor,
 } = require("..");
 const { binaryRelativePath, platformPackageName } = require("../platform");
 
@@ -44,7 +50,7 @@ let fixtureNumber = 0;
 test.before(() => {
   fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "port-detective-sdk-"));
   execFileSync(process.env.GO_BINARY || "go", ["build", "-o", path.join(fixtureRoot, "fixture.exe"),
-    path.join(__dirname, "fixtures", "cli.go")]);
+    path.resolve(__dirname, "..", "..", "..", "testdata", "sdk-cli", "main.go")]);
 });
 test.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
 
@@ -202,4 +208,58 @@ test("maps supported Node targets to platform package names", () => {
   assert.equal(platformPackageName("win32", "ia32"), null);
   assert.equal(binaryRelativePath("win32"), "bin/port-detective.exe");
   assert.equal(binaryRelativePath("linux"), "bin/port-detective");
+});
+
+test("supports protocol, preset, previewId, wait, find-free, and doctor workflows", async (t) => {
+  const record = path.join(fixtureRoot, "workflow-args.json");
+  const binaryPath = fixture(t, { SDK_TEST_ARGUMENTS: record });
+
+  const udpCheck = inspectPort(3000, { binaryPath, protocol: "udp" });
+  assert.deepEqual(udpCheck.bind_addresses, ["127.0.0.1"]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["check", "3000", "--protocol", "udp", "--json"]);
+
+  scanPorts(undefined, { binaryPath, preset: "project", projectPath: fixtureRoot, protocol: "udp" });
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(record, "utf8")),
+    ["scan", "--preset", "project", "--project", fixtureRoot, "--protocol", "udp", "--json"],
+  );
+
+  cleanProject({ binaryPath, dryRun: false, previewId: "tok.clean" });
+  assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["clean", "--yes", "--preview-id", "tok.clean", "--json"]);
+
+  const waited = waitForPort(3000, { binaryPath, state: "open", waitTimeout: 1000, interval: 50 });
+  assert.equal(waited.port, 3000);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(record, "utf8")),
+    ["wait", "3000", "--state", "open", "--timeout", "1000ms", "--interval", "50ms", "--json"],
+  );
+
+  const free = findFreePort({ binaryPath, from: 3000, to: 3010 });
+  assert.equal(free.port, 3005);
+  assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["find-free", "--from", "3000", "--to", "3010", "--json"]);
+
+  const healthy = doctor({ binaryPath });
+  assert.equal(healthy.status, "ok");
+
+  process.env.SDK_TEST_DOCTOR_DEGRADED = "1";
+  const degraded = doctor({ binaryPath });
+  assert.equal(degraded.status, "degraded");
+  const asyncDegraded = await asyncDoctor({ binaryPath });
+  assert.equal(asyncDegraded.status, "degraded");
+  delete process.env.SDK_TEST_DOCTOR_DEGRADED;
+
+  assert.equal((await asyncWaitForPort(3000, { binaryPath, waitTimeout: 500, interval: 50 })).is_open, true);
+  assert.equal((await asyncFindFreePort({ binaryPath, from: 3000, to: 3010 })).port, 3005);
+});
+
+test("validates protocol, preset, previewId, wait, and range options", () => {
+  assert.throws(() => inspectPort(3000, { protocol: "sctp" }), RangeError);
+  assert.throws(() => inspectPort(3000, { protocol: 123 }), TypeError);
+  assert.throws(() => scanPorts([3000], { preset: "web" }), TypeError);
+  assert.throws(() => scanPorts(undefined, { preset: "web", projectPath: "." }), TypeError);
+  assert.throws(() => scanPorts(undefined, { preset: "invalid" }), RangeError);
+  assert.throws(() => freePort(3000, { previewId: "  " }), TypeError);
+  assert.throws(() => waitForPort(3000, { state: "closed" }), RangeError);
+  assert.throws(() => waitForPort(3000, { waitTimeout: 0 }), RangeError);
+  assert.throws(() => findFreePort({ from: 3100, to: 3000 }), RangeError);
 });

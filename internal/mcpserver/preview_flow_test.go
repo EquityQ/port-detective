@@ -16,6 +16,7 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 
 	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/fingerprint"
 )
 
 // errSimulatedTableFailure stands in for a host that refuses to expose its TCP
@@ -258,7 +259,7 @@ func TestCleanPreviewRejectsDriftedTargets(t *testing.T) {
 	projectDir := t.TempDir()
 	writeManifest(t, projectDir)
 	core.RegisterProjectDetector(projectDetectorFor(projectDir))
-	t.Cleanup(func() { core.RegisterProjectDetector(nil) })
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
 	t.Cleanup(func() { _ = ln.Close() })
 
 	preview := callTool(t, handleCleanCurrentProject, map[string]any{
@@ -305,7 +306,7 @@ func TestCleanPreviewEmptyScopeReturnsNoToken(t *testing.T) {
 	projectDir := t.TempDir()
 	writeManifest(t, projectDir)
 	core.RegisterProjectDetector(projectDetectorFor(projectDir))
-	t.Cleanup(func() { core.RegisterProjectDetector(nil) })
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
 
 	res := callTool(t, handleCleanCurrentProject, map[string]any{
 		"project_path": projectDir,

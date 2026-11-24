@@ -354,3 +354,37 @@ func TestRenderPortTableHeaders(t *testing.T) {
 		t.Errorf("English table is missing project data: %s", out)
 	}
 }
+
+func TestCheckAndScanUDPProtocol(t *testing.T) {
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp4 failed: %v", err)
+	}
+	defer pc.Close()
+	port := strconv.Itoa(pc.LocalAddr().(*net.UDPAddr).Port)
+
+	out, _, err := captureRun(t, "check", port, "--protocol", "udp", "--json")
+	if err != nil {
+		t.Fatalf("check --protocol udp --json failed: %v", err)
+	}
+	var diag core.PortDiagnostic
+	if err := json.Unmarshal([]byte(out), &diag); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !diag.IsOpen || diag.Protocol != core.ProtocolUDP {
+		t.Fatalf("expected open UDP diagnostic, got %+v", diag)
+	}
+
+	scanOut, _, err := captureRun(t, "scan", "--ports", port, "--protocol", "udp", "--json")
+	if err != nil {
+		t.Fatalf("scan --protocol udp --json failed: %v", err)
+	}
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(scanOut), &diags); err != nil || len(diags) != 1 || diags[0].Protocol != core.ProtocolUDP {
+		t.Fatalf("unexpected UDP scan output: %s (%v)", scanOut, err)
+	}
+
+	if _, _, err := captureRun(t, "check", port, "--protocol", "sctp"); err == nil {
+		t.Fatal("invalid protocol must be rejected")
+	}
+}

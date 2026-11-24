@@ -4,14 +4,20 @@ const assert = require("node:assert/strict");
 const net = require("node:net");
 const clientPath = process.env.PORT_DETECTIVE_NODE_MODULE || "../../npm/port-detective";
 const {
+  asyncDoctor,
+  asyncFindFreePort,
   asyncInspectPort,
   asyncCleanProject,
   asyncFreePort,
   asyncScanPorts,
+  asyncWaitForPort,
   cleanProject,
+  doctor,
+  findFreePort,
   freePort,
   inspectPort,
   scanPorts,
+  waitForPort,
 } = require(clientPath);
 
 async function main() {
@@ -54,6 +60,24 @@ async function main() {
     assert.ok(Array.isArray(cleanPreview));
     const asyncCleanPreview = await asyncCleanProject({ cwd: process.cwd() });
     assert.ok(Array.isArray(asyncCleanPreview));
+
+    assert.ok(Array.isArray(diagnostic.bind_addresses) && diagnostic.bind_addresses.length > 0);
+    assert.ok(typeof preview.preview_id === "string" && preview.preview_id.length > 0);
+
+    const waited = waitForPort(port, { state: "open", waitTimeout: 2000, interval: 50 });
+    assert.equal(waited.is_open, true);
+    const asyncWaited = await asyncWaitForPort(port, { state: "open", waitTimeout: 2000, interval: 50 });
+    assert.equal(asyncWaited.is_open, true);
+
+    const free = findFreePort({ from: 45101, to: 45200 });
+    assert.ok(free.port >= 45101 && free.port <= 45200);
+    const asyncFree = await asyncFindFreePort({ from: 45101, to: 45200 });
+    assert.ok(asyncFree.port >= 45101 && asyncFree.port <= 45200);
+
+    const report = doctor();
+    assert.ok(report.status === "ok" || report.status === "degraded");
+    const asyncReport = await asyncDoctor();
+    assert.ok(asyncReport.status === "ok" || asyncReport.status === "degraded");
     console.log(`verified Node.js SDK against CLI for TCP port ${port}`);
   } finally {
     await new Promise((resolve, reject) => {

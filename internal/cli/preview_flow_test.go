@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 
 	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/fingerprint"
 )
 
 // runWithStderr executes the root command and reports the exit status mapping a
@@ -33,6 +36,7 @@ func runWithStderr(t *testing.T, args ...string) (string, string, int) {
 // TestKillJSONDryRunEmitsPreviewToken proves the CLI exposes the same two-phase
 // safety contract as MCP: preview first, then act on the token.
 func TestKillJSONDryRunEmitsPreviewToken(t *testing.T) {
+	t.Setenv(core.PreviewKeyFileEnv, filepath.Join(t.TempDir(), "preview-key.json"))
 	ln, port := listenLoopbackCLI(t)
 	t.Cleanup(func() { _ = ln.Close() })
 
@@ -96,6 +100,34 @@ func TestKillRejectsBadPreviewID(t *testing.T) {
 	_ = conn.Close()
 }
 
+// TestKillRejectsBadPreviewIDOnFreePort proves token validation runs before live
+// probing, so a forged token fails with exit status 6 even on an idle port.
+func TestKillRejectsBadPreviewIDOnFreePort(t *testing.T) {
+	port := freeLoopbackPortCLI(t)
+	_, errOut, status := runWithStderr(t, "kill", strconv.Itoa(port), "--json", "--yes", "--preview-id", "forged-token-value")
+	if status != 6 {
+		t.Fatalf("status = %d, want 6 (preview_rejected)\nstderr: %s", status, errOut)
+	}
+	if !strings.Contains(errOut, "preview_rejected") {
+		t.Fatalf("stderr should report preview_rejected: %s", errOut)
+	}
+}
+
+// TestCleanRejectsBadPreviewIDWithoutListeners proves clean validates --preview-id
+// before discovering live listeners, so a forged token is never silently ignored.
+func TestCleanRejectsBadPreviewIDWithoutListeners(t *testing.T) {
+	dir := t.TempDir()
+	writeCLIManifest(t, dir)
+
+	_, errOut, status := runWithStderr(t, "clean", "--project", dir, "--json", "--yes", "--preview-id", "forged-token-value")
+	if status != 6 {
+		t.Fatalf("status = %d, want 6 (preview_rejected)\nstderr: %s", status, errOut)
+	}
+	if !strings.Contains(errOut, "preview_rejected") {
+		t.Fatalf("stderr should report preview_rejected: %s", errOut)
+	}
+}
+
 // TestCleanRejectsEmptyPortsFlag proves an explicit empty selection fails closed.
 func TestCleanRejectsEmptyPortsFlag(t *testing.T) {
 	for _, value := range []string{"", "  "} {
@@ -115,7 +147,7 @@ func TestCleanJSONDryRunStaysArray(t *testing.T) {
 	core.RegisterProjectDetector(func(context.Context, int32) *core.ProjectInfo {
 		return &core.ProjectInfo{Name: "cli-preview", Path: dir}
 	})
-	t.Cleanup(func() { core.RegisterProjectDetector(nil) })
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
 
 	out, _, err := captureRun(t, "clean", "--project", dir, "--ports", strconv.Itoa(port), "--json", "--dry-run", "--yes")
 	if err != nil {
@@ -199,6 +231,21 @@ func TestDoctorDegradedReportsNonZeroExit(t *testing.T) {
 	}
 }
 
+// TestWaitFreeDoesNotTreatUndeterminedAsFree proves wait --state free will not
+// declare a port free when the local listener table cannot be read.
+func TestWaitFreeDoesNotTreatUndeterminedAsFree(t *testing.T) {
+	port := freeLoopbackPortCLI(t)
+	restore := core.SetConnectionsListerForTesting(func(context.Context) ([]gnet.ConnectionStat, error) {
+		return nil, os.ErrPermission
+	})
+	defer restore()
+
+	_, errOut, status := runWithStderr(t, "wait", strconv.Itoa(port), "--state", "free", "--timeout", "120ms", "--interval", "20ms", "--json")
+	if status != 3 {
+		t.Fatalf("wait --state free with unreadable listener table exited %d, want 3 (timeout)\nstderr: %s", status, errOut)
+	}
+}
+
 // TestRootHelpDoesNotClaimOrphanCleanup removes an over-broad capability promise.
 func TestRootHelpDoesNotClaimOrphanCleanup(t *testing.T) {
 	out, _, err := captureRun(t, "--help")
@@ -207,6 +254,86 @@ func TestRootHelpDoesNotClaimOrphanCleanup(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(out), "orphan") {
 		t.Fatalf("the CLI must not promise orphan-process cleanup it cannot detect:\n%s", out)
+	}
+}
+
+// TestCLIPreviewHelperProcess runs a single CLI invocation inside a fresh OS
+// process for TestKillPreviewTokenWorksAcrossCLIProcesses.
+func TestCLIPreviewHelperProcess(t *testing.T) {
+	if os.Getenv("PORT_DETECTIVE_CLI_HELPER") != "1" {
+		return
+	}
+	sep := -1
+	for i, arg := range os.Args {
+		if arg == "--" {
+			sep = i
+			break
+		}
+	}
+	if sep < 0 {
+		os.Exit(2)
+	}
+	root := NewRootCommand()
+	root.SetArgs(os.Args[sep+1:])
+	os.Exit(executeCommand(root))
+}
+
+// TestKillPreviewTokenWorksAcrossCLIProcesses proves that a preview_id minted
+// by one CLI process can be redeemed by a separate CLI process against the
+// same live listener, without ever killing the test process.
+func TestKillPreviewTokenWorksAcrossCLIProcesses(t *testing.T) {
+	keyFile := filepath.Join(t.TempDir(), "preview-key.json")
+	ln, port := listenLoopbackCLI(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	runSubprocess := func(args ...string) (string, string, int) {
+		cmdArgs := append([]string{"-test.run=^TestCLIPreviewHelperProcess$", "--"}, args...)
+		cmd := exec.Command(os.Args[0], cmdArgs...)
+		cmd.Env = append(os.Environ(),
+			"PORT_DETECTIVE_CLI_HELPER=1",
+			core.PreviewKeyFileEnv+"="+keyFile,
+		)
+		var out, errOut bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &errOut
+		err := cmd.Run()
+		code := 0
+		if err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				code = exitErr.ExitCode()
+			} else {
+				t.Fatalf("subprocess exec failed: %v", err)
+			}
+		}
+		return out.String(), errOut.String(), code
+	}
+
+	// Process 1: preview the live listener and mint preview_id.
+	out1, err1, code1 := runSubprocess("kill", strconv.Itoa(port), "--json", "--dry-run")
+	if code1 != 0 {
+		t.Fatalf("process 1 preview failed (code %d): %s", code1, err1)
+	}
+	var preview struct {
+		PreviewID string `json:"preview_id"`
+	}
+	if err := json.Unmarshal([]byte(out1), &preview); err != nil || preview.PreviewID == "" {
+		t.Fatalf("process 1 did not emit preview_id: %v\nraw: %s", err, out1)
+	}
+
+	// Process 2: redeem the preview_id in a fresh OS process (using --dry-run
+	// so the test process itself is never terminated, while still exercising the
+	// full RestoreCLIPreviewToken + KillPortTarget revalidation path).
+	out2, err2, code2 := runSubprocess("kill", strconv.Itoa(port), "--json", "--dry-run", "--preview-id", preview.PreviewID)
+	if code2 != 0 {
+		t.Fatalf("process 2 rejected cross-process preview_id (code %d): %s\nstdout: %s", code2, err2, out2)
+	}
+
+	// Process 3: closing the listener must cause drift rejection when redeeming.
+	_ = ln.Close()
+	_, err3, code3 := runSubprocess("kill", strconv.Itoa(port), "--json", "--dry-run", "--preview-id", preview.PreviewID)
+	if code3 == 0 {
+		t.Fatalf("process 3 accepted a preview token after the port was released: %s", err3)
 	}
 }
 

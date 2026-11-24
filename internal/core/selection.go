@@ -70,6 +70,29 @@ func normalizePorts(ports []int) ([]int, error) {
 	return unique, nil
 }
 
+// projectManifestFiles lists the supported manifest filenames that mark a
+// resolved project root during directory traversal.
+var projectManifestFiles = []string{
+	"package.json",
+	"go.mod",
+	"pyproject.toml",
+	"requirements.txt",
+	"Cargo.toml",
+	"pom.xml",
+	"build.gradle",
+	"build.gradle.kts",
+	"Gemfile",
+	"composer.json",
+}
+
+// SupportedProjectManifests returns a copy of the manifest filenames recognized
+// when resolving a project root directory.
+func SupportedProjectManifests() []string {
+	out := make([]string, len(projectManifestFiles))
+	copy(out, projectManifestFiles)
+	return out
+}
+
 // ResolveProjectPath validates a directory and selects its nearest manifest root.
 // Directories without a recognized manifest retain their own absolute path.
 func ResolveProjectPath(path string) (string, error) {
@@ -92,7 +115,7 @@ func ResolveProjectPath(path string) (string, error) {
 		return "", fmt.Errorf("resolve project directory links: %w", err)
 	}
 	for dir := absolute; ; dir = filepath.Dir(dir) {
-		for _, manifest := range []string{"package.json", "go.mod", "pyproject.toml", "requirements.txt"} {
+		for _, manifest := range projectManifestFiles {
 			info, err := os.Stat(filepath.Join(dir, manifest))
 			if err == nil && !info.IsDir() {
 				return dir, nil

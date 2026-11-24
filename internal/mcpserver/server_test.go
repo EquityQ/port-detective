@@ -457,3 +457,37 @@ func TestToolRejectsFractionalPortAndMistypedDryRun(t *testing.T) {
 		t.Fatal("mistyped dry_run must be rejected")
 	}
 }
+
+func TestInspectAndScanUDPTools(t *testing.T) {
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp4 failed: %v", err)
+	}
+	t.Cleanup(func() { _ = pc.Close() })
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+
+	res := callTool(t, handleInspectPort, map[string]any{"port": float64(port), "protocol": "udp"})
+	if res.IsError {
+		t.Fatalf("inspect_port udp failed: %s", resultText(t, res))
+	}
+	var diag core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, res)), &diag); err != nil {
+		t.Fatal(err)
+	}
+	if !diag.IsOpen || diag.Protocol != core.ProtocolUDP {
+		t.Fatalf("expected open UDP diagnostic, got %+v", diag)
+	}
+
+	scanRes := callTool(t, handleScanDevPorts, map[string]any{"ports": fmt.Sprintf("%d", port), "protocol": "udp"})
+	if scanRes.IsError {
+		t.Fatalf("scan_dev_ports udp failed: %s", resultText(t, scanRes))
+	}
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, scanRes)), &diags); err != nil || len(diags) != 1 || diags[0].Protocol != core.ProtocolUDP {
+		t.Fatalf("unexpected UDP scan output: %s (%v)", resultText(t, scanRes), err)
+	}
+
+	if bad := callTool(t, handleInspectPort, map[string]any{"port": float64(port), "protocol": "sctp"}); !bad.IsError {
+		t.Fatal("unsupported protocol must return a tool error")
+	}
+}

@@ -532,3 +532,108 @@ func (r *trickleReader) Read(p []byte) (int, error) {
 type stalledReader struct{}
 
 func (stalledReader) Read([]byte) (int, error) { return 0, nil }
+
+func TestDetectMultiLanguageProjects(t *testing.T) {
+	cases := []struct {
+		name          string
+		filename      string
+		content       string
+		wantName      string
+		wantFramework string
+		wantVersion   string
+	}{
+		{
+			name:          "rust axum",
+			filename:      "Cargo.toml",
+			content:       "[package]\nname = \"gateway\"\nversion = \"0.4.2\"\n[dependencies]\naxum = \"0.7\"\n",
+			wantName:      "gateway",
+			wantFramework: "Axum",
+			wantVersion:   "0.4.2",
+		},
+		{
+			name:          "rust actix",
+			filename:      "Cargo.toml",
+			content:       "[package]\nname = \"worker\"\n[dependencies]\nactix-web = \"4\"\n",
+			wantName:      "worker",
+			wantFramework: "Actix Web",
+		},
+		{
+			name:          "java maven spring boot",
+			filename:      "pom.xml",
+			content:       "<project><artifactId>billing-api</artifactId><version>2.1.0</version><parent><artifactId>spring-boot-starter-parent</artifactId></parent></project>",
+			wantName:      "billing-api",
+			wantFramework: "Spring Boot",
+			wantVersion:   "2.1.0",
+		},
+		{
+			name:          "kotlin gradle ktor",
+			filename:      "build.gradle.kts",
+			content:       "dependencies { implementation(\"io.ktor:ktor-server-netty:2.3.0\") }\n",
+			wantFramework: "Ktor",
+		},
+		{
+			name:          "java gradle quarkus",
+			filename:      "build.gradle",
+			content:       "dependencies { implementation 'io.quarkus:quarkus-resteasy' }\n",
+			wantFramework: "Quarkus",
+		},
+		{
+			name:          "ruby rails",
+			filename:      "Gemfile",
+			content:       "source 'https://rubygems.org'\ngem 'rails', '~> 7.1'\n",
+			wantFramework: "Rails",
+		},
+		{
+			name:          "php laravel",
+			filename:      "composer.json",
+			content:       `{"name":"acme/shop","version":"1.2.3","require":{"laravel/framework":"^11.0"}}`,
+			wantName:      "acme/shop",
+			wantFramework: "Laravel",
+			wantVersion:   "1.2.3",
+		},
+		{
+			name:          "php symfony",
+			filename:      "composer.json",
+			content:       `{"name":"acme/crm","require":{"symfony/framework-bundle":"^7.0"}}`,
+			wantName:      "acme/crm",
+			wantFramework: "Symfony",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, tc.filename), []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			info := DetectFromDirAndCmdline(dir, "")
+			if info == nil {
+				t.Fatalf("expected fingerprint for %s, got nil", tc.name)
+			}
+			if info.Framework != tc.wantFramework {
+				t.Errorf("framework = %q, want %q", info.Framework, tc.wantFramework)
+			}
+			if tc.wantName != "" && info.Name != tc.wantName {
+				t.Errorf("name = %q, want %q", info.Name, tc.wantName)
+			}
+			if tc.wantVersion != "" && info.Version != tc.wantVersion {
+				t.Errorf("version = %q, want %q", info.Version, tc.wantVersion)
+			}
+		})
+	}
+
+	// Verify cmdline fallback signatures for new ecosystems.
+	for _, tc := range []struct {
+		cmd  string
+		want string
+	}{
+		{"bundle exec rails server -p 3000", "Rails"},
+		{"php artisan serve --port=8000", "Laravel"},
+		{"java -jar spring-boot-app.jar", "Spring Boot"},
+	} {
+		info := DetectFromDirAndCmdline("", tc.cmd)
+		if info == nil || info.Framework != tc.want {
+			t.Errorf("cmdline %q -> %+v, want framework %q", tc.cmd, info, tc.want)
+		}
+	}
+}

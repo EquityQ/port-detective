@@ -5,13 +5,13 @@ on:
     branches: [main]
     paths:
       - "python/**"
-      - "npm/port-detective/test/fixtures/**"
+      - "testdata/sdk-cli/**"
       - "scripts/release/**"
       - ".github/workflows/python.yml"
   pull_request:
     paths:
       - "python/**"
-      - "npm/port-detective/test/fixtures/**"
+      - "testdata/sdk-cli/**"
       - "scripts/release/**"
       - ".github/workflows/python.yml"
 
@@ -65,16 +65,19 @@ jobs:
           cache: false
 
       - name: Install test tools
-        run: python -m pip install --upgrade pip pytest pytest-asyncio build "coverage>=7.6,<8"
+        run: python -m pip install --upgrade pip pytest pytest-asyncio build "coverage>=7.6,<8" "mypy>=1.10,<2"
+
+      - name: Type-check Python SDK
+        run: python -m mypy port_detective
 
       - name: Run tests
         run: python -m coverage run --branch --source=port_detective -m pytest -q
 
       - name: Enforce Python SDK coverage thresholds
         run: |
-          python -m coverage report --include="port_detective/core.py" --fail-under=60
-          python -m coverage report --include="port_detective/models.py" --fail-under=85
-          python -m coverage report --fail-under=65
+          python -m coverage report --include="port_detective/core.py" --fail-under=70
+          python -m coverage report --include="port_detective/models.py" --fail-under=90
+          python -m coverage report --fail-under=70
           python -m coverage html -d coverage/html
           python -m coverage xml -o coverage/coverage.xml
 

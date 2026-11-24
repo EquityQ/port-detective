@@ -19,6 +19,7 @@ belong to the commands listed below:
 | `--dry-run` | Preview process actions without terminating a process. |
 | `--yes` | Skip interactive confirmation for destructive actions. |
 | `--ports` | Port list or inclusive ranges for `scan` / `clean`, e.g. `3000-3005,8080`; sorted and deduplicated. |
+| `--protocol` | Transport protocol for `check` and `scan`: `tcp` (default) or `udp`. |
 | `--preset` | Select `web`, `python`, `database`, or opt-in `project` ports for `scan`; cannot be combined with `--ports`. |
 | `--project` | Existing project directory for `clean` or `scan --preset project`; defaults to the current directory. |
 | `--watch` | Repeat `check` until interrupted. |
@@ -26,15 +27,15 @@ belong to the commands listed below:
 | `--state` | Target state for `wait`: `open` or `free`. |
 | `--timeout` | Positive maximum wait duration. |
 | `--from` / `--to` | Inclusive candidate range for `find-free`, within `1-65535`. |
-| `--preview-id` | Opaque token from an earlier preview (`kill --json --dry-run`, or an MCP `dry_run=true` call). Binds the action to the exact process snapshot that was previewed. |
+| `--preview-id` | Opaque token from an earlier preview (`kill --dry-run`, `clean --dry-run`, or an MCP `dry_run=true` call). Binds the action to the exact process snapshot that was previewed. CLI tokens use a user-scoped key file (rotated every 24h, overridable via `PORT_DETECTIVE_PREVIEW_KEY_FILE`) so previews work across CLI invocations; MCP keeps an in-memory per-server key. |
 
 | Command | Behavior and result |
 | --- | --- |
-| `check <port>` | Inspect TCP port `1-65535`; returns one `PortDiagnostic`, or repeated diagnostics with `--watch`. |
-| `scan` | Scan `DefaultDevPorts`, `--ports`, or `--preset`; returns only occupied ports as a sorted `PortDiagnostic[]`. |
-| `kill <port>` | CLI asks for confirmation by default; `--dry-run` previews, `--yes` executes without a prompt. Destructive JSON requires `--yes`. A `--json --dry-run` also returns a `preview_id`; pass it back with `--preview-id` so the action is bound to the process that was previewed. |
-| `clean` | Discover all visible TCP listeners and match the resolved project. `--ports` limits discovery; an explicitly empty `--ports` is rejected rather than widened. Show targets before confirmation; `--dry-run` previews. Destructive JSON requires `--yes`. Accepts `--preview-id` to act only on a previously previewed target set. |
-| `wait <port>` | Poll until `--state` matches or `--timeout` expires; return the matching diagnostic. An open TCP port does not prove application readiness. |
+| `check <port>` | Inspect TCP or UDP port `1-65535`; returns one `PortDiagnostic` (including `bind_addresses`), or repeated diagnostics with `--watch`. |
+| `scan` | Scan `DefaultDevPorts`, `--ports`, or `--preset` over TCP (default) or UDP (`--protocol udp`); returns only occupied ports as a sorted `PortDiagnostic[]`. |
+| `kill <port>` | CLI asks for confirmation by default; `--dry-run` previews, `--yes` executes without a prompt. Destructive JSON requires `--yes`. `--dry-run` emits a `preview_id` (in both JSON and terminal output); pass it back with `--preview-id` across CLI invocations to bind execution to the exact previewed process. |
+| `clean` | Discover all visible TCP listeners and match the resolved project. `--ports` limits discovery; an explicitly empty `--ports` is rejected rather than widened. Show targets before confirmation; `--dry-run` previews (emitting a `preview_id` in terminal mode). Destructive JSON requires `--yes`. Accepts `--preview-id` to validate and act only on a previously previewed target set. |
+| `wait <port>` | Poll until `--state` matches or `--timeout` expires; return the matching diagnostic. An open TCP port does not prove application readiness, and `--state free` never accepts an `undetermined` degraded result. |
 | `find-free` | Suggest a bindable TCP loopback port in the candidate range; the result is a snapshot, not a reservation. |
 | `doctor` | Report local CLI version, binary location, OS/architecture, working directory, and temporary-listener process visibility with troubleshooting hints. |
 | `mcp` | Start the Stdio MCP server with JSON-RPC only on stdout. |
@@ -58,8 +59,9 @@ Process identity and listener ownership are revalidated immediately before termi
 The confirmed target snapshot is retained; a new owner is never substituted after
 confirmation. Project cleanup groups listeners by process so a multi-port process
 is terminated once. Project selection resolves an existing directory to its nearest
-`package.json`, `go.mod`, `pyproject.toml`, or `requirements.txt` ancestor, or keeps
-the selected directory if no manifest is found. It does not include unrelated
+`package.json`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`,
+`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json` ancestor,
+or keeps the selected directory if no manifest is found. It does not include unrelated
 nested projects. Listener discovery is limited to the current host/network namespace.
 PID 0 and 1 are never eligible targets. Permission-limited metadata is reported as a
 degraded diagnostic rather than treated as proof that a port is free.
@@ -101,6 +103,7 @@ a partial result array before reporting its aggregate error; check the exit stat
     "path": "/workspace/example-app",
     "version": "1.0.0"
   },
+  "bind_addresses": ["127.0.0.1"],
   "listener_table_missing": true,
   "post_action_status": "released"
 }
@@ -108,6 +111,10 @@ a partial result array before reporting its aggregate error; check the exit stat
 
 `status` is normally `occupied`, `free`, `permission_required`, or `undetermined`.
 Process fields can be empty or zero when the operating system denies access.
+`cpu_percent` is an instantaneous single-sample OS snapshot (it does not sleep to
+compute a multi-interval delta, so some platforms may report `0` on the first sample).
+`bind_addresses` lists unique local IP addresses observed in the OS socket table
+(for example `["127.0.0.1"]` or `["0.0.0.0", "::"]`).
 
 `listener_table_missing` appears only when the local TCP listener table could not
 be read. In that state a closed loopback probe is reported as `undetermined`, never
@@ -136,18 +143,22 @@ JSON-RPC; diagnostics belong on stderr.
 
 | Tool | Input | Result and safety |
 | --- | --- | --- |
-| `inspect_port` | Required `port` number `1-65535` | Read-only diagnostic object. |
-| `scan_dev_ports` | Optional `ports` string such as `"3000-3005,8080"` | Read-only occupied-port array; omitting `ports` scans `DefaultDevPorts`. A provided-but-blank value is an error, so an empty selection can never widen into the default list. |
+| `inspect_port` | Required `port` number `1-65535`; optional `protocol` (`"tcp"` default or `"udp"`) | Read-only diagnostic object including `bind_addresses`. |
+| `scan_dev_ports` | Optional `ports` string such as `"3000-3005,8080"`; optional `protocol` (`"tcp"` default or `"udp"`) | Read-only occupied-port array; omitting `ports` scans `DefaultDevPorts`. A provided-but-blank value is an error, so an empty selection can never widen into the default list. |
 | `free_port` | Required `port`; optional `dry_run` (default `true`), `preview_id` | `dry_run=true` previews and returns a `preview_id` plus the process snapshot. Setting `dry_run=false` requires that `preview_id`, so the action targets the process that was previewed; the action fails if the port owner changed or the token expired. |
 | `clean_current_project` | Optional `project_path`, `ports`, `dry_run` (default `true`), `preview_id` | Match listeners to the selected project; defaults to the server working directory project. Returns effective `cwd`, `scope`, `dry_run`, `count`, `targets`, and `cleaned`; partial failures set `isError` and `error`. Omitting `ports` discovers all visible listeners; a provided-but-blank value is an error. `dry_run=false` requires the `preview_id` from a prior preview. |
 
-The frozen core API exposes PortDiagnostic, DefaultDevPorts,
-InspectPort, ScanPortsConcurrent, and KillPortProcess. The CLI and MCP
-layers consume these contracts without changing field names or safety rules.
+The frozen core API exposes `PortDiagnostic`, `DefaultDevPorts`,
+`InspectPort`, `ScanPortsConcurrent`, and `KillPortProcess`. Additive helpers
+(`InspectPortProtocol`, `ScanPortsProtocolSummary`, `core.Inspector`,
+`IssueCLIPreviewToken`, `RestoreCLIPreviewToken`, and `SupportedProjectManifests`)
+extend the core without altering any frozen signature or JSON field name. The CLI
+and MCP layers consume these contracts without changing field names or safety rules.
 
-Tool descriptions and annotations are checked by the acceptance scripts in
-`scripts/mcp/`. SDKs consume the CLI JSON contract instead of reimplementing process
-inspection.
+Tool descriptions, annotations, and cross-language `PortDiagnostic` schema parity
+across Go, Python (`models.py`), and TypeScript (`index.d.ts`) are verified by
+`scripts/quality/verify_api_reference.py` and the acceptance scripts in `scripts/mcp/`.
+SDKs consume the CLI JSON contract instead of reimplementing process inspection.
 
 ## Compatibility
 

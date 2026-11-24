@@ -41,6 +41,9 @@ dev = [
 include = ["port_detective*"]
 exclude = ["tests*"]
 
+[tool.setuptools.package-data]
+port_detective = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

@@ -10,6 +10,7 @@ on:
       - "internal/**"
       - "main.go"
       - "npm/**"
+      - "testdata/sdk-cli/**"
       - "scripts/integration/verify_node_cli.js"
       - ".github/workflows/node-integration.yml"
   pull_request:
@@ -20,6 +21,7 @@ on:
       - "internal/**"
       - "main.go"
       - "npm/**"
+      - "testdata/sdk-cli/**"
       - "scripts/integration/verify_node_cli.js"
       - ".github/workflows/node-integration.yml"
   workflow_dispatch:
@@ -55,6 +57,10 @@ jobs:
       - name: Run Node.js client tests
         working-directory: npm/port-detective
         run: npm test
+
+      - name: Type-check TypeScript declarations
+        working-directory: npm/port-detective
+        run: npx --yes --package=typescript@5.8.3 tsc --noEmit --strict --target ES2022 --module CommonJS index.d.ts
 
       - name: Verify npm package contents
         working-directory: npm/port-detective
