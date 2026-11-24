@@ -56,8 +56,8 @@ The gate is opt-in via `--require-platform-manifest`; without it the earlier che
 archive checks still run. It is intended to catch a future artifact matrix regression
 before publication, and it does not change how already published releases are verified.
 
-The [`v1.2.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.2.0)
-and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/39722738497)
-completed successfully. The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/39723082681)
-passed its clean-install integration. PyPI 1.2.0 and npm 1.2.0, including all six
-platform packages, were independently confirmed available.
+The [`v1.4.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.4.0)
+and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/45324780732)
+completed successfully. The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/45325148398)
+passed its strict six-platform manifest gate and clean-install integration. PyPI 1.4.0
+and npm 1.4.0, including all six platform packages, were independently confirmed available.

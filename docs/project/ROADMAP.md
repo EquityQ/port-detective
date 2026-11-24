@@ -18,6 +18,9 @@ This roadmap tracks post-release improvements for the next development cycle.
 - Enforce cross-language `PortDiagnostic` schema parity, Python `mypy`, TypeScript `tsc`,
   raised coverage thresholds, and `--require-platform-manifest` in npm publishing.
 
+Version 1.4.0 was published through GitHub, PyPI, and npm on 2026-11-24. Its release tag
+passed the hosted Go, Python, and MCP checks, and the npm workflow verified a clean install.
+
 ## Included in v1.3.0
 
 - Bind destructive actions to the process snapshot a caller previewed: signed, short-lived
@@ -47,7 +50,7 @@ the hosted Go, Python, and MCP checks, and the npm workflow verified a clean ins
 
 ## Release readiness
 
-- v1.3.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
+- v1.4.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Keep supported platforms and known permission limits current in release notes.
