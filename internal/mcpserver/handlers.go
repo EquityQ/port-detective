@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/version"
 )
 
 func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -47,8 +49,35 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	presetProvided, preset, err := optionalStringPresent(request, "preset")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	projectProvided, projectPath, err := optionalStringPresent(request, "project_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if provided && presetProvided {
+		return mcp.NewToolResultError("ports and preset cannot be used together"), nil
+	}
+	if projectProvided && (!presetProvided || preset != "project") {
+		return mcp.NewToolResultError("project_path requires preset='project'"), nil
+	}
+
 	targetPorts := core.DefaultDevPorts
-	if provided {
+	switch {
+	case presetProvided:
+		if strings.TrimSpace(preset) == "" {
+			return mcp.NewToolResultError("preset was provided but is empty; expected web, python, database, or project"), nil
+		}
+		if projectProvided && strings.TrimSpace(projectPath) == "" {
+			return mcp.NewToolResultError("project_path was provided but is empty"), nil
+		}
+		targetPorts, _, err = core.ResolvePresetPorts(preset, projectPath)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	case provided:
 		if strings.TrimSpace(portsStr) == "" {
 			return mcp.NewToolResultError(
 				"ports was provided but is empty; omit the argument to scan DefaultDevPorts, " +
@@ -294,4 +323,83 @@ func executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest
 	}
 	response.IsError = cleanErr != nil
 	return response, nil
+}
+
+func handleFindFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	from, err := optionalInt(request, "from", 3000, 1, 65535)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	to, err := optionalInt(request, "to", 3100, 1, 65535)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if from > to {
+		return mcp.NewToolResultError("expected 1 <= from <= to <= 65535"), nil
+	}
+	result, err := core.FindFreePort(ctx, from, to)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(result)
+}
+
+func handleWaitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	port, err := requirePort(request)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	state, err := optionalString(request, "state")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if state == "" {
+		state = "open"
+	}
+	timeoutMs, err := optionalInt(request, "timeout_ms", 30000, 1, 300000)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	intervalMs, err := optionalInt(request, "interval_ms", 250, 10, 60000)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	rawProto, err := optionalString(request, "protocol")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	diag, err := core.WaitForPortProtocol(
+		ctx,
+		port,
+		rawProto,
+		state,
+		time.Duration(timeoutMs)*time.Millisecond,
+		time.Duration(intervalMs)*time.Millisecond,
+	)
+	if err != nil {
+		return mcp.NewToolResultErrorf("wait_for_port %d failed: %v", port, err), nil
+	}
+	return jsonResult(diag)
+}
+
+func handleDoctor(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	projectProvided, projectPath, err := optionalStringPresent(request, "project_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	cwd := ""
+	if projectProvided {
+		if strings.TrimSpace(projectPath) == "" {
+			return mcp.NewToolResultError("project_path was provided but is empty"), nil
+		}
+		cwd, err = core.ResolveProjectPath(projectPath)
+		if err != nil {
+			return mcp.NewToolResultErrorf("invalid project_path: %v", err), nil
+		}
+	}
+	report, err := core.RunDoctor(ctx, "", cwd, version.Value)
+	if err != nil {
+		return mcp.NewToolResultErrorf("doctor failed: %v", err), nil
+	}
+	return jsonResult(report)
 }

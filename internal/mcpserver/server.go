@@ -33,6 +33,9 @@ func NewServer() *server.MCPServer {
 		"scan_dev_ports":        handleScanDevPorts,
 		"free_port":             handleFreePort,
 		"clean_current_project": handleCleanCurrentProject,
+		"find_free_port":        handleFindFreePort,
+		"wait_for_port":         handleWaitForPort,
+		"doctor":                handleDoctor,
 	}
 	for _, tool := range serverTools() {
 		handler, ok := handlers[tool.Name]

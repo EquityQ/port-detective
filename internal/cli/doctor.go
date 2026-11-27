@@ -2,27 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"net"
-	"os"
-	"runtime"
 
 	"github.com/EquityQ/port-detective/internal/core"
 	"github.com/EquityQ/port-detective/internal/version"
 	"github.com/spf13/cobra"
 )
 
-type doctorReport struct {
-	Version            string               `json:"version"`
-	OS                 string               `json:"os"`
-	Arch               string               `json:"arch"`
-	BinaryPath         string               `json:"binary_path"`
-	Cwd                string               `json:"cwd"`
-	ProjectPath        string               `json:"project_path,omitempty"`
-	Status             string               `json:"status"`
-	SelfCheck          *core.PortDiagnostic `json:"self_check,omitempty"`
-	MetadataAccessible bool                 `json:"metadata_accessible"`
-	Hints              []string             `json:"hints"`
-}
+type doctorReport = core.DoctorReport
 
 func newDoctorCommand(opts *options) *cobra.Command {
 	return &cobra.Command{
@@ -31,49 +17,9 @@ func newDoctorCommand(opts *options) *cobra.Command {
 		Long:  "Show runtime details and inspect a temporary local TCP listener. Permission and namespace limitations are reported with next steps. This checks listener visibility, not application protocol readiness.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report := doctorReport{Version: version.Value, OS: runtime.GOOS, Arch: runtime.GOARCH, Status: "ok", Hints: []string{}}
-			var err error
-			report.BinaryPath, err = os.Executable()
+			report, err := core.RunDoctor(cmd.Context(), "", "", version.Value)
 			if err != nil {
-				report.Hints = append(report.Hints, "Cannot resolve the running executable: "+err.Error())
-			}
-			report.Cwd, err = os.Getwd()
-			if err != nil {
-				report.Hints = append(report.Hints, "Cannot read the working directory: "+err.Error())
-			}
-			report.ProjectPath, err = core.ResolveProjectPath(report.Cwd)
-			if err != nil {
-				report.Hints = append(report.Hints, "Select a valid project using clean --project <directory>: "+err.Error())
-			}
-			listener, listenErr := net.Listen("tcp4", "127.0.0.1:0")
-			if listenErr != nil {
-				report.Hints = append(report.Hints, "Unable to create a temporary loopback listener; check local firewall or sandbox settings: "+listenErr.Error())
-			} else {
-				defer listener.Close()
-				port := listener.Addr().(*net.TCPAddr).Port
-				report.SelfCheck, err = core.InspectPort(cmd.Context(), port)
-				if cmd.Context().Err() != nil {
-					return cmd.Context().Err()
-				}
-				if err != nil {
-					report.Hints = append(report.Hints, "Temporary listener inspection failed: "+err.Error())
-				} else if report.SelfCheck == nil || !report.SelfCheck.IsOpen {
-					report.Hints = append(report.Hints, "A local listener was not detected. Run the CLI in the same host and network namespace as the application; check WSL, containers, or sandbox restrictions.")
-				} else if report.SelfCheck.ListenerTableMissing {
-					report.Hints = append(report.Hints, "The local TCP listener table could not be read. Ports bound only to other interfaces may be missed; results are incomplete.")
-				} else {
-					report.MetadataAccessible = report.SelfCheck.PID == int32(os.Getpid()) && report.SelfCheck.Status == core.StatusOccupied
-					if !report.MetadataAccessible {
-						report.Hints = append(report.Hints, "TCP visibility works, but process ownership is restricted. Inspect the target with check <port> --json; consider Administrator/root only when you understand the target and need its metadata.")
-					}
-				}
-			}
-			if report.SelfCheck != nil {
-				report.SelfCheck.Cmdline = ""
-				report.SelfCheck.Project = nil
-			}
-			if len(report.Hints) > 0 {
-				report.Status = "degraded"
+				return err
 			}
 			if opts.jsonOutput {
 				// Keep the exit status honest: a degraded self-check must not report

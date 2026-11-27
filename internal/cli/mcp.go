@@ -19,9 +19,12 @@ func newMCPCommand(opts *options) *cobra.Command {
 			"",
 			"The server communicates over standard input/output and registers:",
 			"  inspect_port           inspect one port and its owning process",
-			"  scan_dev_ports         scan DefaultDevPorts concurrently",
+			"  scan_dev_ports         scan DefaultDevPorts, explicit ports, or presets",
 			"  free_port              release a port (dry_run=true by default)",
 			"  clean_current_project  clean listeners for the current project",
+			"  find_free_port         find a currently bindable loopback TCP port",
+			"  wait_for_port          wait until a port becomes open or free",
+			"  doctor                 diagnose binary, project path, and visibility",
 			"",
 			"Stdout is reserved for protocol messages; diagnostics go to stderr.",
 		}, "\n"),
@@ -34,7 +37,7 @@ func newMCPCommand(opts *options) *cobra.Command {
 			perr := newPalette(os.Stderr)
 			fmt.Fprintf(os.Stderr, "%s port-detective MCP Stdio server started; waiting for a client...\n",
 				perr.paint(perr.dim, "·"))
-			fmt.Fprintf(os.Stderr, "  Registered tools: inspect_port / scan_dev_ports / free_port / clean_current_project\n")
+			fmt.Fprintf(os.Stderr, "  Registered tools: inspect_port / scan_dev_ports / free_port / clean_current_project / find_free_port / wait_for_port / doctor\n")
 
 			ctx, cancel := mcpserver.WaitForSignal(cmd.Context())
 			defer cancel()

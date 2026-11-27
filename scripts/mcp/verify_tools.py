@@ -45,13 +45,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         call(9, "free_port", {"port": port, "dry_run": False}),
         # An explicitly blank selection must not widen into the default scope.
         call(10, "scan_dev_ports", {"ports": ""}),
+        call(11, "scan_dev_ports", {"preset": "web"}),
+        call(12, "find_free_port", {"from": 45201, "to": 45300}),
+        call(13, "wait_for_port", {"port": port, "state": "open", "timeout_ms": 2000, "interval_ms": 50}),
+        call(14, "doctor", {}),
     ]
     process = run_requests(BIN, requests)
     assert process.returncode == 0, process.stderr.decode("utf-8", "replace")
     lines = [line for line in process.stdout.splitlines() if line.strip()]
     responses = {response["id"]: response
                  for response in map(json.loads, lines)}
-    assert len(lines) == 10 and set(responses) == set(range(1, 11)), responses
+    assert len(lines) == 14 and set(responses) == set(range(1, 15)), responses
     assert "result" in responses[1], responses[1]
 
     def data(request_id):
@@ -90,6 +94,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
     for refused in (9, 10):
         assert responses[refused]["result"].get("isError") is True, responses[refused]
     assert "preview_id" in responses[9]["result"]["content"][0]["text"], responses[9]
+    assert isinstance(data(11), list), responses[11]
+    free_suggestion = data(12)
+    assert 45201 <= free_suggestion["port"] <= 45300 and free_suggestion["reserved"] is False, free_suggestion
+    waited = data(13)
+    assert waited["is_open"] and waited["port"] == port, waited
+    doctor_report = data(14)
+    assert doctor_report["status"] in {"ok", "degraded"}, doctor_report
     with socket.create_connection(("127.0.0.1", port), timeout=2):
         pass
 

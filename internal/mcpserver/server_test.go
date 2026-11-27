@@ -83,6 +83,9 @@ func TestDescribeListsAllTools(t *testing.T) {
 		"scan_dev_ports":        false,
 		"free_port":             false,
 		"clean_current_project": false,
+		"find_free_port":        false,
+		"wait_for_port":         false,
+		"doctor":                false,
 	}
 	for _, tool := range info.Tools {
 		if _, ok := want[tool.Name]; !ok {
@@ -109,7 +112,7 @@ func TestToolAnnotationsAreHonest(t *testing.T) {
 		lookup[tool.Name] = tool
 	}
 
-	for _, name := range []string{"inspect_port", "scan_dev_ports"} {
+	for _, name := range []string{"inspect_port", "scan_dev_ports", "find_free_port", "wait_for_port", "doctor"} {
 		tool, ok := lookup[name]
 		if !ok {
 			t.Fatalf("tool %q was not found", name)
@@ -489,5 +492,121 @@ func TestInspectAndScanUDPTools(t *testing.T) {
 
 	if bad := callTool(t, handleInspectPort, map[string]any{"port": float64(port), "protocol": "sctp"}); !bad.IsError {
 		t.Fatal("unsupported protocol must return a tool error")
+	}
+}
+
+func TestScanDevPortsPresetValidationAndExecution(t *testing.T) {
+	res := callTool(t, handleScanDevPorts, map[string]any{"preset": "web"})
+	if res.IsError {
+		t.Fatalf("scan_dev_ports preset=web failed: %s", resultText(t, res))
+	}
+	var diags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, res)), &diags); err != nil {
+		t.Fatalf("preset scan must return JSON array: %v", err)
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module mcp-preset\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	if err := os.WriteFile(filepath.Join(dir, ".port-detective.json"), []byte(fmt.Sprintf(`{"ports":"%d"}`, port)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	projRes := callTool(t, handleScanDevPorts, map[string]any{"preset": "project", "project_path": dir})
+	if projRes.IsError {
+		t.Fatalf("scan_dev_ports preset=project failed: %s", resultText(t, projRes))
+	}
+	var projDiags []core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, projRes)), &projDiags); err != nil || len(projDiags) != 1 || projDiags[0].Port != port {
+		t.Fatalf("unexpected project preset scan: %s (%v)", resultText(t, projRes), err)
+	}
+
+	for _, bad := range []map[string]any{
+		{"ports": "3000", "preset": "web"},
+		{"preset": ""},
+		{"preset": "unknown"},
+		{"project_path": dir},
+		{"preset": "web", "project_path": dir},
+		{"preset": "project", "project_path": "  "},
+	} {
+		if r := callTool(t, handleScanDevPorts, bad); !r.IsError {
+			t.Fatalf("invalid preset arguments %+v must fail", bad)
+		}
+	}
+}
+
+func TestFindFreeWaitAndDoctorTools(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	// find_free_port: fail on single occupied port, succeed on range.
+	if busy := callTool(t, handleFindFreePort, map[string]any{"from": float64(port), "to": float64(port)}); !busy.IsError {
+		t.Fatal("find_free_port must fail when the sole candidate port is occupied")
+	}
+	if badRange := callTool(t, handleFindFreePort, map[string]any{"from": float64(4000), "to": float64(3000)}); !badRange.IsError {
+		t.Fatal("find_free_port must reject from > to")
+	}
+	if badType := callTool(t, handleFindFreePort, map[string]any{"from": 3000.5}); !badType.IsError {
+		t.Fatal("find_free_port must reject non-integer bounds")
+	}
+	freeRes := callTool(t, handleFindFreePort, map[string]any{"from": float64(45300), "to": float64(45400)})
+	if freeRes.IsError {
+		t.Fatalf("find_free_port failed: %s", resultText(t, freeRes))
+	}
+	var freePayload core.FreePortResult
+	if err := json.Unmarshal([]byte(resultText(t, freeRes)), &freePayload); err != nil {
+		t.Fatal(err)
+	}
+	if freePayload.Port < 45300 || freePayload.Port > 45400 || freePayload.Reserved {
+		t.Fatalf("unexpected find_free_port payload: %+v", freePayload)
+	}
+
+	// wait_for_port: open matches immediately; free times out while open.
+	waitOpen := callTool(t, handleWaitForPort, map[string]any{
+		"port":        float64(port),
+		"state":       "open",
+		"timeout_ms":  float64(1000),
+		"interval_ms": float64(25),
+	})
+	if waitOpen.IsError {
+		t.Fatalf("wait_for_port open failed: %s", resultText(t, waitOpen))
+	}
+	var waitDiag core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, waitOpen)), &waitDiag); err != nil || !waitDiag.IsOpen {
+		t.Fatalf("unexpected wait_for_port diagnostic: %s (%v)", resultText(t, waitOpen), err)
+	}
+	if waitTimeout := callTool(t, handleWaitForPort, map[string]any{
+		"port":        float64(port),
+		"state":       "free",
+		"timeout_ms":  float64(60),
+		"interval_ms": float64(15),
+	}); !waitTimeout.IsError {
+		t.Fatal("wait_for_port free on live listener must time out as a tool error")
+	}
+	if badWait := callTool(t, handleWaitForPort, map[string]any{"port": float64(port), "state": "ready"}); !badWait.IsError {
+		t.Fatal("wait_for_port must reject invalid state")
+	}
+
+	// doctor: returns structured report and validates project_path.
+	docRes := callTool(t, handleDoctor, map[string]any{})
+	if docRes.IsError {
+		t.Fatalf("doctor failed: %s", resultText(t, docRes))
+	}
+	var docReport core.DoctorReport
+	if err := json.Unmarshal([]byte(resultText(t, docRes)), &docReport); err != nil {
+		t.Fatal(err)
+	}
+	if docReport.Status != "ok" && docReport.Status != "degraded" {
+		t.Fatalf("unexpected doctor status: %+v", docReport)
+	}
+	for _, badDoc := range []map[string]any{
+		{"project_path": "  "},
+		{"project_path": filepath.Join(t.TempDir(), "missing")},
+	} {
+		if r := callTool(t, handleDoctor, badDoc); !r.IsError {
+			t.Fatalf("invalid doctor args %+v must fail", badDoc)
+		}
 	}
 }

@@ -76,7 +76,15 @@ else:
 # ---- Assertion 3: tools/list returns the expected tools ----
 tools_resp = next((r for r in responses if r.get("id") == 2), None)
 print("\n--- tools/list ---")
-expected = {"inspect_port", "scan_dev_ports", "free_port", "clean_current_project"}
+expected = {
+    "inspect_port",
+    "scan_dev_ports",
+    "free_port",
+    "clean_current_project",
+    "find_free_port",
+    "wait_for_port",
+    "doctor",
+}
 if tools_resp and "result" in tools_resp:
     tools = tools_resp["result"].get("tools", [])
     names = {t["name"] for t in tools}

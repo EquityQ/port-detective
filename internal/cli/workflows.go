@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
-	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/EquityQ/port-detective/internal/core"
@@ -73,30 +70,19 @@ func newWaitCommand(opts *options) *cobra.Command {
 				return usageError(fmt.Errorf("--timeout and --interval must be greater than zero"))
 			}
 			port, _ := parsePort(args[0])
-			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
-			defer cancel()
 			begin := time.Now()
-			for {
-				diag, err := core.InspectPort(ctx, port)
-				if err != nil {
-					return waitError(cmd.Context(), ctx, port, state, timeout, err)
+			diag, err := core.WaitForPort(cmd.Context(), port, state, timeout, interval)
+			if err != nil {
+				if errors.Is(err, core.ErrWaitTimeout) {
+					return commandFailure("timeout", 3, "%s", err.Error())
 				}
-				matched := diag.IsOpen
-				if state == "free" {
-					// Never treat an unreadable listener table as proof that a port is free.
-					matched = !diag.IsOpen && !diag.ListenerTableMissing && diag.Status != core.StatusUndetermined
-				}
-				if matched {
-					if opts.jsonOutput {
-						return writeJSON(stdout(cmd), diag)
-					}
-					fmt.Fprintf(stdout(cmd), "Port %d is %s (elapsed: %s).\n", port, state, humanDuration(time.Since(begin)))
-					return nil
-				}
-				if err := pause(ctx, interval); err != nil {
-					return waitError(cmd.Context(), ctx, port, state, timeout, err)
-				}
+				return err
 			}
+			if opts.jsonOutput {
+				return writeJSON(stdout(cmd), diag)
+			}
+			fmt.Fprintf(stdout(cmd), "Port %d is %s (elapsed: %s).\n", port, state, humanDuration(time.Since(begin)))
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&state, "state", "open", "desired TCP state: open or free")
@@ -105,24 +91,7 @@ func newWaitCommand(opts *options) *cobra.Command {
 	return cmd
 }
 
-func waitError(parent, ctx context.Context, port int, state string, timeout time.Duration, err error) error {
-	if parent.Err() != nil {
-		return parent.Err()
-	}
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return commandFailure("timeout", 3, "timed out after %s waiting for port %d to become %s", timeout, port, state)
-	}
-	return err
-}
-
-type freePortResult struct {
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
-	IPv4     bool   `json:"ipv4"`
-	IPv6     bool   `json:"ipv6"`
-	Reserved bool   `json:"reserved"`
-	Message  string `json:"message"`
-}
+type freePortResult = core.FreePortResult
 
 func newFindFreeCommand(opts *options) *cobra.Command {
 	var from, to int
@@ -136,29 +105,22 @@ func newFindFreeCommand(opts *options) *cobra.Command {
 			if from < 1 || to > 65535 || from > to {
 				return usageError(fmt.Errorf("expected 1 <= --from <= --to <= 65535"))
 			}
-			for port := from; port <= to; port++ {
-				if err := cmd.Context().Err(); err != nil {
-					return err
+			result, err := core.FindFreePort(cmd.Context(), from, to)
+			if err != nil {
+				if errors.Is(err, core.ErrNoFreePort) {
+					return commandFailure("no_free_port", 4, "%s", err.Error())
 				}
-				available, ipv6, err := bindablePort(cmd.Context(), port)
-				if err != nil {
-					return err
-				}
-				if !available {
-					continue
-				}
-				result := freePortResult{Port: port, Protocol: "tcp", IPv4: true, IPv6: ipv6, Message: "Loopback bind checks passed. Port is not reserved; another process may claim it."}
-				if opts.jsonOutput {
-					return writeJSON(stdout(cmd), result)
-				}
-				families := "IPv4 and IPv6"
-				if !ipv6 {
-					families = "IPv4; IPv6 loopback unavailable"
-				}
-				fmt.Fprintf(stdout(cmd), "Port %d is available on loopback (%s).\n%s\n", port, families, result.Message)
-				return nil
+				return err
 			}
-			return commandFailure("no_free_port", 4, "no bindable loopback TCP port found in %d-%d", from, to)
+			if opts.jsonOutput {
+				return writeJSON(stdout(cmd), result)
+			}
+			families := "IPv4 and IPv6"
+			if !result.IPv6 {
+				families = "IPv4; IPv6 loopback unavailable"
+			}
+			fmt.Fprintf(stdout(cmd), "Port %d is available on loopback (%s).\n%s\n", result.Port, families, result.Message)
+			return nil
 		},
 	}
 	cmd.Flags().IntVar(&from, "from", 3000, "first candidate port (inclusive)")
@@ -166,41 +128,6 @@ func newFindFreeCommand(opts *options) *cobra.Command {
 	return cmd
 }
 
-func bindablePort(ctx context.Context, port int) (bool, bool, error) {
-	var config net.ListenConfig
-	return checkPortBindings(ctx, port, config.Listen)
-}
-
 func checkPortBindings(ctx context.Context, port int, listen func(context.Context, string, string) (net.Listener, error)) (bool, bool, error) {
-	listener4, err := listen(ctx, "tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	if err != nil {
-		if ctx.Err() != nil {
-			return false, false, ctx.Err()
-		}
-		if socketError(err, syscall.EADDRINUSE, 10048) || socketError(err, syscall.EACCES, 10013) {
-			return false, false, nil
-		}
-		return false, false, fmt.Errorf("IPv4 loopback bind check failed: %w", err)
-	}
-	defer listener4.Close()
-	listener6, err := listen(ctx, "tcp6", net.JoinHostPort("::1", strconv.Itoa(port)))
-	if err != nil {
-		if ctx.Err() != nil {
-			return false, false, ctx.Err()
-		}
-		if socketError(err, syscall.EAFNOSUPPORT, 10047) || socketError(err, syscall.EPROTONOSUPPORT, 10043) || socketError(err, syscall.EADDRNOTAVAIL, 10049) {
-			return true, false, nil
-		}
-		if socketError(err, syscall.EADDRINUSE, 10048) || socketError(err, syscall.EACCES, 10013) {
-			return false, true, nil
-		}
-		return false, false, fmt.Errorf("IPv6 loopback bind check failed: %w", err)
-	}
-	defer listener6.Close()
-	return true, true, nil
-}
-
-// Winsock uses distinct error numbers from the syscall package's POSIX values.
-func socketError(err error, posix syscall.Errno, winsock syscall.Errno) bool {
-	return errors.Is(err, posix) || (runtime.GOOS == "windows" && errors.Is(err, winsock))
+	return core.CheckPortBindings(ctx, port, listen)
 }

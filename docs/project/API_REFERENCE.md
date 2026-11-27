@@ -145,9 +145,12 @@ JSON-RPC; diagnostics belong on stderr.
 | Tool | Input | Result and safety |
 | --- | --- | --- |
 | `inspect_port` | Required `port` number `1-65535`; optional `protocol` (`"tcp"` default or `"udp"`) | Read-only diagnostic object including `bind_addresses`. |
-| `scan_dev_ports` | Optional `ports` string such as `"3000-3005,8080"`; optional `protocol` (`"tcp"` default or `"udp"`) | Read-only occupied-port array; omitting `ports` scans `DefaultDevPorts`. A provided-but-blank value is an error, so an empty selection can never widen into the default list. |
-| `free_port` | Required `port`; optional `dry_run` (default `true`), `preview_id` | `dry_run=true` previews and returns a `preview_id` plus the process snapshot. Setting `dry_run=false` requires that `preview_id`, so the action targets the process that was previewed; the action fails if the port owner changed or the token expired. |
+| `scan_dev_ports` | Optional `ports` string such as `"3000-3005,8080"`, or `preset` (`"web"`, `"python"`, `"database"`, `"project"`) with optional `project_path`; optional `protocol` (`"tcp"` default or `"udp"`) | Read-only occupied-port array; omitting `ports` and `preset` scans `DefaultDevPorts`. `ports` and `preset` are mutually exclusive; a provided-but-blank value is an error. |
+| `free_port` | Required `port`; optional `dry_run` (default `true`), `preview_id`, `protocol` (`"tcp"` default or `"udp"`) | `dry_run=true` previews and returns a `preview_id` plus the process snapshot. Setting `dry_run=false` requires that `preview_id`, bound to the exact port, process identity, and protocol. |
 | `clean_current_project` | Optional `project_path`, `ports`, `dry_run` (default `true`), `preview_id` | Match listeners to the selected project; defaults to the server working directory project. Returns effective `cwd`, `scope`, `dry_run`, `count`, `targets`, and `cleaned`; partial failures set `isError` and `error`. Omitting `ports` discovers all visible listeners; a provided-but-blank value is an error. `dry_run=false` requires the `preview_id` from a prior preview. |
+| `find_free_port` | Optional `from` (default `3000`), `to` (default `3100`) | Read-only loopback TCP bindability check returning a `FreePortResult` snapshot (`reserved: false`). |
+| `wait_for_port` | Required `port`; optional `state` (`"open"` default or `"free"`), `timeout_ms` (default `30000`), `interval_ms` (default `250`), `protocol` (`"tcp"` default or `"udp"`) | Read-only polling until the target port reaches the requested state or the timeout expires. |
+| `doctor` | Optional `project_path` | Read-only environment and temporary-listener visibility report (`DoctorReport`). |
 
 The frozen core API exposes `PortDiagnostic`, `DefaultDevPorts`,
 `InspectPort`, `ScanPortsConcurrent`, and `KillPortProcess`. Additive helpers

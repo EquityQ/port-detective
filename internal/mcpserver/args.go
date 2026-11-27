@@ -25,6 +25,26 @@ func requirePort(request mcp.CallToolRequest) (int, error) {
 	return int(port), nil
 }
 
+func optionalInt(request mcp.CallToolRequest, name string, defaultVal, minVal, maxVal int) (int, error) {
+	value, found := request.GetArguments()[name]
+	if !found {
+		return defaultVal, nil
+	}
+	var num float64
+	switch v := value.(type) {
+	case int:
+		num = float64(v)
+	case float64:
+		num = v
+	default:
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minVal, maxVal)
+	}
+	if math.IsNaN(num) || math.IsInf(num, 0) || math.Trunc(num) != num || num < float64(minVal) || num > float64(maxVal) {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minVal, maxVal)
+	}
+	return int(num), nil
+}
+
 func optionalString(request mcp.CallToolRequest, name string) (string, error) {
 	value, found := request.GetArguments()[name]
 	if !found {
