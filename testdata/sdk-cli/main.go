@@ -34,7 +34,7 @@ func main() {
 		}
 		version := os.Getenv("SDK_TEST_VERSION")
 		if version == "" {
-			version = "1.4.1"
+			version = "1.5.1"
 		}
 		fmt.Println("port-detective version " + version)
 		return
@@ -59,10 +59,10 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "doctor" {
 		if os.Getenv("SDK_TEST_DOCTOR_DEGRADED") != "" {
-			fmt.Println(`{"version":"1.4.1","os":"linux","arch":"amd64","binary_path":"/bin/pd","cwd":"/tmp","status":"degraded","metadata_accessible":false,"hints":["restricted"]}`)
+			fmt.Println(`{"version":"1.5.1","os":"linux","arch":"amd64","binary_path":"/bin/pd","cwd":"/tmp","status":"degraded","metadata_accessible":false,"hints":["restricted"]}`)
 			os.Exit(5)
 		}
-		fmt.Println(`{"healthy":true,"version":"1.4.1","os":"linux","arch":"amd64","binary_path":"/bin/pd","cwd":"/tmp","status":"ok","metadata_accessible":true,"hints":[]}`)
+		fmt.Println(`{"healthy":true,"version":"1.5.1","os":"linux","arch":"amd64","binary_path":"/bin/pd","cwd":"/tmp","status":"ok","metadata_accessible":true,"hints":[]}`)
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "kill" {

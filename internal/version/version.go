@@ -2,4 +2,4 @@
 package version
 
 // Value is replaced by the release workflow through Go linker flags.
-var Value = "1.4.0"
+var Value = "1.5.0"

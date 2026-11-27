@@ -3,9 +3,9 @@
 A minimal-dependency Node.js client for `port-detective` with synchronous, Promise, and
 TypeScript APIs. Published releases install a matching platform CLI package automatically.
 
-Workflow helpers (`waitForPort`, `findFreePort`, `doctor`, `protocol`, `preset`,
-`previewId`, `bind_addresses`), version checks, explicit `projectPath`, cleanup `ports`,
-and fail-closed port selection are available in `v1.4.0` with the matching CLI.
+Workflow helpers (`cleanProjectResult`, `waitForPort`, `findFreePort`, `doctor`,
+`protocol`, `preset`, `previewId`, `bind_addresses`), version checks, explicit `projectPath`,
+cleanup `ports`, and fail-closed port selection are available in `v1.5.0` with the matching CLI.
 Major/minor compatibility protects the shared API contract and does not add new flags to
 an older CLI.
 
@@ -19,7 +19,7 @@ documented default.
 Install the published package from npm:
 
 ```bash
-npm install port-detective@1.4.0
+npm install port-detective@1.5.0
 ```
 
 Published npm installations include the matching platform CLI binary. Users do not
@@ -42,7 +42,7 @@ or set `PORT_DETECTIVE_BIN` when developing from this directory. `binaryPath` al
 overrides automatic resolution, and unsupported platforms can use a CLI on `PATH`.
 Resolution order is `binaryPath`, `PORT_DETECTIVE_BIN`, the bundled platform
 binary, then `PATH`. External CLIs must share the SDK's major and minor version:
-SDK `1.4.x` accepts CLI `1.4.x`, including `1.4.0-dev`, and rejects CLI `1.3.x`. Incompatible or unrecognized
+SDK `1.5.x` accepts CLI `1.5.x`, including `1.5.0-dev`, and rejects CLI `1.4.x`. Incompatible or unrecognized
 versions raise `PortDetectiveVersionError` with the resolved executable and repair
 instructions. Successful checks are cached until that file's identity changes.
 
@@ -95,10 +95,9 @@ Async methods (`asyncInspectPort`, `asyncScanPorts`, `asyncFreePort`,
 `asyncDoctor`) accept an `AbortSignal`. Process actions require `{ dryRun: false }`; the wrapper then passes
 the CLI's `--yes` flag and supports `{ previewId }` to bind execution to a prior
 dry-run snapshot. Type declarations are included in `index.d.ts`. Workflow helpers
-(`waitForPort`, `findFreePort`, `doctor`, `protocol: "udp"`, `preset`, `previewId`,
-and `bind_addresses`) are included in `v1.4.0`; on `main` (unreleased after `v1.4.0`),
-`cleanProjectResult` / `asyncCleanProjectResult` return a structured `CleanResult`
-envelope and `freePort` / `asyncFreePort` also accept `protocol: "udp"`.
+(`cleanProjectResult` returning `CleanResult`, `waitForPort`, `findFreePort`, `doctor`,
+`protocol: "udp"` across inspect/scan/free, `preset`, `previewId`, and `bind_addresses`)
+are included in `v1.5.0`.
 Timeouts and aborts also apply to asynchronous CLI version checks, which do not
 block the event loop. Both sync and async methods share their timeout budget between
 the version check and command execution.
@@ -113,7 +112,7 @@ everything. `projectPath` selects the project
 explicitly; otherwise cleanup uses `cwd` or the caller's current directory.
 The directory resolves to the nearest supported project manifest (`package.json`,
 `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `pom.xml`,
-`build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`, and on `main` also
-`deno.json`, `deno.jsonc`, `bunfig.toml`, and `*.csproj`), or keeps its
+`build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`,
+`deno.json`, `deno.jsonc`, `bunfig.toml`, or `*.csproj`), or keeps its
 own path if no manifest exists. A subdirectory can therefore select its parent
 project; unrelated nested projects are excluded.

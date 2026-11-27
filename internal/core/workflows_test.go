@@ -68,11 +68,11 @@ func TestFindFreePortAndWaitForPortCore(t *testing.T) {
 }
 
 func TestRunDoctorCore(t *testing.T) {
-	report, err := RunDoctor(context.Background(), "", "", "1.4.0")
+	report, err := RunDoctor(context.Background(), "", "", "1.5.0")
 	if err != nil {
 		t.Fatalf("RunDoctor failed: %v", err)
 	}
-	if report.Version != "1.4.0" || report.Cwd == "" || report.SelfCheck == nil {
+	if report.Version != "1.5.0" || report.Cwd == "" || report.SelfCheck == nil {
 		t.Fatalf("unexpected RunDoctor report: %+v", report)
 	}
 	if report.SelfCheck.Cmdline != "" || report.SelfCheck.Project != nil {

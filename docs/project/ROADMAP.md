@@ -2,9 +2,7 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
-## Unreleased (next minor release)
-
-Changes completed on `main` after `v1.4.0`:
+## Included in v1.5.0
 
 - Close the cleanup preview contract with `clean --json --envelope`, Python
   `clean_project_result` / `async_clean_project_result`, Node.js `cleanProjectResult` /

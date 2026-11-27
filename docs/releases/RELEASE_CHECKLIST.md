@@ -33,7 +33,7 @@ Run the local version and package check with:
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.4.0 \
+  --expected-version 1.5.0 \
   --cli ./port-detective \
   --python-root python \
   --wheel-dir python/dist
@@ -47,11 +47,11 @@ Run the strict platform-manifest and Sigstore bundle gate against local release 
 
 ```bash
 python scripts/release/verify_artifacts.py \
-  --expected-version 1.4.0 \
+  --expected-version 1.5.0 \
   --dist dist \
   --checksums dist/checksums.txt \
   --wheel-dir python/dist \
-  --sbom port-detective_v1.4.0.spdx.json \
+  --sbom port-detective_v1.5.0.spdx.json \
   --require-platform-manifest \
   --require-bundles
 ```

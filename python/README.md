@@ -4,9 +4,10 @@ A lightweight subprocess client for the `port-detective` CLI. It provides synchr
 and `asyncio` APIs for port diagnostics, project fingerprinting, and safe cleanup on
 Windows, macOS, and Linux.
 
-The `v1.4.0` SDK adds CLI workflow parity (`wait_for_port`, `find_free_port`, `doctor`,
-UDP `protocol`, `preset`, `preview_id`, `bind_addresses`), `FreePortResult` and
-`DoctorReport` models, PEP 561 `py.typed` metadata, and keeps fail-closed port selection.
+The `v1.5.0` SDK adds `clean_project_result` / `async_clean_project_result` (`CleanResult`
+envelope with `preview_id`) and UDP `protocol="udp"` support on `free_port`, building on the
+`v1.4.0` workflow parity (`wait_for_port`, `find_free_port`, `doctor`, `preset`,
+`bind_addresses`, `FreePortResult`, `DoctorReport`, PEP 561 `py.typed`).
 Major/minor compatibility protects the shared API contract and does not add new commands
 to an older CLI.
 
@@ -20,7 +21,7 @@ default.
 Install the published SDK from PyPI:
 
 ```bash
-python -m pip install port-detective==1.4.0
+python -m pip install port-detective==1.5.0
 ```
 
 For source development, install this checkout and build the matching CLI from the
@@ -37,8 +38,8 @@ published GitHub Release, or the local CLI can be selected with `PORT_DETECTIVE_
 
 The SDK checks an explicit `binary_path`, `PORT_DETECTIVE_BIN`, `PATH`, and nearby
 checkout binaries, in that order. External CLIs must have the same major and minor
-version as the SDK: SDK `1.4.x` accepts CLI `1.4.x`, including `1.4.0-dev`, and
-rejects CLI `1.3.x`. An
+version as the SDK: SDK `1.5.x` accepts CLI `1.5.x`, including `1.5.0-dev`, and
+rejects CLI `1.4.x`. An
 unrecognized or incompatible version raises `PortDetectiveVersionError` with the
 resolved executable and repair instructions. Successful checks are cached until the
 executable's file identity changes. If no CLI is available, the first API call
@@ -109,12 +110,10 @@ synchronous calls; async calls include discovery in the requested timeout.
 Process actions default to dry-run; set `dry_run=False` only after reviewing the target,
 and optionally pass `preview_id=preview.preview_id` to bind execution to the exact
 previewed snapshot. Workflow APIs (`wait_for_port`, `find_free_port`, `doctor`,
-`protocol="udp"`, `preset`, `preview_id`, and `bind_addresses`) are included in `v1.4.0`
-together with async counterparts (`async_wait_for_port`,
-`async_find_free_port`, `async_doctor`) and PEP 561 `py.typed` typing metadata.
-On `main` (unreleased after `v1.4.0`), `clean_project_result` / `async_clean_project_result`
-return a structured `CleanResult` envelope including `preview_id`, and `free_port` /
-`async_free_port` accept `protocol="udp"`.
+`clean_project_result`, `protocol="udp"`, `preset`, `preview_id`, and `bind_addresses`)
+are included in `v1.5.0` together with async counterparts (`async_wait_for_port`,
+`async_find_free_port`, `async_doctor`, `async_clean_project_result`) and PEP 561
+`py.typed` typing metadata.
 
 `scan_ports` returns occupied ports with diagnostics in ascending port order. An
 omitted list or `None` scans the default development ports; an explicitly empty list
@@ -127,7 +126,7 @@ process's working directory.
 An existing directory resolves to its nearest supported project manifest
 (`package.json`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`,
 `pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`,
-and on `main` also `deno.json`, `deno.jsonc`, `bunfig.toml`, and `*.csproj`), or
+`deno.json`, `deno.jsonc`, `bunfig.toml`, or `*.csproj`), or
 retains its own path when no manifest exists. Selecting a subdirectory can therefore
 select its parent project; unrelated nested projects are excluded.
 
@@ -160,7 +159,7 @@ finish populating the cache after cancellation; it never terminates a target pro
 `ProjectInfo` includes `name`, `framework`, `path`, and `version`.
 `KillResult` exposes `port`, `dry_run`, `message`, `pre_action_diagnostic`,
 `diagnostic`, `post_action_status`, `preview_id`, `preview_expires_at_unix`, and `protocol`.
-`CleanResult` (on `main`) exposes `cwd`, `scope`, `dry_run`, `count`, `cleaned`,
+`CleanResult` exposes `cwd`, `scope`, `dry_run`, `count`, `cleaned`,
 `preview_id`, `preview_expires_at_unix`, `message`, and `error`.
 `FreePortResult` and `DoctorReport` model `find_free_port` and `doctor` outputs.
 

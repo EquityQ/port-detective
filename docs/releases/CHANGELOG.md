@@ -5,7 +5,18 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Changes landed on `main` after `v1.4.0` (not yet released as a tagged binary or registry package).
+No additional changes are recorded after v1.5.0.
+
+## [1.5.0] - 2026-11-27
+
+This minor release closes the structured cleanup preview contract (`clean --json --envelope`
+and SDK `CleanResult` helpers), extends termination and preview verification to optional UDP
+ports, adds read-only workflow tools to the MCP server (`find_free_port`, `wait_for_port`,
+`doctor`, and `scan_dev_ports` presets), expands monorepo/runtime fingerprinting (Deno, Bun,
+.NET, and 8-level traversal), completes `core.Inspector` dependency injection across CLI and
+MCP, and migrates release signing to Cosign v3 Sigstore bundles. All changes are backward
+compatible with v1.4.x APIs; SDK `1.5.x` requires CLI `1.5.x` to protect the new flags,
+options, and JSON fields.
 
 ### Added
 
@@ -37,12 +48,13 @@ Changes landed on `main` after `v1.4.0` (not yet released as a tagged binary or 
   `ExecuteWithInspector`, `NewServerWithInspector`, `RunStdioServerWithInspector`), removing
   blank `_ ".../fingerprint"` imports across `main.go`, `internal/cli`, and `internal/mcpserver`.
 - Migrated release signing and verification in `.github/workflows/release.yml` from detached
-  `.sig`/`.pem` files to `.sigstore.json` Sigstore bundles (`--bundle`), and removed the
-  Dependabot major-update hold on `sigstore/cosign-installer`.
+  `.sig`/`.pem` files to `.sigstore.json` Sigstore bundles (`--bundle` with
+  `sigstore/cosign-installer` `v4.1.4` / Cosign `v3.1.5`), and removed the Dependabot
+  major-update hold on `sigstore/cosign-installer`.
 - Updated Go and GitHub Actions dependencies: `github.com/mark3labs/mcp-go` (`v1.6.0`),
   `actions/setup-python` (`v7.1.0`), `actions/setup-go` (`v7.1.0`),
-  `pypa/gh-action-pypi-publish` (`v1.14.3`), `goreleaser/goreleaser-action` (`v7.3.0`), and
-  `sigstore/cosign-installer` (`v3.10.1`).
+  `pypa/gh-action-pypi-publish` (`v1.14.3`), `goreleaser/goreleaser-action` (`v7.3.0`),
+  and `sigstore/cosign-installer` (`v4.1.4`).
 
 ### Fixed
 
