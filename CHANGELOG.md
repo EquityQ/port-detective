@@ -5,6 +5,15 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No additional changes are recorded after v1.6.0.
+
+## [1.6.0] - 2026-11-27
+
+This minor release adds the SHA-256-verified `port-detective update` CLI self-updater,
+streamlines documentation to a minimal standard open-source layout, and updates SBOM
+automation (`anchore/sbom-action` `v0.24.4`). All changes are backward compatible with
+v1.5.x APIs; SDK `1.6.x` requires CLI `1.6.x`.
+
 ### Added
 
 - Self-update command `port-detective update` (`internal/updater` pure Go stdlib package)
@@ -12,6 +21,11 @@ versions follow [Semantic Versioning](https://semver.org/).
   with SHA-256 verification against `checksums.txt`, safe archive extraction, staged binary
   verification (`--version`), npm/Python-SDK managed-install detection, and cross-platform
   atomic executable replacement.
+
+### Changed
+
+- Streamlined repository documentation to standard root community/changelog guides plus
+  `docs/API_REFERENCE.md`, and bumped `anchore/sbom-action` from `v0.24.3` to `v0.24.4`.
 
 ## [1.5.0] - 2026-11-27
 

@@ -132,7 +132,7 @@ class TestModels(unittest.TestCase):
         self.assertEqual(free_res.to_dict()["ipv4"], True)
 
         report = DoctorReport.from_dict({
-            "version": "1.5.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd",
+            "version": "1.6.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd",
             "cwd": "/app", "project_path": "/app", "status": "degraded",
             "metadata_accessible": False,
             "self_check": {"port": 40000, "is_open": True, "bind_addresses": ["127.0.0.1"]},
@@ -144,7 +144,7 @@ class TestModels(unittest.TestCase):
         self.assertEqual(d["self_check"]["bind_addresses"], ["127.0.0.1"])
         self.assertEqual(d["hints"], ["limited"])
 
-        minimal = DoctorReport.from_dict({"version": "1.5.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok"})
+        minimal = DoctorReport.from_dict({"version": "1.6.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok"})
         self.assertNotIn("project_path", minimal.to_dict())
         self.assertNotIn("self_check", minimal.to_dict())
 
@@ -326,7 +326,7 @@ class TestSyncClient(unittest.TestCase):
             MagicMock(returncode=0, stdout="[]", stderr=""),
             MagicMock(returncode=0, stdout=json.dumps({"port": 3000, "is_open": True}), stderr=""),
             MagicMock(returncode=0, stdout=json.dumps({"port": 3005, "protocol": "tcp", "ipv4": True, "ipv6": False, "reserved": False, "message": "ok"}), stderr=""),
-            MagicMock(returncode=5, stdout=json.dumps({"version": "1.5.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "degraded", "metadata_accessible": False, "hints": ["restricted"]}), stderr=""),
+            MagicMock(returncode=5, stdout=json.dumps({"version": "1.6.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "degraded", "metadata_accessible": False, "hints": ["restricted"]}), stderr=""),
         ]
         diag = inspect_port(5353, protocol="udp")
         self.assertEqual(diag.protocol, "udp")
@@ -602,7 +602,7 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         mock_proc.communicate = AsyncMock(side_effect=[
             (json.dumps({"port": 3000, "is_open": True}).encode("utf-8"), b""),
             (json.dumps({"port": 3006, "protocol": "tcp", "ipv4": True, "ipv6": False, "reserved": False, "message": "ok"}).encode("utf-8"), b""),
-            (json.dumps({"version": "1.5.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok", "metadata_accessible": True, "hints": []}).encode("utf-8"), b""),
+            (json.dumps({"version": "1.6.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok", "metadata_accessible": True, "hints": []}).encode("utf-8"), b""),
         ])
         mock_exec.return_value = mock_proc
 

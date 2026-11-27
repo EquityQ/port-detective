@@ -71,7 +71,7 @@ func TestInspectorInjectsDetectorWithoutMutatingGlobal(t *testing.T) {
 	if err != nil || waitedDiag.Project == nil || waitedDiag.Project.Name != "di-proj" {
 		t.Fatalf("Inspector.WaitForPort failed: %+v, %v", waitedDiag, err)
 	}
-	docReport, err := scopedInspector.RunDoctor(context.Background(), "", projDir, "1.5.0")
+	docReport, err := scopedInspector.RunDoctor(context.Background(), "", projDir, "1.6.0")
 	if err != nil || docReport.SelfCheck == nil {
 		t.Fatalf("Inspector.RunDoctor failed: %+v, %v", docReport, err)
 	}
