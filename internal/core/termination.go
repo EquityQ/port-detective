@@ -44,10 +44,21 @@ func processIdentity(ctx context.Context, pid int32) (*process.Process, int64, e
 	return proc, created, nil
 }
 
-// KillPortProcess terminates the process occupying a port, or previews the action
-// when dryRun is true. System processes with PID <= 1 are never terminated.
+// KillPortProcess terminates the process occupying a TCP port, or previews the
+// action when dryRun is true. System processes with PID <= 1 are never terminated.
 func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnostic, string, error) {
-	diag, err := InspectPort(ctx, port)
+	return KillPortProcessProtocol(ctx, port, ProtocolTCP, dryRun)
+}
+
+// KillPortProcessProtocol terminates the process occupying a TCP or UDP port, or
+// previews the action when dryRun is true. System processes with PID <= 1 are
+// never terminated.
+func KillPortProcessProtocol(ctx context.Context, port int, protocol string, dryRun bool) (*PortDiagnostic, string, error) {
+	proto, err := NormalizeProtocol(protocol)
+	if err != nil {
+		return nil, "", err
+	}
+	diag, err := InspectPortProtocol(ctx, port, proto)
 	if err != nil {
 		return nil, "", err
 	}
@@ -71,7 +82,11 @@ func validatePort(port int) error {
 // immediately before a destructive action. projectPath is required for project
 // cleanup and prevents a process that moved to another project from being killed.
 func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagnostic, projectPath string) (*PortDiagnostic, *process.Process, error) {
-	latest, err := InspectPort(ctx, port)
+	proto, err := NormalizeProtocol(expected.Protocol)
+	if err != nil {
+		return expected, nil, fmt.Errorf("pre-termination port %d recheck failed: %w", port, err)
+	}
+	latest, err := InspectPortProtocol(ctx, port, proto)
 	if err != nil {
 		return expected, nil, fmt.Errorf("pre-termination port %d recheck failed: %w", port, err)
 	}
@@ -161,8 +176,19 @@ func waitForProcessExit(ctx context.Context, proc *process.Process, timeout time
 	}
 }
 
-// waitForPortRelease verifies the observable user-facing result after termination.
+// waitForPortRelease verifies the observable TCP result after termination.
 func waitForPortRelease(ctx context.Context, port int, timeout time.Duration) error {
+	return waitForPortReleaseProtocol(ctx, port, ProtocolTCP, timeout)
+}
+
+// waitForPortReleaseProtocol verifies the observable TCP or UDP socket release
+// after termination.
+func waitForPortReleaseProtocol(ctx context.Context, port int, protocol string, timeout time.Duration) error {
+	proto, err := NormalizeProtocol(protocol)
+	if err != nil {
+		return err
+	}
+	sockTyp := socketTypeForProtocol(proto)
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	ticker := time.NewTicker(terminationPollInterval)
@@ -172,11 +198,11 @@ func waitForPortRelease(ctx context.Context, port int, timeout time.Duration) er
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		index, err := buildProcIndex(ctx)
+		index, err := buildListenerIndex(ctx, proto)
 		if err != nil {
-			return fmt.Errorf("cannot verify release across all local TCP bindings: %w", err)
+			return fmt.Errorf("cannot verify release across all local %s bindings: %w", strings.ToUpper(proto), err)
 		}
-		if _, listening := index[connKey{port: uint32(port), sockTyp: sockStream}]; !listening {
+		if _, listening := index[connKey{port: uint32(port), sockTyp: sockTyp}]; !listening {
 			return nil
 		}
 		select {
@@ -221,7 +247,9 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 		selected = append(selected, target)
 	}
 	sort.Slice(selected, func(i, j int) bool { return selected[i].Port < selected[j].Port })
-	// 同一进程可能监听多个端口：先复核整组预览身份，再只终止一次，防止把已释放的兄弟端口误报失败。
+	// A single process may listen on multiple ports: revalidate the full group
+	// first, then terminate once so sibling ports released by the same exit are
+	// not reported as failures.
 	type identity struct {
 		pid     int32
 		created int64
@@ -260,7 +288,8 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 					selected[i].PostActionStatus = PostActionReleased
 				}
 				for _, i := range indices[1:] {
-					if err := waitForPortRelease(ctx, selected[i].Port, terminationGracePeriod); err != nil {
+					sibProto, _ := NormalizeProtocol(selected[i].Protocol)
+					if err := waitForPortReleaseProtocol(ctx, selected[i].Port, sibProto, terminationGracePeriod); err != nil {
 						selected[i].PostActionStatus = PostActionReleaseUnverified
 						groupErr = fmt.Errorf("port %d release could not be confirmed: %w", selected[i].Port, err)
 						break
@@ -292,6 +321,11 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 	if err := validatePort(target.Port); err != nil {
 		return &target, "", err
 	}
+	proto, err := NormalizeProtocol(target.Protocol)
+	if err != nil {
+		return &target, "", err
+	}
+	target.Protocol = proto
 	if !target.IsOpen {
 		return &target, "", fmt.Errorf("port %d is currently free; no process to terminate", target.Port)
 	}
@@ -314,20 +348,20 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 	// can tell "this is what I killed" from "this is what is there now".
 	latest.PostActionStatus = PostActionNotAttempted
 	if dryRun {
-		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying port %d",
-			latest.ProcessName, latest.PID, target.Port)
+		msg := fmt.Sprintf("dry run: would terminate process %q (PID: %d) occupying %s port %d",
+			latest.ProcessName, latest.PID, strings.ToUpper(proto), target.Port)
 		return latest, msg, nil
 	}
 	if err := terminateProcess(ctx, proc); err != nil {
 		return latest, "", fmt.Errorf("failed to terminate process %d: %w", latest.PID, err)
 	}
-	if err := waitForPortRelease(ctx, target.Port, terminationGracePeriod); err != nil {
+	if err := waitForPortReleaseProtocol(ctx, target.Port, proto, terminationGracePeriod); err != nil {
 		latest.PostActionStatus = PostActionReleaseUnverified
-		return latest, "", fmt.Errorf("process %d received a termination request, but port %d is still occupied: %w", latest.PID, target.Port, err)
+		return latest, "", fmt.Errorf("process %d received a termination request, but %s port %d is still occupied: %w", latest.PID, strings.ToUpper(proto), target.Port, err)
 	}
 	latest.PostActionStatus = PostActionReleased
-	return latest, fmt.Sprintf("terminated process %q (PID: %d) occupying port %d",
-		latest.ProcessName, latest.PID, target.Port), nil
+	return latest, fmt.Sprintf("terminated process %q (PID: %d) occupying %s port %d",
+		latest.ProcessName, latest.PID, strings.ToUpper(proto), target.Port), nil
 }
 
 // projectPathsMatch compares two project directories using filesystem identity

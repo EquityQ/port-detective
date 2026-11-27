@@ -22,7 +22,7 @@ from .errors import (
     PortDetectiveVersionError,
     PortDetectiveExecutionError,
 )
-from .models import PortDiagnostic, KillResult, FreePortResult, DoctorReport
+from .models import PortDiagnostic, KillResult, CleanResult, FreePortResult, DoctorReport
 from .runtime import RuntimeDownloadError, _release_version, auto_download_enabled, download_cli
 
 DEFAULT_CLI_TIMEOUT = 30.0
@@ -480,12 +480,20 @@ def _scan_args(
     return args
 
 
-def _free_args(port: int, dry_run: bool, preview_id: Optional[str] = None) -> List[str]:
+def _free_args(
+    port: int,
+    dry_run: bool,
+    preview_id: Optional[str] = None,
+    protocol: str = "tcp",
+) -> List[str]:
     _validate_port(port)
+    proto = _validate_protocol(protocol)
     token = _validate_preview_id(preview_id)
     args = ["kill", str(port), "-y"]
     if dry_run:
         args.append("--dry-run")
+    if proto != "tcp":
+        args.extend(["--protocol", proto])
     if token is not None:
         args.extend(["--preview-id", token])
     return args
@@ -495,16 +503,25 @@ def _clean_args(
     dry_run: bool,
     ports: Optional[List[int]],
     preview_id: Optional[str] = None,
+    *,
+    project_path: Optional[str] = None,
+    envelope: bool = False,
 ) -> List[str]:
     token = _validate_preview_id(preview_id)
     args = ["clean", "-y"]
     if dry_run:
         args.append("--dry-run")
+    if project_path is not None:
+        if not isinstance(project_path, str) or not project_path.strip():
+            raise ValueError("path must be a non-empty directory path")
+        args.extend(["--project", project_path])
     selected = _normalize_ports(ports)
     if selected is not None:
         args.extend(["--ports", ",".join(map(str, selected))])
     if token is not None:
         args.extend(["--preview-id", token])
+    if envelope:
+        args.append("--envelope")
     return args
 
 
@@ -543,6 +560,12 @@ def _parse_kill_result(data: Any) -> KillResult:
     if not isinstance(data, dict):
         raise PortDetectiveExecutionError(f"Expected dict response for kill, got {type(data)}", returncode=0)
     return KillResult.from_dict(data)
+
+
+def _parse_clean_result(data: Any) -> CleanResult:
+    if not isinstance(data, dict):
+        raise PortDetectiveExecutionError(f"Expected dict response for clean, got {type(data)}", returncode=0)
+    return CleanResult.from_dict(data)
 
 
 def _parse_free_port_result(data: Any) -> FreePortResult:
@@ -602,13 +625,14 @@ def free_port(
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
     *,
     preview_id: Optional[str] = None,
+    protocol: str = "tcp",
 ) -> KillResult:
     """
     Terminate the process occupying the specified port.
     Set dry_run=False to actually kill the process; pass preview_id from a prior
     dry run to bind execution to the previewed process snapshot.
     """
-    data = _run_cli_sync(_free_args(port, dry_run, preview_id), binary_path=binary_path, timeout=timeout)
+    data = _run_cli_sync(_free_args(port, dry_run, preview_id, protocol), binary_path=binary_path, timeout=timeout)
     return _parse_kill_result(data)
 
 
@@ -629,10 +653,26 @@ def clean_project(
     empty list is rejected with :exc:`ValueError`; it never means "discover
     everything", so an empty selection can only ever narrow the cleanup scope.
     """
-    args = _clean_args(dry_run, ports, preview_id)
-    target_cwd = path or os.getcwd()
+    args = _clean_args(dry_run, ports, preview_id, project_path=path)
+    target_cwd = path if path is not None else os.getcwd()
     data = _run_cli_sync(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     return _parse_diagnostics(data, "clean")
+
+
+def clean_project_result(
+    path: Optional[str] = None,
+    dry_run: bool = True,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    ports: Optional[List[int]] = None,
+    preview_id: Optional[str] = None,
+) -> CleanResult:
+    """Preview or execute project cleanup and return the structured CleanResult envelope."""
+    args = _clean_args(dry_run, ports, preview_id, project_path=path, envelope=True)
+    target_cwd = path if path is not None else os.getcwd()
+    data = _run_cli_sync(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
+    return _parse_clean_result(data)
 
 
 def wait_for_port(
@@ -716,9 +756,10 @@ async def async_free_port(
     timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
     *,
     preview_id: Optional[str] = None,
+    protocol: str = "tcp",
 ) -> KillResult:
     """Asynchronously terminate the process occupying the specified port."""
-    data = await _run_cli_async(_free_args(port, dry_run, preview_id), binary_path=binary_path, timeout=timeout)
+    data = await _run_cli_async(_free_args(port, dry_run, preview_id, protocol), binary_path=binary_path, timeout=timeout)
     return _parse_kill_result(data)
 
 
@@ -736,10 +777,26 @@ async def async_clean_project(
     Omit ``ports`` or pass ``None`` to keep full project discovery; an explicitly
     empty list raises :exc:`ValueError` instead of widening the cleanup scope.
     """
-    args = _clean_args(dry_run, ports, preview_id)
-    target_cwd = path or os.getcwd()
+    args = _clean_args(dry_run, ports, preview_id, project_path=path)
+    target_cwd = path if path is not None else os.getcwd()
     data = await _run_cli_async(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
     return _parse_diagnostics(data, "clean")
+
+
+async def async_clean_project_result(
+    path: Optional[str] = None,
+    dry_run: bool = True,
+    binary_path: Optional[str] = None,
+    timeout: Optional[float] = DEFAULT_CLI_TIMEOUT,
+    *,
+    ports: Optional[List[int]] = None,
+    preview_id: Optional[str] = None,
+) -> CleanResult:
+    """Asynchronously preview or execute project cleanup and return a CleanResult envelope."""
+    args = _clean_args(dry_run, ports, preview_id, project_path=path, envelope=True)
+    target_cwd = path if path is not None else os.getcwd()
+    data = await _run_cli_async(args, cwd=target_cwd, binary_path=binary_path, timeout=timeout)
+    return _parse_clean_result(data)
 
 
 async def async_wait_for_port(

@@ -43,23 +43,29 @@ func IssueCLIPreviewToken(scope string, targets []PortDiagnostic, ttl time.Durat
 // the user-scoped local CLI key, falling back to an initialized in-process key
 // only when the token was minted in the current process.
 func RestoreCLIPreviewToken(scope, token string, expectedPorts []int) ([]PortDiagnostic, int64, error) {
+	return RestoreCLIPreviewTokenProtocol(scope, token, expectedPorts, "")
+}
+
+// RestoreCLIPreviewTokenProtocol validates a CLI preview token across invocations
+// and enforces expectedProtocol when non-empty.
+func RestoreCLIPreviewTokenProtocol(scope, token string, expectedPorts []int, expectedProtocol string) ([]PortDiagnostic, int64, error) {
 	key, keyErr := loadOrCreateCLIPreviewKey(false)
 	if keyErr == nil {
-		targets, expiresAt, err := restorePreviewTokenWithKey(scope, token, expectedPorts, key)
+		targets, expiresAt, err := restorePreviewTokenWithKeyProtocol(scope, token, expectedPorts, expectedProtocol, key)
 		if err == nil || errors.Is(err, ErrPreviewTokenExpired) {
 			return targets, expiresAt, err
 		}
 		// If the local key did not match and an in-process key exists, allow
 		// tokens minted directly via IssuePreviewToken in the same process.
 		if inProc := currentInProcessKey(); len(inProc) >= previewKeyBytes {
-			if t2, exp2, err2 := restorePreviewTokenWithKey(scope, token, expectedPorts, inProc); err2 == nil || errors.Is(err2, ErrPreviewTokenExpired) {
+			if t2, exp2, err2 := restorePreviewTokenWithKeyProtocol(scope, token, expectedPorts, expectedProtocol, inProc); err2 == nil || errors.Is(err2, ErrPreviewTokenExpired) {
 				return t2, exp2, err2
 			}
 		}
 		return nil, 0, err
 	}
 	if inProc := currentInProcessKey(); len(inProc) >= previewKeyBytes {
-		return restorePreviewTokenWithKey(scope, token, expectedPorts, inProc)
+		return restorePreviewTokenWithKeyProtocol(scope, token, expectedPorts, expectedProtocol, inProc)
 	}
 	return nil, 0, fmt.Errorf("%w: no active CLI preview signing key (%v)", ErrPreviewTokenInvalid, keyErr)
 }

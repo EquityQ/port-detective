@@ -27,6 +27,7 @@ export interface PortDiagnostic {
 
 export interface KillResult {
   port: number;
+  protocol?: string;
   dry_run: boolean;
   message: string;
   pre_action_diagnostic?: PortDiagnostic | null;
@@ -35,6 +36,18 @@ export interface KillResult {
   post_action_status?: string;
   preview_id?: string;
   preview_expires_at_unix?: number;
+}
+
+export interface CleanResult {
+  cwd: string;
+  scope: string;
+  dry_run: boolean;
+  count: number;
+  cleaned: PortDiagnostic[];
+  preview_id?: string;
+  preview_expires_at_unix?: number;
+  message?: string;
+  error?: string;
 }
 
 export interface FreePortResult {
@@ -105,6 +118,8 @@ export interface FreePortOptions extends ClientOptions {
   dryRun?: boolean;
   /** Optional preview token returned by a prior dry run to bind execution to that snapshot. */
   previewId?: string;
+  /** Transport protocol to release. Defaults to "tcp". */
+  protocol?: Protocol;
 }
 
 export interface AsyncFreePortOptions extends AsyncClientOptions {
@@ -112,6 +127,8 @@ export interface AsyncFreePortOptions extends AsyncClientOptions {
   dryRun?: boolean;
   /** Optional preview token returned by a prior dry run to bind execution to that snapshot. */
   previewId?: string;
+  /** Transport protocol to release. Defaults to "tcp". */
+  protocol?: Protocol;
 }
 
 export interface CleanProjectOptions extends FreePortOptions {
@@ -175,6 +192,7 @@ export function inspectPort(port: number, options?: InspectOptions): PortDiagnos
 export function scanPorts(ports?: number[] | null, options?: ScanOptions): PortDiagnostic[];
 export function freePort(port: number, options?: FreePortOptions): KillResult;
 export function cleanProject(options?: CleanProjectOptions): PortDiagnostic[];
+export function cleanProjectResult(options?: CleanProjectOptions): CleanResult;
 export function waitForPort(port: number, options?: WaitOptions): PortDiagnostic;
 export function findFreePort(options?: FindFreeOptions): FreePortResult;
 export function doctor(options?: ClientOptions): DoctorReport;
@@ -184,6 +202,7 @@ export function asyncInspectPort(port: number, options?: AsyncInspectOptions): P
 export function asyncScanPorts(ports?: number[] | null, options?: AsyncScanOptions): Promise<PortDiagnostic[]>;
 export function asyncFreePort(port: number, options?: AsyncFreePortOptions): Promise<KillResult>;
 export function asyncCleanProject(options?: AsyncCleanProjectOptions): Promise<PortDiagnostic[]>;
+export function asyncCleanProjectResult(options?: AsyncCleanProjectOptions): Promise<CleanResult>;
 export function asyncWaitForPort(port: number, options?: AsyncWaitOptions): Promise<PortDiagnostic>;
 export function asyncFindFreePort(options?: AsyncFindFreeOptions): Promise<FreePortResult>;
 export function asyncDoctor(options?: AsyncClientOptions): Promise<DoctorReport>;

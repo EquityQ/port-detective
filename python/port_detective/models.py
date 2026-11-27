@@ -94,6 +94,7 @@ class KillResult:
     post_action_status: Optional[str] = None
     preview_id: Optional[str] = None
     preview_expires_at_unix: Optional[int] = None
+    protocol: str = "tcp"
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "KillResult":
@@ -103,6 +104,7 @@ class KillResult:
         diag = PortDiagnostic.from_dict(snapshot_raw) if snapshot_raw is not None else None
         expires_raw = data.get("preview_expires_at_unix")
         expires = int(expires_raw) if isinstance(expires_raw, int) and not isinstance(expires_raw, bool) else None
+        protocol = str(data.get("protocol") or (diag.protocol if diag is not None else "tcp") or "tcp")
         return cls(
             port=int(data.get("port", 0)),
             dry_run=bool(data.get("dry_run", True)),
@@ -112,6 +114,7 @@ class KillResult:
             post_action_status=data.get("post_action_status"),
             preview_id=data.get("preview_id"),
             preview_expires_at_unix=expires,
+            protocol=protocol,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -121,6 +124,50 @@ class KillResult:
         if self.pre_action_diagnostic:
             d["pre_action_diagnostic"] = self.pre_action_diagnostic.to_dict()
         for key in ("pre_action_diagnostic", "post_action_status", "preview_id", "preview_expires_at_unix"):
+            if d.get(key) is None:
+                d.pop(key, None)
+        return d
+
+
+@dataclass
+class CleanResult:
+    """Structured outcome returned by clean_project_result."""
+    cwd: str
+    scope: str
+    dry_run: bool
+    count: int
+    cleaned: List[PortDiagnostic] = field(default_factory=list)
+    preview_id: Optional[str] = None
+    preview_expires_at_unix: Optional[int] = None
+    message: str = ""
+    error: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CleanResult":
+        raw_cleaned = data.get("cleaned")
+        cleaned = [
+            PortDiagnostic.from_dict(item)
+            for item in raw_cleaned
+            if isinstance(item, dict)
+        ] if isinstance(raw_cleaned, list) else []
+        expires_raw = data.get("preview_expires_at_unix")
+        expires = int(expires_raw) if isinstance(expires_raw, int) and not isinstance(expires_raw, bool) else None
+        return cls(
+            cwd=str(data.get("cwd", "")),
+            scope=str(data.get("scope", "")),
+            dry_run=bool(data.get("dry_run", True)),
+            count=int(data.get("count", len(cleaned))),
+            cleaned=cleaned,
+            preview_id=data.get("preview_id"),
+            preview_expires_at_unix=expires,
+            message=str(data.get("message", "")),
+            error=data.get("error"),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["cleaned"] = [item.to_dict() for item in self.cleaned]
+        for key in ("preview_id", "preview_expires_at_unix", "error"):
             if d.get(key) is None:
                 d.pop(key, None)
         return d

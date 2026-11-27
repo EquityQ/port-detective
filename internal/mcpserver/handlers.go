@@ -87,6 +87,14 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	rawProto, err := optionalString(request, "protocol")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	proto, err := core.NormalizeProtocol(rawProto)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	dryRun, err := optionalDryRun(request)
 	if err != nil {
@@ -94,20 +102,20 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 	}
 
 	if dryRun {
-		return previewFreePort(ctx, port)
+		return previewFreePort(ctx, port, proto)
 	}
-	return executeFreePort(ctx, request, port)
+	return executeFreePort(ctx, request, port, proto)
 }
 
 // previewFreePort inspects the port and returns a signed preview token that binds
 // the confirmed process identity to a later execution.
-func previewFreePort(ctx context.Context, port int) (*mcp.CallToolResult, error) {
-	diag, err := core.InspectPort(ctx, port)
+func previewFreePort(ctx context.Context, port int, protocol string) (*mcp.CallToolResult, error) {
+	diag, err := core.InspectPortProtocol(ctx, port, protocol)
 	if err != nil {
 		return mcp.NewToolResultErrorf("free port %d preview failed: %v", port, err), nil
 	}
 	if !diag.IsOpen {
-		return mcp.NewToolResultErrorf("port %d is currently free; no process to terminate", port), nil
+		return mcp.NewToolResultErrorf("port %d (%s) is currently free; no process to terminate", port, protocol), nil
 	}
 	token, expiresAt, err := core.IssueKillPreview(*diag, core.DefaultPreviewTTL)
 	if err != nil {
@@ -118,19 +126,20 @@ func previewFreePort(ctx context.Context, port int) (*mcp.CallToolResult, error)
 
 	return jsonResult(map[string]any{
 		"port":                    port,
+		"protocol":                protocol,
 		"dry_run":                 true,
 		"preview_id":              token,
 		"preview_expires_at_unix": expiresAt,
 		"pre_action_diagnostic":   diag,
 		"diagnostic":              diag, // Deprecated alias kept for older clients.
 		"message": fmt.Sprintf(
-			"dry run: would terminate process %q (PID: %d) occupying port %d; pass preview_id with dry_run=false within %s to execute",
-			diag.ProcessName, diag.PID, port, core.DefaultPreviewTTL),
+			"dry run: would terminate process %q (PID: %d) occupying %s port %d; pass preview_id with dry_run=false within %s to execute",
+			diag.ProcessName, diag.PID, strings.ToUpper(protocol), port, core.DefaultPreviewTTL),
 	})
 }
 
 // executeFreePort terminates exactly the process recorded in the preview token.
-func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int) (*mcp.CallToolResult, error) {
+func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int, protocol string) (*mcp.CallToolResult, error) {
 	token, err := optionalString(request, "preview_id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -141,7 +150,7 @@ func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int)
 				"this binds the action to the process you actually previewed"), nil
 	}
 
-	targets, expiresAt, err := core.RestorePreviewToken(core.PreviewScopeKill, token, []int{port})
+	targets, expiresAt, err := core.RestorePreviewTokenProtocol(core.PreviewScopeKill, token, []int{port}, protocol)
 	if err != nil {
 		return mcp.NewToolResultErrorf("preview_id rejected for port %d: %v", port, err), nil
 	}
@@ -154,6 +163,7 @@ func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int)
 
 	return jsonResult(map[string]any{
 		"port":                    port,
+		"protocol":                protocol,
 		"dry_run":                 false,
 		"preview_expires_at_unix": expiresAt,
 		"pre_action_diagnostic":   diag,

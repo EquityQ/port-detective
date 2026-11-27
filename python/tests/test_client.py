@@ -14,12 +14,13 @@ from unittest.mock import patch, MagicMock, AsyncMock, ANY
 # Ensure parent directory is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from port_detective.models import PortDiagnostic, ProjectInfo, KillResult, FreePortResult, DoctorReport
+from port_detective.models import PortDiagnostic, ProjectInfo, KillResult, CleanResult, FreePortResult, DoctorReport
 from port_detective.core import (
     inspect_port,
     scan_ports,
     free_port,
     clean_project,
+    clean_project_result,
     wait_for_port,
     find_free_port,
     doctor,
@@ -27,6 +28,7 @@ from port_detective.core import (
     async_scan_ports,
     async_free_port,
     async_clean_project,
+    async_clean_project_result,
     async_wait_for_port,
     async_find_free_port,
     async_doctor,
@@ -145,6 +147,21 @@ class TestModels(unittest.TestCase):
         minimal = DoctorReport.from_dict({"version": "1.4.0", "os": "linux", "arch": "amd64", "binary_path": "/bin/pd", "cwd": "/app", "status": "ok"})
         self.assertNotIn("project_path", minimal.to_dict())
         self.assertNotIn("self_check", minimal.to_dict())
+
+        clean_res = CleanResult.from_dict({
+            "cwd": "/app",
+            "scope": "all local TCP listeners",
+            "dry_run": True,
+            "count": 1,
+            "cleaned": [{"port": 3000, "is_open": True, "pid": 123, "status": "occupied"}],
+            "preview_id": "tok.clean",
+            "preview_expires_at_unix": 1900000000,
+            "message": "dry run",
+        })
+        self.assertEqual(clean_res.preview_id, "tok.clean")
+        self.assertEqual(clean_res.cleaned[0].port, 3000)
+        self.assertEqual(clean_res.to_dict()["preview_id"], "tok.clean")
+        self.assertNotIn("error", clean_res.to_dict())
 
 
 class TestSyncClient(unittest.TestCase):
@@ -268,7 +285,7 @@ class TestSyncClient(unittest.TestCase):
         self.assertEqual(cleaned[0].port, 3000)
 
         mock_run.assert_called_once_with(
-            ["/mock/port-detective", "clean", "-y", "--dry-run", "--json"],
+            ["/mock/port-detective", "clean", "-y", "--dry-run", "--project", os.getcwd(), "--json"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -315,7 +332,8 @@ class TestSyncClient(unittest.TestCase):
         self.assertEqual(diag.protocol, "udp")
         self.assertEqual(diag.bind_addresses, ["0.0.0.0"])
         scan_ports(preset="project", project_path="/app", protocol="udp")
-        free_port(3000, dry_run=False, preview_id="tok.sig")
+        udp_kill = free_port(3000, dry_run=False, preview_id="tok.sig", protocol="udp")
+        self.assertEqual(udp_kill.protocol, "tcp")
         clean_project(path=os.getcwd(), dry_run=False, preview_id="tok.clean")
         waited = wait_for_port(3000, state="open", wait_timeout=1.5, interval=0.1)
         self.assertTrue(waited.is_open)
@@ -327,11 +345,38 @@ class TestSyncClient(unittest.TestCase):
         cmds = [call.args[0] for call in mock_run.call_args_list]
         self.assertEqual(cmds[0], ["/mock/port-detective", "check", "5353", "--protocol", "udp", "--json"])
         self.assertEqual(cmds[1], ["/mock/port-detective", "scan", "--preset", "project", "--project", "/app", "--protocol", "udp", "--json"])
-        self.assertEqual(cmds[2], ["/mock/port-detective", "kill", "3000", "-y", "--preview-id", "tok.sig", "--json"])
-        self.assertEqual(cmds[3], ["/mock/port-detective", "clean", "-y", "--preview-id", "tok.clean", "--json"])
+        self.assertEqual(cmds[2], ["/mock/port-detective", "kill", "3000", "-y", "--protocol", "udp", "--preview-id", "tok.sig", "--json"])
+        self.assertEqual(cmds[3], ["/mock/port-detective", "clean", "-y", "--project", os.getcwd(), "--preview-id", "tok.clean", "--json"])
         self.assertEqual(cmds[4], ["/mock/port-detective", "wait", "3000", "--state", "open", "--timeout", "1500ms", "--interval", "100ms", "--json"])
         self.assertEqual(cmds[5], ["/mock/port-detective", "find-free", "--from", "3000", "--to", "3010", "--json"])
         self.assertEqual(cmds[6], ["/mock/port-detective", "doctor", "--json"])
+
+    @patch("port_detective.core.find_binary", return_value="/mock/port-detective")
+    @patch("subprocess.run")
+    def test_clean_project_result_envelope(self, mock_run, mock_find):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "cwd": os.getcwd(),
+                "scope": "all local TCP listeners",
+                "dry_run": True,
+                "count": 1,
+                "cleaned": [{"port": 3000, "is_open": True, "pid": 123, "status": "occupied"}],
+                "preview_id": "tok.env",
+                "preview_expires_at_unix": 1900000000,
+                "message": "dry run",
+            }),
+            stderr="",
+        )
+        res = clean_project_result(path=os.getcwd(), ports=[3000], dry_run=True)
+        self.assertEqual(res.preview_id, "tok.env")
+        self.assertEqual(res.count, 1)
+        self.assertEqual(
+            mock_run.call_args.args[0],
+            ["/mock/port-detective", "clean", "-y", "--dry-run", "--project", os.getcwd(), "--ports", "3000", "--envelope", "--json"],
+        )
+        with self.assertRaises(ValueError):
+            clean_project(path="  ")
 
     def test_workflow_validation_errors(self):
         with self.assertRaises(ValueError):
@@ -418,7 +463,7 @@ class TestEmptySelectionIsFailClosed(unittest.TestCase):
         self.assertEqual(forwarded[1], ["/mock/port-detective", "scan", "--ports", "3000", "--json"])
         self.assertEqual(
             forwarded[2],
-            ["/mock/port-detective", "clean", "-y", "--dry-run", "--ports", "3010", "--json"],
+            ["/mock/port-detective", "clean", "-y", "--dry-run", "--project", os.getcwd(), "--ports", "3010", "--json"],
         )
 
 
@@ -564,6 +609,28 @@ class TestAsyncClient(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await async_wait_for_port(3000, wait_timeout=1.0, interval=0.1)).is_open)
         self.assertEqual((await async_find_free_port(port_from=3000, port_to=3010)).port, 3006)
         self.assertEqual((await async_doctor()).status, "ok")
+
+    @patch("port_detective.core._find_binary_async", new_callable=AsyncMock, return_value="/mock/port-detective")
+    @patch("asyncio.create_subprocess_exec")
+    async def test_async_clean_project_result_and_udp_free(self, mock_exec, mock_find):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(side_effect=[
+            (json.dumps({
+                "cwd": "/app", "scope": "all local TCP listeners", "dry_run": True,
+                "count": 0, "cleaned": [], "message": "none",
+            }).encode("utf-8"), b""),
+            (json.dumps({"port": 5353, "protocol": "udp", "dry_run": True, "message": "preview"}).encode("utf-8"), b""),
+        ])
+        mock_exec.return_value = mock_proc
+
+        clean_res = await async_clean_project_result()
+        self.assertEqual(clean_res.cwd, "/app")
+        udp_free = await async_free_port(5353, protocol="udp")
+        self.assertEqual(udp_free.protocol, "udp")
+        commands = [call.args for call in mock_exec.call_args_list]
+        self.assertEqual(commands[0], ("/mock/port-detective", "clean", "-y", "--dry-run", "--envelope", "--json"))
+        self.assertEqual(commands[1], ("/mock/port-detective", "kill", "5353", "-y", "--dry-run", "--protocol", "udp", "--json"))
 
 
 if __name__ == "__main__":

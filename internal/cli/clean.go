@@ -9,11 +9,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type cleanEnvelope struct {
+	Cwd                  string                `json:"cwd"`
+	Scope                string                `json:"scope"`
+	DryRun               bool                  `json:"dry_run"`
+	Count                int                   `json:"count"`
+	Cleaned              []core.PortDiagnostic `json:"cleaned"`
+	PreviewID            string                `json:"preview_id,omitempty"`
+	PreviewExpiresAtUnix int64                 `json:"preview_expires_at_unix,omitempty"`
+	Message              string                `json:"message,omitempty"`
+	Error                string                `json:"error,omitempty"`
+}
+
 // newCleanCommand processes listeners associated with the selected project.
 func newCleanCommand(opts *options) *cobra.Command {
 	var (
 		dryRun      bool
 		yes         bool
+		envelope    bool
 		projectPath string
 		portsStr    string
 		previewID   string
@@ -25,6 +38,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 		Long: strings.Join([]string{
 			"Discover local TCP listeners belonging to the selected project, show targets, then confirm termination.",
 			"The project defaults to the nearest manifest above the current directory. Use --ports to limit discovery.",
+			"Use --json --envelope to wrap results with cwd, scope, count, cleaned, and dry-run preview_id metadata.",
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective clean",
@@ -32,9 +46,13 @@ func newCleanCommand(opts *options) *cobra.Command {
 			"  port-detective clean -y",
 			"  port-detective clean --project ../my-app --ports 3000-3010 --dry-run",
 			"  port-detective clean --json --dry-run",
+			"  port-detective clean --json --envelope --dry-run",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if envelope && !opts.jsonOutput {
+				return usageError(fmt.Errorf("--envelope requires --json"))
+			}
 			out := stdout(cmd)
 			p := newPalette(out)
 			if cmd.Flags().Changed("project") && strings.TrimSpace(projectPath) == "" {
@@ -71,6 +89,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 				if err != nil {
 					return commandFailure("preview_rejected", 6, "preview id rejected for project cleanup: %v", err)
 				}
+				scope = fmt.Sprintf("%d previewed TCP port(s)", len(targets))
 			} else {
 				targets, err = core.DiscoverProjectPorts(cmd.Context(), cwd, ports)
 				if err != nil {
@@ -81,11 +100,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 			if !opts.jsonOutput {
 				sectionTitle(out, p, "Project Ports Clean: Target Preview", 80)
 				field(out, p, "Project", keyWidth, cwd)
-				if fromPreview {
-					field(out, p, "Scope", keyWidth, fmt.Sprintf("%d previewed TCP port(s)", len(targets)))
-				} else {
-					field(out, p, "Scope", keyWidth, scope)
-				}
+				field(out, p, "Scope", keyWidth, scope)
 				if len(targets) > 0 {
 					fmt.Fprintln(out)
 					renderPortTable(out, p, targets)
@@ -97,6 +112,16 @@ func newCleanCommand(opts *options) *cobra.Command {
 
 			if len(targets) == 0 {
 				if opts.jsonOutput {
+					if envelope {
+						return writeJSON(out, cleanEnvelope{
+							Cwd:     cwd,
+							Scope:   scope,
+							DryRun:  dryRun,
+							Count:   0,
+							Cleaned: []core.PortDiagnostic{},
+							Message: "no project-scoped listeners found in this scope; nothing to preview",
+						})
+					}
 					return writeJSON(out, []core.PortDiagnostic{})
 				}
 				return nil
@@ -120,21 +145,52 @@ func newCleanCommand(opts *options) *cobra.Command {
 
 			// Execute exactly the previewed snapshot; the core revalidates every target.
 			cleaned, cleanErr := core.CleanProjectTargets(cmd.Context(), cwd, targets, dryRun)
-			return renderCleanResult(out, p, opts.jsonOutput, cleaned, dryRun, fromPreview, cleanErr)
+			return renderCleanResult(out, p, opts.jsonOutput, envelope, cwd, scope, cleaned, dryRun, fromPreview, cleanErr)
 		},
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview without terminating processes")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip interactive confirmation")
+	cmd.Flags().BoolVar(&envelope, "envelope", false, "wrap --json output in an object with cwd, scope, count, cleaned, and preview_id")
 	cmd.Flags().StringVar(&projectPath, "project", "", "project directory (default: nearest project above current directory)")
 	cmd.Flags().StringVar(&portsStr, "ports", "", "limit discovery to comma-separated ports or ranges, e.g. 3000-3010,8080")
 	cmd.Flags().StringVar(&previewID, "preview-id", "", "token from a preview; binds the action to the previewed targets")
 	return cmd
 }
 
-func renderCleanResult(out io.Writer, p palette, jsonOutput bool, cleaned []core.PortDiagnostic, dryRun, fromPreview bool, cleanErr error) error {
+func renderCleanResult(out io.Writer, p palette, jsonOutput, envelope bool, cwd, scope string, cleaned []core.PortDiagnostic, dryRun, fromPreview bool, cleanErr error) error {
 	if jsonOutput {
-		if err := writeJSON(out, cleaned); err != nil {
+		if !envelope {
+			if err := writeJSON(out, cleaned); err != nil {
+				return err
+			}
+			return cleanErr
+		}
+		if cleaned == nil {
+			cleaned = []core.PortDiagnostic{}
+		}
+		payload := cleanEnvelope{
+			Cwd:     cwd,
+			Scope:   scope,
+			DryRun:  dryRun,
+			Count:   len(cleaned),
+			Cleaned: cleaned,
+		}
+		if dryRun && len(cleaned) > 0 && cleanErr == nil {
+			if token, expiresAt, tokenErr := core.IssueCLIPreviewToken(core.PreviewScopeClean, cleaned, core.DefaultPreviewTTL); tokenErr == nil {
+				payload.PreviewID = token
+				payload.PreviewExpiresAtUnix = expiresAt
+				payload.Message = fmt.Sprintf(
+					"dry run: would terminate %d project listener(s); pass preview_id with --yes --preview-id within %s to execute",
+					len(cleaned), core.DefaultPreviewTTL)
+			}
+		} else if !dryRun && cleanErr == nil {
+			payload.Message = fmt.Sprintf("processed %d project listener(s)", len(cleaned))
+		}
+		if cleanErr != nil {
+			payload.Error = cleanErr.Error()
+		}
+		if err := writeJSON(out, payload); err != nil {
 			return err
 		}
 		return cleanErr

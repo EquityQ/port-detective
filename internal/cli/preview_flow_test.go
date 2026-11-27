@@ -159,6 +159,119 @@ func TestCleanJSONDryRunStaysArray(t *testing.T) {
 	}
 }
 
+func TestCleanJSONEnvelopeEmitsPreviewTokenAndRedeems(t *testing.T) {
+	t.Setenv(core.PreviewKeyFileEnv, filepath.Join(t.TempDir(), "preview-key.json"))
+	dir := t.TempDir()
+	writeCLIManifest(t, dir)
+
+	// --envelope without --json must fail with exit status 2.
+	_, errOut, status := runWithStderr(t, "clean", "--project", dir, "--envelope", "--dry-run")
+	if status != 2 {
+		t.Fatalf("status = %d, want 2 (--envelope requires --json)\nstderr: %s", status, errOut)
+	}
+
+	// Empty project scope with --envelope returns a structured object without a preview token.
+	idlePort := freeLoopbackPortCLI(t)
+	emptyOut, _, emptyStatus := runWithStderr(t, "clean", "--project", dir, "--ports", strconv.Itoa(idlePort), "--json", "--envelope", "--dry-run")
+	if emptyStatus != 0 {
+		t.Fatalf("empty clean --envelope failed with status %d", emptyStatus)
+	}
+	var emptyPayload cleanEnvelope
+	if err := json.Unmarshal([]byte(emptyOut), &emptyPayload); err != nil {
+		t.Fatalf("empty clean envelope invalid JSON: %v\nraw: %s", err, emptyOut)
+	}
+	if emptyPayload.Count != 0 || emptyPayload.PreviewID != "" || emptyPayload.Cleaned == nil {
+		t.Fatalf("unexpected empty clean envelope: %+v", emptyPayload)
+	}
+
+	ln, port := listenLoopbackCLI(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	core.RegisterProjectDetector(func(context.Context, int32) *core.ProjectInfo {
+		return &core.ProjectInfo{Name: "cli-preview", Path: dir}
+	})
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
+
+	out, _, err := captureRun(t, "clean", "--project", dir, "--ports", strconv.Itoa(port), "--json", "--envelope", "--dry-run")
+	if err != nil {
+		t.Fatalf("clean --json --envelope --dry-run failed: %v", err)
+	}
+	var payload cleanEnvelope
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("clean envelope invalid JSON: %v\nraw: %s", err, out)
+	}
+	if !payload.DryRun || payload.Count != 1 || len(payload.Cleaned) != 1 || payload.PreviewID == "" || payload.PreviewExpiresAtUnix <= 0 {
+		t.Fatalf("unexpected clean envelope: %+v", payload)
+	}
+
+	redeemedOut, _, err := captureRun(t, "clean", "--project", dir, "--ports", strconv.Itoa(port), "--json", "--envelope", "--dry-run", "--preview-id", payload.PreviewID)
+	if err != nil {
+		t.Fatalf("redeeming clean envelope preview_id failed: %v", err)
+	}
+	var redeemed cleanEnvelope
+	if err := json.Unmarshal([]byte(redeemedOut), &redeemed); err != nil {
+		t.Fatal(err)
+	}
+	if redeemed.Count != 1 || redeemed.Cleaned[0].Port != port {
+		t.Fatalf("unexpected redeemed clean envelope: %+v", redeemed)
+	}
+}
+
+func TestKillProtocolUDPDryRunAndMismatchRejection(t *testing.T) {
+	t.Setenv(core.PreviewKeyFileEnv, filepath.Join(t.TempDir(), "preview-key.json"))
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp4 failed: %v", err)
+	}
+	t.Cleanup(func() { _ = pc.Close() })
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+
+	checkOut, _, err := captureRun(t, "check", strconv.Itoa(port), "--protocol", "udp")
+	if err != nil {
+		t.Fatalf("check --protocol udp failed: %v", err)
+	}
+	if strings.Contains(checkOut, "Release:") && !strings.Contains(checkOut, "--protocol udp") {
+		t.Fatalf("UDP check release hint must mention --protocol udp:\n%s", checkOut)
+	}
+	scanOut, _, err := captureRun(t, "scan", "--ports", strconv.Itoa(port), "--protocol", "udp")
+	if err != nil {
+		t.Fatalf("scan --protocol udp failed: %v", err)
+	}
+	if !strings.Contains(scanOut, "--protocol udp") {
+		t.Fatalf("UDP scan footer must mention --protocol udp:\n%s", scanOut)
+	}
+
+	diag, err := core.InspectPortProtocol(context.Background(), port, core.ProtocolUDP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diag.Status != core.StatusOccupied || diag.PID != int32(os.Getpid()) {
+		t.Skip("host restricts UDP process metadata for current process")
+	}
+
+	out, _, err := captureRun(t, "kill", strconv.Itoa(port), "--protocol", "udp", "--json", "--dry-run")
+	if err != nil {
+		t.Fatalf("kill --protocol udp --json --dry-run failed: %v", err)
+	}
+	var payload struct {
+		Port      int    `json:"port"`
+		Protocol  string `json:"protocol"`
+		DryRun    bool   `json:"dry_run"`
+		PreviewID string `json:"preview_id"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Protocol != core.ProtocolUDP || payload.PreviewID == "" {
+		t.Fatalf("unexpected UDP kill preview payload: %+v", payload)
+	}
+
+	// Redeeming a UDP preview token with --protocol tcp must fail with exit status 6.
+	_, errOut, status := runWithStderr(t, "kill", strconv.Itoa(port), "--protocol", "tcp", "--json", "--yes", "--preview-id", payload.PreviewID)
+	if status != 6 {
+		t.Fatalf("status = %d, want 6 for protocol mismatch\nstderr: %s", status, errOut)
+	}
+}
+
 // TestCheckJSONDegradedIsNotFree proves a degraded inspection never claims "free".
 func TestCheckJSONDegradedIsNotFree(t *testing.T) {
 	port := freeLoopbackPortCLI(t)

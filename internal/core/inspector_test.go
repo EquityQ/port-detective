@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	gnet "github.com/shirou/gopsutil/v3/net"
 )
@@ -77,6 +78,25 @@ func TestInspectAndScanUDP(t *testing.T) {
 
 	if _, err := InspectPortProtocol(context.Background(), port, "sctp"); err == nil {
 		t.Fatal("unsupported protocol must be rejected")
+	}
+
+	if err := waitForPortReleaseProtocol(context.Background(), port, ProtocolUDP, 30*time.Millisecond); err == nil {
+		t.Fatal("open UDP socket must not be reported as released")
+	}
+
+	if diag.PID == int32(os.Getpid()) && diag.Status == StatusOccupied {
+		dryDiag, msg, err := KillPortProcessProtocol(context.Background(), port, ProtocolUDP, true)
+		if err != nil || dryDiag == nil || dryDiag.Protocol != ProtocolUDP || msg == "" {
+			t.Fatalf("KillPortProcessProtocol(udp, dryRun) failed: diag=%+v msg=%q err=%v", dryDiag, msg, err)
+		}
+	}
+	if _, _, err := KillPortProcessProtocol(context.Background(), port, "sctp", true); err == nil {
+		t.Fatal("KillPortProcessProtocol must reject unsupported protocols")
+	}
+
+	_ = pc.Close()
+	if err := waitForPortReleaseProtocol(context.Background(), port, ProtocolUDP, time.Second); err != nil {
+		t.Fatalf("closed UDP socket release check failed: %v", err)
 	}
 }
 

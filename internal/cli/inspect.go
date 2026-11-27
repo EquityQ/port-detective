@@ -139,6 +139,9 @@ func renderCheck(w io.Writer, p palette, info *core.PortDiagnostic, elapsed time
 	fmt.Fprintf(w, "%s\n", p.paint(p.dim, rule(width)))
 	timeSummary := fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
 	releaseCmd := fmt.Sprintf("Release: port-detective kill %d", info.Port)
+	if info.Protocol == core.ProtocolUDP {
+		releaseCmd += " --protocol udp"
+	}
 	parts := []string{timeSummary}
 	if info.PID > 0 {
 		parts = append(parts, releaseCmd)
@@ -236,6 +239,9 @@ func renderScan(w io.Writer, p palette, infos []core.PortDiagnostic, elapsed tim
 	engineMsg := fmt.Sprintf("Engine: %s", engine)
 	timeMsg := fmt.Sprintf("Elapsed: %s", humanDuration(elapsed))
 	footer := "Details: port-detective check <port>      Release: port-detective kill <port>"
+	if protocol == core.ProtocolUDP {
+		footer = "Details: port-detective check <port> --protocol udp      Release: port-detective kill <port> --protocol udp"
+	}
 
 	summaryLine(w, p, occupiedMsg, engineMsg, timeMsg)
 	degradedNote(w, p, infos)

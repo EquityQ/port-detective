@@ -78,6 +78,9 @@ func freePortTool() mcp.Tool {
 		mcp.WithString("preview_id",
 			mcp.Description("Opaque preview token returned by a previous dry_run=true call. Required when dry_run=false so the action is bound to the process snapshot you actually previewed."),
 		),
+		mcp.WithString("protocol",
+			mcp.Description("Optional transport protocol: 'tcp' (default) or 'udp'."),
+		),
 	)
 }
 

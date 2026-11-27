@@ -57,18 +57,21 @@ function freeArgs(port, options) {
   if (options.dryRun !== undefined && typeof options.dryRun !== "boolean") {
     throw new TypeError("dryRun must be a boolean");
   }
+  const proto = validateProtocol(options.protocol);
   const args = ["kill", String(port), options.dryRun === false ? "--yes" : "--dry-run"];
+  if (proto !== "tcp") args.push("--protocol", proto);
   const previewId = validatePreviewId(options.previewId);
   if (previewId !== null) args.push("--preview-id", previewId);
   return args;
 }
 
-function cleanArgs(options) {
+function cleanArgs(options, envelope = false) {
   if (options.dryRun !== undefined && typeof options.dryRun !== "boolean") {
     throw new TypeError("dryRun must be a boolean");
   }
   const args = ["clean", options.dryRun === false ? "--yes" : "--dry-run"];
   appendProjectArgs(args, options);
+  if (envelope) args.push("--envelope");
   return args;
 }
 
@@ -118,6 +121,10 @@ function cleanProject(options = {}) {
   return requireArray(runCliSync(cleanArgs(options), options), "clean");
 }
 
+function cleanProjectResult(options = {}) {
+  return requireObject(runCliSync(cleanArgs(options, true), options), "clean");
+}
+
 function waitForPort(port, options = {}) {
   const { args, cliOptions } = waitArgs(port, options);
   return requireObject(runCliSync(args, cliOptions), "wait");
@@ -147,6 +154,10 @@ async function asyncCleanProject(options = {}) {
   return requireArray(await runCliAsync(cleanArgs(options), options), "clean");
 }
 
+async function asyncCleanProjectResult(options = {}) {
+  return requireObject(await runCliAsync(cleanArgs(options, true), options), "clean");
+}
+
 async function asyncWaitForPort(port, options = {}) {
   const { args, cliOptions } = waitArgs(port, options);
   return requireObject(await runCliAsync(args, cliOptions), "wait");
@@ -170,6 +181,7 @@ module.exports = {
   scanPorts,
   freePort,
   cleanProject,
+  cleanProjectResult,
   waitForPort,
   findFreePort,
   doctor,
@@ -177,6 +189,7 @@ module.exports = {
   asyncScanPorts,
   asyncFreePort,
   asyncCleanProject,
+  asyncCleanProjectResult,
   asyncWaitForPort,
   asyncFindFreePort,
   asyncDoctor,

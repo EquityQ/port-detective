@@ -10,19 +10,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newKillCommand releases a port and supports --dry-run and --preview-id.
+// newKillCommand releases a port and supports --dry-run, --protocol, and --preview-id.
 func newKillCommand(opts *options) *cobra.Command {
 	var (
 		dryRun    bool
 		yes       bool
 		previewID string
+		protocol  string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "kill <port>",
 		Short: "Terminate the process occupying a port",
 		Long: strings.Join([]string{
-			"Terminate the process occupying a port.",
+			"Terminate the process occupying a TCP or UDP port.",
 			"",
 			"Use --dry-run to preview the target without terminating it. In --json mode the",
 			"dry run also returns a preview_id; pass it back with --preview-id so the action",
@@ -31,6 +32,7 @@ func newKillCommand(opts *options) *cobra.Command {
 		}, "\n"),
 		Example: strings.Join([]string{
 			"  port-detective kill 8080",
+			"  port-detective kill 5353 --protocol udp --dry-run",
 			"  port-detective kill 8080 --dry-run",
 			"  port-detective kill 8080 -y",
 			"  port-detective kill 8080 --json --dry-run --yes",
@@ -46,6 +48,10 @@ func newKillCommand(opts *options) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			proto, err := core.NormalizeProtocol(protocol)
+			if err != nil {
+				return usageError(err)
+			}
 			port, _ := parsePort(args[0])
 			out := stdout(cmd)
 			p := newPalette(out)
@@ -61,24 +67,24 @@ func newKillCommand(opts *options) *cobra.Command {
 			if strings.TrimSpace(previewID) != "" {
 				// Validate a supplied preview token before probing so a forged,
 				// expired, or mismatched token always fails with preview_rejected.
-				targets, _, err := core.RestoreCLIPreviewToken(core.PreviewScopeKill, previewID, []int{port})
+				targets, _, err := core.RestoreCLIPreviewTokenProtocol(core.PreviewScopeKill, previewID, []int{port}, proto)
 				if err != nil {
 					return commandFailure("preview_rejected", 6, "preview id rejected for port %d: %v", port, err)
 				}
 				target = targets[0]
 				display = &target
 				if !opts.jsonOutput {
-					if live, liveErr := core.InspectPort(cmd.Context(), port); liveErr == nil && live != nil && live.PID == target.PID {
+					if live, liveErr := core.InspectPortProtocol(cmd.Context(), port, proto); liveErr == nil && live != nil && live.PID == target.PID {
 						display = live
 					}
 				}
 			} else {
-				diag, err := core.InspectPort(cmd.Context(), port)
+				diag, err := core.InspectPortProtocol(cmd.Context(), port, proto)
 				if err != nil {
 					return err
 				}
 				if !diag.IsOpen {
-					return fmt.Errorf("port %d is currently free, no process to terminate", port)
+					return fmt.Errorf("port %d (%s) is currently free, no process to terminate", port, proto)
 				}
 				target = *diag
 				display = diag
@@ -110,6 +116,7 @@ func newKillCommand(opts *options) *cobra.Command {
 			if opts.jsonOutput {
 				payload := map[string]any{
 					"port":                  port,
+					"protocol":              proto,
 					"dry_run":               dryRun,
 					"pre_action_diagnostic": resultDiag,
 					// Deprecated alias: kept so existing consumers keep working, but the
@@ -147,6 +154,7 @@ func newKillCommand(opts *options) *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview without terminating the process")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip interactive confirmation")
 	cmd.Flags().StringVar(&previewID, "preview-id", "", "token from a --json --dry-run preview; binds the action to the previewed process")
+	cmd.Flags().StringVar(&protocol, "protocol", core.ProtocolTCP, "transport protocol to release: tcp or udp")
 	return cmd
 }
 
@@ -157,6 +165,9 @@ func renderKillTarget(out io.Writer, p palette, port int, diag *core.PortDiagnos
 	}
 	sectionTitle(out, p, title, 58)
 	fmt.Fprintf(out, "\n  %s\n", p.paint(p.head, "Target Process"))
+	if diag.Protocol != "" {
+		field(out, p, "Protocol", 8, strings.ToUpper(diag.Protocol))
+	}
 	if diag.ProcessName != "" {
 		field(out, p, "Process", 8, diag.ProcessName)
 	}

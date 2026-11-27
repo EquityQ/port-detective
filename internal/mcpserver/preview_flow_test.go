@@ -359,3 +359,55 @@ func TestScanToolReportsDegradedNotice(t *testing.T) {
 		t.Fatalf("degraded notice should say the result is incomplete: %q", notice.Text)
 	}
 }
+
+func TestFreePortProtocolUDPAndProtocolMismatch(t *testing.T) {
+	ln, tcpPort := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	tcpPreview := callTool(t, handleFreePort, map[string]any{"port": float64(tcpPort)})
+	if tcpPreview.IsError {
+		t.Fatalf("TCP free_port preview failed: %s", resultText(t, tcpPreview))
+	}
+	tcpToken := decodeFreePort(t, tcpPreview).PreviewID
+	if mismatch := callTool(t, handleFreePort, map[string]any{
+		"port":       float64(tcpPort),
+		"protocol":   "udp",
+		"dry_run":    false,
+		"preview_id": tcpToken,
+	}); !mismatch.IsError {
+		t.Fatal("TCP preview token must not authorize UDP execution")
+	}
+
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp4 failed: %v", err)
+	}
+	t.Cleanup(func() { _ = pc.Close() })
+	udpPort := pc.LocalAddr().(*net.UDPAddr).Port
+
+	diag, err := core.InspectPortProtocol(context.Background(), udpPort, core.ProtocolUDP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diag.Status != core.StatusOccupied || diag.PID != int32(os.Getpid()) {
+		t.Skip("host restricts UDP process metadata for current process")
+	}
+
+	udpPreview := callTool(t, handleFreePort, map[string]any{
+		"port":     float64(udpPort),
+		"protocol": "udp",
+	})
+	if udpPreview.IsError {
+		t.Fatalf("UDP free_port preview failed: %s", resultText(t, udpPreview))
+	}
+	var payload struct {
+		Protocol  string `json:"protocol"`
+		PreviewID string `json:"preview_id"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, udpPreview)), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Protocol != core.ProtocolUDP || payload.PreviewID == "" {
+		t.Fatalf("unexpected UDP free_port payload: %+v", payload)
+	}
+}

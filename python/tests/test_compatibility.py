@@ -110,7 +110,7 @@ class TestCompatibility(FixtureMixin, unittest.TestCase):
         record = Path(self.directory.name) / "arguments.json"
         os.environ["SDK_TEST_ARGUMENTS"] = str(record)
         self.assertEqual(clean_project(path=self.directory.name, ports=[3010, 3011]), [])
-        self.assertEqual(json.loads(record.read_text()), ["clean", "-y", "--dry-run", "--ports", "3010,3011", "--json"])
+        self.assertEqual(json.loads(record.read_text()), ["clean", "-y", "--dry-run", "--project", self.directory.name, "--ports", "3010,3011", "--json"])
 
     def test_timeout_budget_is_shared_by_version_check_and_command(self):
         os.environ["SDK_TEST_VERSION_DELAY_MS"] = "300"

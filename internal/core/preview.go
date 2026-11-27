@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -175,11 +176,15 @@ func issuePreviewTokenWithKey(scope string, targets []PortDiagnostic, ttl time.D
 		if err := validateActionablePreviewTarget(target); err != nil {
 			return "", 0, err
 		}
+		proto, err := NormalizeProtocol(target.Protocol)
+		if err != nil {
+			return "", 0, err
+		}
 		item := previewTarget{
 			Port:           target.Port,
 			PID:            target.PID,
 			ProcessCreated: target.processCreated,
-			Protocol:       target.Protocol,
+			Protocol:       proto,
 			Status:         target.Status,
 		}
 		if target.Project != nil {
@@ -258,16 +263,34 @@ func signPreviewPayload(payload *previewPayload, key []byte) (string, error) {
 // must cover exactly that selection: a token is never silently widened or
 // narrowed to fit the request.
 func RestorePreviewToken(scope, token string, expectedPorts []int) ([]PortDiagnostic, int64, error) {
+	return RestorePreviewTokenProtocol(scope, token, expectedPorts, "")
+}
+
+// RestorePreviewTokenProtocol verifies a token against the per-process key and
+// enforces expectedProtocol when non-empty.
+func RestorePreviewTokenProtocol(scope, token string, expectedPorts []int, expectedProtocol string) ([]PortDiagnostic, int64, error) {
 	key, err := previewSigningKey()
 	if err != nil {
 		return nil, 0, err
 	}
-	return restorePreviewTokenWithKey(scope, token, expectedPorts, key)
+	return restorePreviewTokenWithKeyProtocol(scope, token, expectedPorts, expectedProtocol, key)
 }
 
 func restorePreviewTokenWithKey(scope, token string, expectedPorts []int, key []byte) ([]PortDiagnostic, int64, error) {
+	return restorePreviewTokenWithKeyProtocol(scope, token, expectedPorts, "", key)
+}
+
+func restorePreviewTokenWithKeyProtocol(scope, token string, expectedPorts []int, expectedProtocol string, key []byte) ([]PortDiagnostic, int64, error) {
 	if err := validatePreviewScope(scope); err != nil {
 		return nil, 0, err
+	}
+	wantProto := ""
+	if strings.TrimSpace(expectedProtocol) != "" {
+		var err error
+		wantProto, err = NormalizeProtocol(expectedProtocol)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 	if len(token) == 0 {
 		return nil, 0, fmt.Errorf("%w: a preview token is required", ErrPreviewTokenInvalid)
@@ -289,16 +312,20 @@ func restorePreviewTokenWithKey(scope, token string, expectedPorts []int, key []
 
 	targets := make([]PortDiagnostic, 0, len(payload.Targets))
 	for _, item := range payload.Targets {
+		proto, err := NormalizeProtocol(item.Protocol)
+		if err != nil {
+			return nil, 0, fmt.Errorf("%w: %v", ErrPreviewTokenInvalid, err)
+		}
+		if wantProto != "" && proto != wantProto {
+			return nil, 0, fmt.Errorf("%w: token was issued for %q, not %q", ErrPreviewTokenInvalid, proto, wantProto)
+		}
 		diag := PortDiagnostic{
 			Port:           item.Port,
 			IsOpen:         true,
-			Protocol:       item.Protocol,
+			Protocol:       proto,
 			PID:            item.PID,
 			Status:         item.Status,
 			processCreated: item.ProcessCreated,
-		}
-		if diag.Protocol == "" {
-			diag.Protocol = ProtocolTCP
 		}
 		if diag.Status == "" {
 			diag.Status = StatusOccupied

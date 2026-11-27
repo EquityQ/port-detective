@@ -20,7 +20,9 @@ const {
   doctor,
   asyncInspectPort,
   cleanProject,
+  cleanProjectResult,
   asyncCleanProject,
+  asyncCleanProjectResult,
   asyncScanPorts,
   asyncFreePort,
   asyncWaitForPort,
@@ -226,6 +228,26 @@ test("supports protocol, preset, previewId, wait, find-free, and doctor workflow
 
   cleanProject({ binaryPath, dryRun: false, previewId: "tok.clean" });
   assert.deepEqual(JSON.parse(fs.readFileSync(record, "utf8")), ["clean", "--yes", "--preview-id", "tok.clean", "--json"]);
+
+  const cleanEnv = cleanProjectResult({ binaryPath, projectPath: fixtureRoot });
+  assert.equal(cleanEnv.preview_id, "tok.clean");
+  assert.equal(cleanEnv.count, 1);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(record, "utf8")),
+    ["clean", "--dry-run", "--project", fixtureRoot, "--envelope", "--json"],
+  );
+
+  const asyncCleanEnv = await asyncCleanProjectResult({ binaryPath, dryRun: false, previewId: "tok.clean" });
+  assert.equal(asyncCleanEnv.dry_run, false);
+
+  const udpKill = freePort(3000, { binaryPath, protocol: "udp" });
+  assert.equal(udpKill.protocol, "udp");
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(record, "utf8")),
+    ["kill", "3000", "--dry-run", "--protocol", "udp", "--json"],
+  );
+  const asyncUdpKill = await asyncFreePort(3000, { binaryPath, protocol: "udp", dryRun: false, previewId: "tok.kill" });
+  assert.equal(asyncUdpKill.protocol, "udp");
 
   const waited = waitForPort(3000, { binaryPath, state: "open", waitTimeout: 1000, interval: 50 });
   assert.equal(waited.port, 3000);

@@ -126,9 +126,24 @@ func TestPreviewTokenRejectsScopeMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A single-port kill preview must not authorize a project-wide cleanup.
+	// Cross-scope and wrong-protocol tokens must be rejected.
 	if _, _, err := RestorePreviewToken(PreviewScopeClean, token, nil); !errors.Is(err, ErrPreviewTokenInvalid) {
 		t.Fatalf("scope mismatch error = %v, want ErrPreviewTokenInvalid", err)
+	}
+	if _, _, err := RestorePreviewTokenProtocol(PreviewScopeKill, token, []int{3000}, ProtocolUDP); !errors.Is(err, ErrPreviewTokenInvalid) {
+		t.Fatalf("protocol mismatch error = %v, want ErrPreviewTokenInvalid", err)
+	}
+	udpTarget := target
+	udpTarget.Protocol = ProtocolUDP
+	udpToken, _, err := IssueKillPreview(udpTarget, time.Minute)
+	if err != nil {
+		t.Fatalf("issue UDP preview token: %v", err)
+	}
+	if restored, _, err := RestorePreviewTokenProtocol(PreviewScopeKill, udpToken, []int{3000}, ProtocolUDP); err != nil || len(restored) != 1 || restored[0].Protocol != ProtocolUDP {
+		t.Fatalf("restore UDP token failed: %+v, %v", restored, err)
+	}
+	if _, _, err := RestorePreviewTokenProtocol(PreviewScopeKill, udpToken, []int{3000}, ProtocolTCP); !errors.Is(err, ErrPreviewTokenInvalid) {
+		t.Fatalf("UDP token accepted for TCP: %v", err)
 	}
 }
 

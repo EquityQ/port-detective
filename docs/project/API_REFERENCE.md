@@ -19,9 +19,10 @@ belong to the commands listed below:
 | `--dry-run` | Preview process actions without terminating a process. |
 | `--yes` | Skip interactive confirmation for destructive actions. |
 | `--ports` | Port list or inclusive ranges for `scan` / `clean`, e.g. `3000-3005,8080`; sorted and deduplicated. |
-| `--protocol` | Transport protocol for `check` and `scan`: `tcp` (default) or `udp`. |
+| `--protocol` | Transport protocol for `check`, `scan`, and `kill`: `tcp` (default) or `udp`. |
 | `--preset` | Select `web`, `python`, `database`, or opt-in `project` ports for `scan`; cannot be combined with `--ports`. |
 | `--project` | Existing project directory for `clean` or `scan --preset project`; defaults to the current directory. |
+| `--envelope` | Wrap `clean --json` output in an object containing `cwd`, `scope`, `dry_run`, `count`, `cleaned`, and `preview_id`. |
 | `--watch` | Repeat `check` until interrupted. |
 | `--interval` | Positive poll duration for `check --watch` and `wait`. |
 | `--state` | Target state for `wait`: `open` or `free`. |
