@@ -527,6 +527,7 @@ func extractFromZip(archiveData []byte, executableName string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid zip release archive: %w", err)
 	}
+	var found []byte
 	for _, f := range zr.File {
 		parts, err := validateArchiveEntryPath(f.Name)
 		if err != nil {
@@ -542,6 +543,9 @@ func extractFromZip(archiveData []byte, executableName string) ([]byte, error) {
 			continue
 		}
 		if len(parts) <= 2 && parts[len(parts)-1] == executableName {
+			if found != nil {
+				return nil, fmt.Errorf("release archive contains multiple %s entries", executableName)
+			}
 			rc, err := f.Open()
 			if err != nil {
 				return nil, fmt.Errorf("open %s in zip archive: %w", f.Name, err)
@@ -554,10 +558,13 @@ func extractFromZip(archiveData []byte, executableName string) ([]byte, error) {
 			if len(data) == 0 || len(data) > MaxBinaryBytes {
 				return nil, fmt.Errorf("extracted binary %s has invalid size %d bytes", executableName, len(data))
 			}
-			return data, nil
+			found = data
 		}
 	}
-	return nil, fmt.Errorf("release archive does not contain %s", executableName)
+	if found == nil {
+		return nil, fmt.Errorf("release archive does not contain %s", executableName)
+	}
+	return found, nil
 }
 
 func extractFromTarGz(archiveData []byte, executableName string) ([]byte, error) {
@@ -568,6 +575,7 @@ func extractFromTarGz(archiveData []byte, executableName string) ([]byte, error)
 	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
+	var found []byte
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -590,6 +598,9 @@ func extractFromTarGz(archiveData []byte, executableName string) ([]byte, error)
 			continue
 		}
 		if len(parts) <= 2 && parts[len(parts)-1] == executableName {
+			if found != nil {
+				return nil, fmt.Errorf("release archive contains multiple %s entries", executableName)
+			}
 			data, readErr := io.ReadAll(io.LimitReader(tr, MaxBinaryBytes+1))
 			if readErr != nil {
 				return nil, fmt.Errorf("read %s from tar archive: %w", hdr.Name, readErr)
@@ -597,10 +608,13 @@ func extractFromTarGz(archiveData []byte, executableName string) ([]byte, error)
 			if len(data) == 0 || len(data) > MaxBinaryBytes {
 				return nil, fmt.Errorf("extracted binary %s has invalid size %d bytes", executableName, len(data))
 			}
-			return data, nil
+			found = data
 		}
 	}
-	return nil, fmt.Errorf("release archive does not contain %s", executableName)
+	if found == nil {
+		return nil, fmt.Errorf("release archive does not contain %s", executableName)
+	}
+	return found, nil
 }
 
 func resolveExecutableTarget(execPath string) string {

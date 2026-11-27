@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -127,16 +128,21 @@ func TestDetectInstallManager(t *testing.T) {
 	}
 }
 
-func makeTestZip(t *testing.T, entries map[string][]byte, symlinkName string) []byte {
+type archiveEntry struct {
+	name    string
+	content []byte
+}
+
+func makeOrderedZip(t *testing.T, entries []archiveEntry, symlinkName string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	for name, content := range entries {
-		w, err := zw.Create(name)
+	for _, entry := range entries {
+		w, err := zw.Create(entry.name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.Write(content); err != nil {
+		if _, err := w.Write(entry.content); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -155,22 +161,22 @@ func makeTestZip(t *testing.T, entries map[string][]byte, symlinkName string) []
 	return buf.Bytes()
 }
 
-func makeTestTarGz(t *testing.T, entries map[string][]byte, symlinkName string) []byte {
+func makeOrderedTarGz(t *testing.T, entries []archiveEntry, symlinkName string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gzw)
-	for name, content := range entries {
+	for _, entry := range entries {
 		hdr := &tar.Header{
-			Name:     name,
+			Name:     entry.name,
 			Mode:     0o755,
-			Size:     int64(len(content)),
+			Size:     int64(len(entry.content)),
 			Typeflag: tar.TypeReg,
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tw.Write(content); err != nil {
+		if _, err := tw.Write(entry.content); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -194,6 +200,24 @@ func makeTestTarGz(t *testing.T, entries map[string][]byte, symlinkName string) 
 	return buf.Bytes()
 }
 
+func makeTestZip(t *testing.T, entries map[string][]byte, symlinkName string) []byte {
+	t.Helper()
+	ordered := make([]archiveEntry, 0, len(entries))
+	for name, content := range entries {
+		ordered = append(ordered, archiveEntry{name: name, content: content})
+	}
+	return makeOrderedZip(t, ordered, symlinkName)
+}
+
+func makeTestTarGz(t *testing.T, entries map[string][]byte, symlinkName string) []byte {
+	t.Helper()
+	ordered := make([]archiveEntry, 0, len(entries))
+	for name, content := range entries {
+		ordered = append(ordered, archiveEntry{name: name, content: content})
+	}
+	return makeOrderedTarGz(t, ordered, symlinkName)
+}
+
 func sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
@@ -214,9 +238,14 @@ func TestCheckAndApplyEndToEndZipAndTarGz(t *testing.T) {
 	tarBytes := makeTestTarGz(t, map[string][]byte{tarBin: newPayload, "README.md": []byte("hi")}, "")
 	checksums := fmt.Sprintf("%s  %s\n%s  %s\n", sha256Hex(zipBytes), zipAsset, sha256Hex(tarBytes), tarAsset)
 
-	var seenAuth string
+	var (
+		authMu   sync.Mutex
+		seenAuth string
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authMu.Lock()
 		seenAuth = r.Header.Get("Authorization")
+		authMu.Unlock()
 		switch r.URL.Path {
 		case "/repos/EquityQ/port-detective/releases/latest":
 			_, _ = w.Write([]byte(`{"tag_name":"v1.6.0","html_url":"https://example.test/v1.6.0"}`))
@@ -267,8 +296,11 @@ func TestCheckAndApplyEndToEndZipAndTarGz(t *testing.T) {
 	if !chk.UpdateAvailable || chk.LatestVersion != "1.6.0" || chk.AssetName != zipAsset {
 		t.Fatalf("unexpected Check result: %+v", chk)
 	}
-	if seenAuth != "Bearer secret-token" {
-		t.Fatalf("expected Authorization header forwarded, got %q", seenAuth)
+	authMu.Lock()
+	gotAuth := seenAuth
+	authMu.Unlock()
+	if gotAuth != "Bearer secret-token" {
+		t.Fatalf("expected Authorization header forwarded, got %q", gotAuth)
 	}
 
 	// Apply zip update cleanly.
@@ -432,18 +464,42 @@ func TestApplySafetyGuardsAndArchiveValidation(t *testing.T) {
 	})
 
 	t.Run("rejects traversal and symlink entries in zip and tar archives", func(t *testing.T) {
-		badZip := makeTestZip(t, map[string][]byte{"../evil": []byte("x"), "port-detective.exe": []byte("bin")}, "")
-		if _, err := extractBinary(badZip, "a.zip", "port-detective.exe"); err == nil || !strings.Contains(err.Error(), "traversal") {
-			t.Fatalf("expected zip path traversal error, got %v", err)
+		for _, entries := range [][]archiveEntry{
+			{{name: "port-detective.exe", content: []byte("bin")}, {name: "../evil", content: []byte("x")}},
+			{{name: "../evil", content: []byte("x")}, {name: "port-detective.exe", content: []byte("bin")}},
+		} {
+			badZip := makeOrderedZip(t, entries, "")
+			if _, err := extractBinary(badZip, "a.zip", "port-detective.exe"); err == nil || !strings.Contains(err.Error(), "traversal") {
+				t.Fatalf("expected zip path traversal error for %+v, got %v", entries, err)
+			}
+		}
+		dupZip := makeOrderedZip(t, []archiveEntry{
+			{name: "port-detective.exe", content: []byte("a")},
+			{name: "prefix/port-detective.exe", content: []byte("b")},
+		}, "")
+		if _, err := extractBinary(dupZip, "a.zip", "port-detective.exe"); err == nil || !strings.Contains(err.Error(), "multiple") {
+			t.Fatalf("expected duplicate zip executable error, got %v", err)
 		}
 		symZip := makeTestZip(t, nil, "port-detective.exe")
 		if _, err := extractBinary(symZip, "a.zip", "port-detective.exe"); err == nil || !strings.Contains(err.Error(), "symlink") {
 			t.Fatalf("expected zip symlink error, got %v", err)
 		}
 
-		badTar := makeTestTarGz(t, map[string][]byte{"../evil": []byte("x"), "port-detective": []byte("bin")}, "")
-		if _, err := extractBinary(badTar, "a.tar.gz", "port-detective"); err == nil || !strings.Contains(err.Error(), "traversal") {
-			t.Fatalf("expected tar path traversal error, got %v", err)
+		for _, entries := range [][]archiveEntry{
+			{{name: "port-detective", content: []byte("bin")}, {name: "../evil", content: []byte("x")}},
+			{{name: "../evil", content: []byte("x")}, {name: "port-detective", content: []byte("bin")}},
+		} {
+			badTar := makeOrderedTarGz(t, entries, "")
+			if _, err := extractBinary(badTar, "a.tar.gz", "port-detective"); err == nil || !strings.Contains(err.Error(), "traversal") {
+				t.Fatalf("expected tar path traversal error for %+v, got %v", entries, err)
+			}
+		}
+		dupTar := makeOrderedTarGz(t, []archiveEntry{
+			{name: "port-detective", content: []byte("a")},
+			{name: "prefix/port-detective", content: []byte("b")},
+		}, "")
+		if _, err := extractBinary(dupTar, "a.tar.gz", "port-detective"); err == nil || !strings.Contains(err.Error(), "multiple") {
+			t.Fatalf("expected duplicate tar executable error, got %v", err)
 		}
 		symTar := makeTestTarGz(t, nil, "port-detective")
 		if _, err := extractBinary(symTar, "a.tar.gz", "port-detective"); err == nil || !strings.Contains(err.Error(), "link") {
