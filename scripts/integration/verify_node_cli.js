@@ -8,10 +8,12 @@ const {
   asyncFindFreePort,
   asyncInspectPort,
   asyncCleanProject,
+  asyncCleanProjectResult,
   asyncFreePort,
   asyncScanPorts,
   asyncWaitForPort,
   cleanProject,
+  cleanProjectResult,
   doctor,
   findFreePort,
   freePort,
@@ -60,6 +62,26 @@ async function main() {
     assert.ok(Array.isArray(cleanPreview));
     const asyncCleanPreview = await asyncCleanProject({ cwd: process.cwd() });
     assert.ok(Array.isArray(asyncCleanPreview));
+
+    const cleanEnvelope = cleanProjectResult({ cwd: process.cwd() });
+    assert.equal(cleanEnvelope.dry_run, true);
+    assert.ok(Array.isArray(cleanEnvelope.cleaned));
+    assert.equal(cleanEnvelope.count, cleanEnvelope.cleaned.length);
+    assert.ok(typeof cleanEnvelope.cwd === "string" && cleanEnvelope.cwd.length > 0);
+    assert.ok(typeof cleanEnvelope.scope === "string" && cleanEnvelope.scope.length > 0);
+    if (cleanEnvelope.count > 0) {
+      assert.ok(typeof cleanEnvelope.preview_id === "string" && cleanEnvelope.preview_id.length > 0);
+    }
+
+    const asyncCleanEnvelope = await asyncCleanProjectResult({ cwd: process.cwd() });
+    assert.equal(asyncCleanEnvelope.dry_run, true);
+    assert.ok(Array.isArray(asyncCleanEnvelope.cleaned));
+    assert.equal(asyncCleanEnvelope.count, asyncCleanEnvelope.cleaned.length);
+    assert.ok(typeof asyncCleanEnvelope.cwd === "string" && asyncCleanEnvelope.cwd.length > 0);
+    assert.ok(typeof asyncCleanEnvelope.scope === "string" && asyncCleanEnvelope.scope.length > 0);
+    if (asyncCleanEnvelope.count > 0) {
+      assert.ok(typeof asyncCleanEnvelope.preview_id === "string" && asyncCleanEnvelope.preview_id.length > 0);
+    }
 
     assert.ok(Array.isArray(diagnostic.bind_addresses) && diagnostic.bind_addresses.length > 0);
     assert.ok(typeof preview.preview_id === "string" && preview.preview_id.length > 0);

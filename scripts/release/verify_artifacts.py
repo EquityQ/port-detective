@@ -1,4 +1,4 @@
-"""Verify release versions, checksums, and archive contents.
+"""Verify release versions, checksums, Sigstore bundles, and archive contents.
 
 The strict ``--require-platform-manifest`` gate additionally proves that a
 GoReleaser output directory holds exactly the six artifacts declared by
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import stat
 import subprocess
@@ -32,6 +33,7 @@ from release_common import (  # noqa: E402
 
 REQUIRED_ARCHIVE_FILES = {"README.md", "LICENSE"}
 CHECKSUM_FILE_NAME = "checksums.txt"
+BUNDLE_SUFFIX = ".sigstore.json"
 
 
 def check(condition: bool, message: str) -> None:
@@ -163,6 +165,36 @@ def verify_release_manifest(dist: Path, version: str, checksums: Path) -> None:
         verify_archive_contents(present[name], target)
 
 
+def verify_sigstore_bundles(artifact_paths: Sequence[Path]) -> None:
+    """Require a structurally valid ``.sigstore.json`` bundle beside every signed artifact."""
+    check(
+        bool(artifact_paths),
+        "at least one artifact path is required to verify Sigstore bundles",
+    )
+    for artifact in artifact_paths:
+        check(artifact.is_file(), f"signed artifact not found: {artifact}")
+        bundle = Path(f"{artifact}{BUNDLE_SUFFIX}")
+        check(bundle.is_file(), f"Sigstore bundle not found for {artifact.name}: {bundle.name}")
+        try:
+            payload = json.loads(bundle.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise SystemExit(f"invalid Sigstore bundle {bundle.name}: {error}") from error
+        check(
+            isinstance(payload, dict),
+            f"Sigstore bundle {bundle.name} must be a JSON object",
+        )
+        media_type = payload.get("mediaType")
+        check(
+            isinstance(media_type, str) and bool(media_type.strip()),
+            f"Sigstore bundle {bundle.name} is missing mediaType",
+        )
+        verification_material = payload.get("verificationMaterial")
+        check(
+            isinstance(verification_material, dict) and bool(verification_material),
+            f"Sigstore bundle {bundle.name} is missing verificationMaterial",
+        )
+
+
 def verify_cli(path: Path, expected: str) -> None:
     # Resolve the executable before invoking it. On Unix, subprocess does not
     # search the current directory when a relative path is normalized to a bare
@@ -288,6 +320,7 @@ def main() -> int:
     parser.add_argument("--wheel-dir", type=Path, help="Python wheel and sdist directory")
     parser.add_argument("--dist", type=Path)
     parser.add_argument("--checksums", type=Path)
+    parser.add_argument("--sbom", type=Path, help="SPDX JSON SBOM file path")
     parser.add_argument(
         "--require-platform-manifest",
         action="store_true",
@@ -297,9 +330,17 @@ def main() -> int:
             "every archive"
         ),
     )
+    parser.add_argument(
+        "--require-bundles",
+        action="store_true",
+        help="require valid .sigstore.json Sigstore bundles for all verified artifacts",
+    )
     args = parser.parse_args()
 
-    check(any((args.cli, args.python_root, args.dist, args.checksums)), "at least one verification target is required")
+    check(
+        any((args.cli, args.python_root, args.dist, args.checksums, args.sbom, args.wheel_dir)),
+        "at least one verification target is required",
+    )
     if args.require_platform_manifest:
         check(args.dist is not None, "--require-platform-manifest requires --dist")
         check(args.checksums is not None, "--require-platform-manifest requires --checksums")
@@ -325,6 +366,30 @@ def main() -> int:
     elif args.dist:
         verify_archives(args.dist)
         print(f"verified release archives in {args.dist}")
+    if args.sbom:
+        check(args.sbom.is_file(), f"SBOM file not found: {args.sbom}")
+    if args.require_bundles:
+        bundle_targets: list[Path] = []
+        if args.dist:
+            bundle_targets.extend(discover_archives(args.dist))
+        if args.checksums:
+            bundle_targets.append(args.checksums)
+        if args.wheel_dir:
+            check(args.wheel_dir.is_dir(), f"wheel directory not found: {args.wheel_dir}")
+            wheels = sorted(args.wheel_dir.glob("*.whl"))
+            sdists = sorted(args.wheel_dir.glob("*.tar.gz"))
+            check(bool(wheels), f"no release wheel found in {args.wheel_dir}")
+            check(bool(sdists), f"no release sdist found in {args.wheel_dir}")
+            bundle_targets.extend(wheels)
+            bundle_targets.extend(sdists)
+        if args.sbom:
+            bundle_targets.append(args.sbom)
+        check(
+            bool(bundle_targets),
+            "--require-bundles requires at least one artifact target (--dist, --checksums, --wheel-dir, or --sbom)",
+        )
+        verify_sigstore_bundles(bundle_targets)
+        print(f"verified {len(bundle_targets)} Sigstore bundles")
     return 0
 
 

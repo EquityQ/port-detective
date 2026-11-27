@@ -112,6 +112,9 @@ previewed snapshot. Workflow APIs (`wait_for_port`, `find_free_port`, `doctor`,
 `protocol="udp"`, `preset`, `preview_id`, and `bind_addresses`) are included in `v1.4.0`
 together with async counterparts (`async_wait_for_port`,
 `async_find_free_port`, `async_doctor`) and PEP 561 `py.typed` typing metadata.
+On `main` (unreleased after `v1.4.0`), `clean_project_result` / `async_clean_project_result`
+return a structured `CleanResult` envelope including `preview_id`, and `free_port` /
+`async_free_port` accept `protocol="udp"`.
 
 `scan_ports` returns occupied ports with diagnostics in ascending port order. An
 omitted list or `None` scans the default development ports; an explicitly empty list
@@ -123,7 +126,8 @@ directory scopes cleanup without changing the Python
 process's working directory.
 An existing directory resolves to its nearest supported project manifest
 (`package.json`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`,
-`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json`), or
+`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`,
+and on `main` also `deno.json`, `deno.jsonc`, `bunfig.toml`, and `*.csproj`), or
 retains its own path when no manifest exists. Selecting a subdirectory can therefore
 select its parent project; unrelated nested projects are excluded.
 
@@ -155,7 +159,9 @@ finish populating the cache after cancellation; it never terminates a target pro
 `listener_table_missing`, `post_action_status`, and optional `project` metadata.
 `ProjectInfo` includes `name`, `framework`, `path`, and `version`.
 `KillResult` exposes `port`, `dry_run`, `message`, `pre_action_diagnostic`,
-`diagnostic`, `post_action_status`, `preview_id`, and `preview_expires_at_unix`.
+`diagnostic`, `post_action_status`, `preview_id`, `preview_expires_at_unix`, and `protocol`.
+`CleanResult` (on `main`) exposes `cwd`, `scope`, `dry_run`, `count`, `cleaned`,
+`preview_id`, `preview_expires_at_unix`, `message`, and `error`.
 `FreePortResult` and `DoctorReport` model `find_free_port` and `doctor` outputs.
 
 See the [API reference](../docs/project/API_REFERENCE.md), [platform support policy](../docs/operations/PLATFORM_SUPPORT.md),

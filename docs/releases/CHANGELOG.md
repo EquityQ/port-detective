@@ -5,7 +5,56 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No additional changes are recorded after v1.4.0.
+Changes landed on `main` after `v1.4.0` (not yet released as a tagged binary or registry package).
+
+### Added
+
+- Structured cleanup envelope support: CLI `clean --json --envelope` (`CleanResult` with
+  `cwd`, `scope`, `dry_run`, `count`, `cleaned`, `preview_id`, `preview_expires_at_unix`,
+  `message`, `error`), plus `clean_project_result` / `async_clean_project_result` in Python
+  and `cleanProjectResult` / `asyncCleanProjectResult` in Node.js (`CleanResult` model/type).
+  Plain `clean --json` and `clean_project` / `cleanProject` preserve their array responses.
+- Optional UDP termination (`--protocol udp`) on CLI `kill` and `protocol` (`"tcp"` / `"udp"`)
+  on MCP `free_port`, Python `free_port` / `async_free_port`, and Node.js `freePort` /
+  `asyncFreePort`, backed by protocol-bound preview token verification (`RestorePreviewTokenProtocol`,
+  `RestoreCLIPreviewTokenProtocol`) and bounded UDP release polling (`KillPortProcessProtocol`).
+- Expanded MCP workflow tools: added read-only `find_free_port`, `wait_for_port`, and
+  `doctor` tools plus `preset` and `project_path` filtering on `scan_dev_ports` (7 tools total).
+- Expanded fingerprinting & monorepo support: increased upward manifest traversal to 8 levels
+  within the 50ms budget, added Node.js framework detectors (Fastify, Hono, Elysia, Astro,
+  SvelteKit), and added Deno (`deno.json`, `deno.jsonc`), Bun (`bunfig.toml`), and .NET
+  (`*.csproj`) manifest and cmdline detectors.
+- Sigstore bundle completeness verification (`--require-bundles`, `--sbom`) in
+  `scripts/release/verify_artifacts.py` and MCP/`mypy`/`tsc`/`--strict` gates in
+  `scripts/quality/run_checks.py`.
+
+### Changed
+
+- Extracted pure workflow helpers (`ResolvePresetPorts`, `ReadProjectPresetPorts`,
+  `FindFreePort`, `CheckPortBindings`, `WaitForPort`, `WaitForPortProtocol`, `RunDoctor`)
+  into `internal/core/workflows.go` and delegated CLI commands to them.
+- Completed explicit dependency injection via `*core.Inspector` (`NewRootCommandWithInspector`,
+  `ExecuteWithInspector`, `NewServerWithInspector`, `RunStdioServerWithInspector`), removing
+  blank `_ ".../fingerprint"` imports across `main.go`, `internal/cli`, and `internal/mcpserver`.
+- Migrated release signing and verification in `.github/workflows/release.yml` from detached
+  `.sig`/`.pem` files to `.sigstore.json` Sigstore bundles (`--bundle`), and removed the
+  Dependabot major-update hold on `sigstore/cosign-installer`.
+- Updated Go and GitHub Actions dependencies: `github.com/mark3labs/mcp-go` (`v1.6.0`),
+  `actions/setup-python` (`v7.1.0`), `actions/setup-go` (`v7.1.0`),
+  `pypa/gh-action-pypi-publish` (`v1.14.3`), `goreleaser/goreleaser-action` (`v7.3.0`), and
+  `sigstore/cosign-installer` (`v3.10.1`).
+
+### Fixed
+
+- CLI `check`/`scan` UDP footers now suggest `--protocol udp` for follow-up release hints,
+  Python `clean_project` passes an explicit `path` via `--project`, and `run_checks.py
+  --skip-go --skip-python --skip-node` no longer requires a `go` binary on `PATH`.
+- Translated residual non-English comment in `internal/core/termination.go`.
+
+### Security
+
+- Preview tokens bind destructive `kill` and `free_port` operations to both exact listener
+  identity and normalized transport protocol (`tcp` vs `udp`).
 
 ## [1.4.0] - 2026-11-24
 

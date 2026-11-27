@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import json
 import re
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from verify_artifacts import (
+    BUNDLE_SUFFIX,
     EXECUTABLE_NAME_BY_GOOS,
     RELEASE_TARGETS,
     expected_archives,
@@ -26,6 +28,7 @@ from verify_artifacts import (
     verify_cli,
     verify_python,
     verify_release_manifest,
+    verify_sigstore_bundles,
 )
 
 
@@ -390,6 +393,102 @@ class VerifyPythonTests(unittest.TestCase):
         self._write_sdist("1.0.9")
         with self.assertRaisesRegex(SystemExit, "sdist version is 1.0.9"):
             verify_python(self.root, self.dist, "1.1.0")
+
+
+class SigstoreBundleTests(ReleaseManifestFixture):
+    def _write_bundle(self, artifact: Path, payload: dict[str, object] | str | None = None) -> Path:
+        bundle = Path(f"{artifact}{BUNDLE_SUFFIX}")
+        if isinstance(payload, str):
+            bundle.write_text(payload, encoding="utf-8")
+            return bundle
+        data = payload if payload is not None else {
+            "mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.3",
+            "verificationMaterial": {"certificate": {"rawBytes": "ZmFrZQ=="}},
+            "messageSignature": {"messageDigest": {"algorithm": "SHA2_256", "digest": "ZmFrZQ=="}},
+        }
+        bundle.write_text(json.dumps(data), encoding="utf-8")
+        return bundle
+
+    def test_accepts_valid_bundles_for_release_artifacts_and_cli_gate(self) -> None:
+        archives = self.build_dist()
+        self.write_all_checksums(archives)
+        wheel_dir = self.root / "python-dist"
+        wheel_dir.mkdir()
+        wheel = wheel_dir / f"port_detective-{VERSION}-py3-none-any.whl"
+        wheel.write_bytes(b"wheel")
+        sdist = wheel_dir / f"port_detective-{VERSION}.tar.gz"
+        sdist.write_bytes(b"sdist")
+        sbom = self.root / f"port-detective_v{VERSION}.spdx.json"
+        sbom.write_text('{"spdxVersion": "SPDX-2.3"}\n', encoding="utf-8")
+
+        targets = [*archives, self.checksums, wheel, sdist, sbom]
+        for artifact in targets:
+            self._write_bundle(artifact)
+
+        verify_sigstore_bundles(targets)
+        verify_release_manifest(self.dist, VERSION, self.checksums)
+
+        output = io.StringIO()
+        arguments = [
+            "verify_artifacts.py",
+            "--expected-version",
+            VERSION,
+            "--dist",
+            str(self.dist),
+            "--checksums",
+            str(self.checksums),
+            "--wheel-dir",
+            str(wheel_dir),
+            "--sbom",
+            str(sbom),
+            "--require-platform-manifest",
+            "--require-bundles",
+        ]
+        with patch("sys.argv", arguments):
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(main(), 0)
+
+        self.assertIn(f"verified {len(targets)} Sigstore bundles", output.getvalue())
+
+    def test_rejects_missing_sigstore_bundle(self) -> None:
+        archives = self.build_dist()
+        self.write_all_checksums(archives)
+        for artifact in [*archives[:-1], self.checksums]:
+            self._write_bundle(artifact)
+
+        with self.assertRaisesRegex(SystemExit, "Sigstore bundle not found"):
+            verify_sigstore_bundles([*archives, self.checksums])
+
+    def test_rejects_malformed_json_bundle(self) -> None:
+        target = self.dist / f"port-detective_{VERSION}.spdx.json"
+        target.write_text("{}", encoding="utf-8")
+        self._write_bundle(target, "{not valid json")
+
+        with self.assertRaisesRegex(SystemExit, "invalid Sigstore bundle"):
+            verify_sigstore_bundles([target])
+
+    def test_rejects_bundle_missing_required_fields(self) -> None:
+        target = self.dist / f"port-detective_{VERSION}.spdx.json"
+        target.write_text("{}", encoding="utf-8")
+        for payload, missing in (
+            ({"verificationMaterial": {"certificate": {}}}, "mediaType"),
+            ({"mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.3"}, "verificationMaterial"),
+        ):
+            with self.subTest(missing=missing):
+                self._write_bundle(target, payload)
+                with self.assertRaisesRegex(SystemExit, f"missing {missing}"):
+                    verify_sigstore_bundles([target])
+
+    def test_rejects_require_bundles_without_signed_targets(self) -> None:
+        cli_file = self.root / "port-detective"
+        cli_file.write_text("", encoding="utf-8")
+        with patch("verify_artifacts.verify_cli"):
+            with patch(
+                "sys.argv",
+                ["verify_artifacts.py", "--expected-version", VERSION, "--cli", str(cli_file), "--require-bundles"],
+            ):
+                with self.assertRaisesRegex(SystemExit, "--require-bundles requires at least one artifact target"):
+                    main()
 
 
 if __name__ == "__main__":

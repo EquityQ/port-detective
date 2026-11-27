@@ -44,3 +44,9 @@ instead of treating it as proof that a port is free.
 See [platform support](PLATFORM_SUPPORT.md), [contributing](../community/CONTRIBUTING.md),
 [security](../community/SECURITY.md), [quality review](../project/QUALITY_REVIEW.md), and
 the [roadmap](../project/ROADMAP.md) for current constraints and next steps.
+
+> Note: Development on `main` after `v1.4.0` (unreleased) adds `clean --json --envelope`
+> and SDK `CleanResult` helpers, optional UDP `kill`/`free_port`, seven MCP tools via shared
+> core workflow helpers, Deno/Bun/.NET and 8-level monorepo fingerprinting, full `core.Inspector`
+> dependency injection, hardened `run_checks.py`, and Sigstore bundle release verification.
+> See the [changelog](../releases/CHANGELOG.md#unreleased) for details.

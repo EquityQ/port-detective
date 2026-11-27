@@ -91,12 +91,14 @@ async function inspectAgain() {
 ```
 
 Async methods (`asyncInspectPort`, `asyncScanPorts`, `asyncFreePort`,
-`asyncCleanProject`, `asyncWaitForPort`, `asyncFindFreePort`, `asyncDoctor`) accept
-an `AbortSignal`. Process actions require `{ dryRun: false }`; the wrapper then passes
+`asyncCleanProject`, `asyncCleanProjectResult`, `asyncWaitForPort`, `asyncFindFreePort`,
+`asyncDoctor`) accept an `AbortSignal`. Process actions require `{ dryRun: false }`; the wrapper then passes
 the CLI's `--yes` flag and supports `{ previewId }` to bind execution to a prior
 dry-run snapshot. Type declarations are included in `index.d.ts`. Workflow helpers
 (`waitForPort`, `findFreePort`, `doctor`, `protocol: "udp"`, `preset`, `previewId`,
-and `bind_addresses`) are included in `v1.4.0`.
+and `bind_addresses`) are included in `v1.4.0`; on `main` (unreleased after `v1.4.0`),
+`cleanProjectResult` / `asyncCleanProjectResult` return a structured `CleanResult`
+envelope and `freePort` / `asyncFreePort` also accept `protocol: "udp"`.
 Timeouts and aborts also apply to asynchronous CLI version checks, which do not
 block the event loop. Both sync and async methods share their timeout budget between
 the version check and command execution.
@@ -111,6 +113,7 @@ everything. `projectPath` selects the project
 explicitly; otherwise cleanup uses `cwd` or the caller's current directory.
 The directory resolves to the nearest supported project manifest (`package.json`,
 `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `pom.xml`,
-`build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json`), or keeps its
+`build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`, and on `main` also
+`deno.json`, `deno.jsonc`, `bunfig.toml`, and `*.csproj`), or keeps its
 own path if no manifest exists. A subdirectory can therefore select its parent
 project; unrelated nested projects are excluded.

@@ -56,7 +56,9 @@ Every change should pass:
 python scripts/quality/run_checks.py
 ```
 
-Or individually:
+On `main` after `v1.4.0` (unreleased), `run_checks.py` also runs MCP acceptance checks
+against a freshly built temporary binary and invokes `mypy` / `tsc` when installed (use
+`--strict` to require them). Or run checks individually:
 
 ```text
 go build ./...

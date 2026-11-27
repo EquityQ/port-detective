@@ -9,11 +9,11 @@ same release tag to publish the Node.js client and six platform packages:
 2. Rewrite the temporary Python build metadata to the same version and verify the wheel and source distribution metadata.
 3. Require exactly the six platform archives declared by `.goreleaser.yaml` (linux/darwin/windows x amd64/arm64, tar.gz except windows zip), a SHA-256 entry for each and no entry for a missing archive, and inside every archive the platform executable (`port-detective`, or `port-detective.exe` on windows) alongside `README.md` and `LICENSE`.
 4. Run the MCP handshake, tool, and stdout-purity checks against the release build.
-5. Generate an SPDX JSON SBOM, sign Go archives, Python distributions, checksums, and the SBOM with keyless Cosign.
-6. Verify every Cosign signature and publish GitHub build provenance attestations.
+5. Generate an SPDX JSON SBOM, sign Go archives, Python distributions, checksums, and the SBOM with keyless Cosign (`--bundle` producing `.sigstore.json` bundles).
+6. Verify every Cosign Sigstore bundle, validate bundle completeness (`--require-bundles --sbom`), and publish GitHub build provenance attestations.
 7. Publish the Python wheel and source distribution through the configured PyPI Trusted Publisher.
 8. Install that exact version from PyPI and exercise it against the matching CLI binary.
-9. Create the GitHub Release and upload the already verified archives, Python distributions, SBOM, signatures, and certificates.
+9. Create the GitHub Release and upload the already verified archives, Python distributions, SBOM, and `.sigstore.json` Sigstore bundles.
 10. Dispatch the npm workflow with the release tag; it stages the six platform packages from verified Go archives, publishes them with provenance, and publishes the client with exact optional dependency versions.
 11. Install the published npm client without `PORT_DETECTIVE_BIN` and run the Node.js CLI integration check.
 
@@ -40,21 +40,25 @@ python scripts/release/verify_artifacts.py \
 ```
 
 Downloaders should verify `checksums.txt` before extraction and keep the matching
-`.sig`/`.pem` files and GitHub attestation with the release record.
+`.sigstore.json` Sigstore bundle (or `.sig`/`.pem` files for `v1.4.0` and earlier)
+and GitHub attestation with the release record.
 
-Run the strict platform-manifest gate against a local GoReleaser `dist` directory with:
+Run the strict platform-manifest and Sigstore bundle gate against local release artifacts with:
 
 ```bash
 python scripts/release/verify_artifacts.py \
   --expected-version 1.4.0 \
   --dist dist \
   --checksums dist/checksums.txt \
-  --require-platform-manifest
+  --wheel-dir python/dist \
+  --sbom port-detective_v1.4.0.spdx.json \
+  --require-platform-manifest \
+  --require-bundles
 ```
 
-The gate is opt-in via `--require-platform-manifest`; without it the earlier checksum and
-archive checks still run. It is intended to catch a future artifact matrix regression
-before publication, and it does not change how already published releases are verified.
+Both `--require-platform-manifest` and `--require-bundles` are opt-in gates; without
+them the earlier checksum and archive checks still run, and historical releases before the
+bundle migration retain their original `.sig`/`.pem` verification assets.
 
 The [`v1.4.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.4.0)
 and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/45324780732)

@@ -2,6 +2,23 @@
 
 This roadmap tracks post-release improvements for the next development cycle.
 
+## Unreleased (next minor release)
+
+Changes completed on `main` after `v1.4.0`:
+
+- Close the cleanup preview contract with `clean --json --envelope`, Python
+  `clean_project_result` / `async_clean_project_result`, Node.js `cleanProjectResult` /
+  `asyncCleanProjectResult`, and `--project` forwarding in Python `clean_project`.
+- Extend termination and preview tokens to optional UDP (`--protocol udp` on CLI `kill` and
+  `protocol` on MCP `free_port`, Python `free_port`, and Node.js `freePort`).
+- Extract shared workflow helpers into `internal/core/workflows.go` and expose `find_free_port`,
+  `wait_for_port`, `doctor`, and `scan_dev_ports` `preset`/`project_path` on the MCP server.
+- Raise monorepo manifest traversal depth to 8 levels, add Fastify/Hono/Elysia/Astro/SvelteKit
+  plus Deno/Bun/.NET detectors, and complete `core.Inspector` dependency injection across CLI
+  and MCP.
+- Harden `scripts/quality/run_checks.py` (`--skip-go` fix, MCP acceptance, `mypy`/`tsc`/`--strict`)
+  and migrate release signing and `verify_artifacts.py` to Sigstore `.sigstore.json` bundles.
+
 ## Included in v1.4.0
 
 - Persist a user-scoped, 24h-rotated CLI preview signing key so `--preview-id` works across

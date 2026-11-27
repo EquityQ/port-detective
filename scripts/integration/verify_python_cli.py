@@ -8,7 +8,9 @@ import socket
 from typing import Optional
 
 from port_detective import (
+    async_clean_project_result,
     async_inspect_port,
+    clean_project_result,
     doctor,
     find_free_port,
     free_port,
@@ -27,6 +29,15 @@ async def verify_async(port: int, binary_path: Optional[str]) -> None:
     diagnostic = await async_inspect_port(port, binary_path=binary_path)
     require(diagnostic.port == port, "async inspect returned the wrong port")
     require(diagnostic.is_open, "async inspect did not detect the listener")
+
+    clean_res = await async_clean_project_result(dry_run=True, binary_path=binary_path)
+    require(clean_res.dry_run is True, "async clean_project_result did not preserve dry-run mode")
+    require(isinstance(clean_res.cleaned, list), "async clean_project_result did not return a list")
+    require(clean_res.count == len(clean_res.cleaned), "async clean_project_result count mismatch")
+    require(bool(clean_res.cwd), "async clean_project_result omitted cwd")
+    require(bool(clean_res.scope), "async clean_project_result omitted scope")
+    if clean_res.count > 0:
+        require(bool(clean_res.preview_id), "async clean_project_result omitted preview_id for occupied scope")
 
 
 def main() -> int:
@@ -63,6 +74,15 @@ def main() -> int:
 
         report = doctor(binary_path=binary_path)
         require(report.status in {"ok", "degraded"}, f"unexpected doctor status: {report.status}")
+
+        clean_res = clean_project_result(dry_run=True, binary_path=binary_path)
+        require(clean_res.dry_run is True, "clean_project_result did not preserve dry-run mode")
+        require(isinstance(clean_res.cleaned, list), "clean_project_result did not return a cleaned list")
+        require(clean_res.count == len(clean_res.cleaned), "clean_project_result count mismatch")
+        require(bool(clean_res.cwd), "clean_project_result omitted cwd")
+        require(bool(clean_res.scope), "clean_project_result omitted scope")
+        if clean_res.count > 0:
+            require(bool(clean_res.preview_id), "clean_project_result omitted preview_id for occupied scope")
 
         asyncio.run(verify_async(port, binary_path))
 
