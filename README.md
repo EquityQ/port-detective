@@ -75,6 +75,8 @@ port-detective wait 3000 --state open --timeout 30s
 port-detective check 3000 --watch --interval 1s
 port-detective find-free --from 3000 --to 3100
 port-detective doctor
+port-detective update --check   # unreleased on main after v1.5.0
+port-detective update           # download, SHA-256 verify, and replace standalone binary
 ```
 
 Cleanup discovers all visible TCP listeners, matches the resolved project directory,

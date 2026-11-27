@@ -5,7 +5,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No additional changes are recorded after v1.5.0.
+### Added
+
+- Self-update command `port-detective update` (`internal/updater` pure Go stdlib package)
+  supporting `--check`, `--dry-run`, `--yes`, `--force`, `--to-version`, and `--timeout`,
+  with SHA-256 verification against `checksums.txt`, safe archive extraction, staged binary
+  verification (`--version`), npm/Python-SDK managed-install detection, and cross-platform
+  atomic executable replacement.
 
 ## [1.5.0] - 2026-11-27
 

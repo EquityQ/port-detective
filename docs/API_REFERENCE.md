@@ -29,6 +29,9 @@ belong to the commands listed below:
 | `--timeout` | Positive maximum wait duration. |
 | `--from` / `--to` | Inclusive candidate range for `find-free`, within `1-65535`. |
 | `--preview-id` | Opaque token from an earlier preview (`kill --dry-run`, `clean --dry-run`, or an MCP `dry_run=true` call). Binds the action to the exact process snapshot that was previewed. CLI tokens use a user-scoped key file (rotated every 24h, overridable via `PORT_DETECTIVE_PREVIEW_KEY_FILE`) so previews work across CLI invocations; MCP keeps an in-memory per-server key. |
+| `--check` | Check GitHub Releases for a newer `port-detective` binary without downloading or modifying files. |
+| `--force` | Reinstall even if already up to date, or bypass `npm` / Python SDK managed-installation protection in `update`. |
+| `--to-version` | Target an explicit `X.Y.Z` release in `update` instead of the latest release. |
 
 | Command | Behavior and result |
 | --- | --- |
@@ -39,6 +42,7 @@ belong to the commands listed below:
 | `wait <port>` | Poll until `--state` matches or `--timeout` expires; return the matching diagnostic. An open TCP port does not prove application readiness, and `--state free` never accepts an `undetermined` degraded result. |
 | `find-free` | Suggest a bindable TCP loopback port in the candidate range; the result is a snapshot, not a reservation. |
 | `doctor` | Report local CLI version, binary location, OS/architecture, working directory, and temporary-listener process visibility with troubleshooting hints. |
+| `update` | Check GitHub Releases (`--check` or `--dry-run`) or download, SHA-256 verify, and atomically replace the standalone CLI binary (`--yes` required for non-preview `--json`, optional `--force`, `--to-version`, `--timeout`); refuses managed `npm` or Python SDK installs unless `--force` is set. |
 | `mcp` | Start the Stdio MCP server with JSON-RPC only on stdout. |
 | `completion <shell>` | Write a Bash, Zsh, Fish, or PowerShell completion script to stdout. |
 

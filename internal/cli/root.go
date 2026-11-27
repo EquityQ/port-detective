@@ -62,6 +62,7 @@ func NewRootCommandWithInspector(inspector *core.Inspector) *cobra.Command {
 		newWaitCommand(opts),
 		newFindFreeCommand(opts),
 		newDoctorCommand(opts),
+		newUpdateCommand(opts),
 		newMCPCommand(opts),
 	)
 	root.AddCommand(newCompletionCommand(root))
