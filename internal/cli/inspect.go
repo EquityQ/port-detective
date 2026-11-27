@@ -49,7 +49,7 @@ func newCheckCommand(opts *options) *cobra.Command {
 			out := stdout(cmd)
 
 			start := time.Now()
-			info, err := core.InspectPortProtocol(cmd.Context(), port, proto)
+			info, err := opts.inspector.InspectPortProtocol(cmd.Context(), port, proto)
 			if err != nil {
 				return err
 			}
@@ -184,7 +184,7 @@ func newScanCommand(opts *options) *cobra.Command {
 			}
 
 			begin := time.Now()
-			summary, err := core.ScanPortsProtocolSummary(cmd.Context(), targetPorts, proto)
+			summary, err := opts.inspector.ScanPortsProtocolSummary(cmd.Context(), targetPorts, proto)
 			elapsed := time.Since(begin)
 			if err != nil {
 				return err

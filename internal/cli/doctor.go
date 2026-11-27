@@ -17,7 +17,7 @@ func newDoctorCommand(opts *options) *cobra.Command {
 		Long:  "Show runtime details and inspect a temporary local TCP listener. Permission and namespace limitations are reported with next steps. This checks listener visibility, not application protocol readiness.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report, err := core.RunDoctor(cmd.Context(), "", "", version.Value)
+			report, err := opts.inspector.RunDoctor(cmd.Context(), "", "", version.Value)
 			if err != nil {
 				return err
 			}

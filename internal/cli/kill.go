@@ -74,12 +74,12 @@ func newKillCommand(opts *options) *cobra.Command {
 				target = targets[0]
 				display = &target
 				if !opts.jsonOutput {
-					if live, liveErr := core.InspectPortProtocol(cmd.Context(), port, proto); liveErr == nil && live != nil && live.PID == target.PID {
+					if live, liveErr := opts.inspector.InspectPortProtocol(cmd.Context(), port, proto); liveErr == nil && live != nil && live.PID == target.PID {
 						display = live
 					}
 				}
 			} else {
-				diag, err := core.InspectPortProtocol(cmd.Context(), port, proto)
+				diag, err := opts.inspector.InspectPortProtocol(cmd.Context(), port, proto)
 				if err != nil {
 					return err
 				}
@@ -108,7 +108,7 @@ func newKillCommand(opts *options) *cobra.Command {
 			}
 
 			// Keep the previewed or displayed process identity pinned across confirmation.
-			resultDiag, msg, err := core.KillPortTarget(cmd.Context(), target, dryRun)
+			resultDiag, msg, err := opts.inspector.KillPortTarget(cmd.Context(), target, dryRun)
 			if err != nil {
 				return err
 			}

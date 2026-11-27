@@ -47,6 +47,37 @@ func TestInspectorInjectsDetectorWithoutMutatingGlobal(t *testing.T) {
 	if err != nil || len(scanned) != 1 || scanned[0].Project == nil || scanned[0].Project.Name != "injected-proj" {
 		t.Fatalf("Inspector.ScanPortsConcurrent returned %+v, %v", scanned, err)
 	}
+
+	projDir := projectTestDir(t)
+	scopedInspector := NewInspector(func(_ context.Context, pid int32) *ProjectInfo {
+		if pid == int32(os.Getpid()) {
+			return &ProjectInfo{Name: "di-proj", Path: projDir}
+		}
+		return nil
+	})
+	discovered, err := scopedInspector.DiscoverProjectPorts(context.Background(), projDir, []int{port})
+	if err != nil || len(discovered) != 1 || discovered[0].Port != port {
+		t.Fatalf("Inspector.DiscoverProjectPorts failed: %+v, %v", discovered, err)
+	}
+	cleaned, err := scopedInspector.CleanCurrentProjectPorts(context.Background(), projDir, true)
+	if err != nil || len(cleaned) != 1 {
+		t.Fatalf("Inspector.CleanCurrentProjectPorts failed: %+v, %v", cleaned, err)
+	}
+	killedDiag, _, err := scopedInspector.KillPortProcess(context.Background(), port, true)
+	if err != nil || killedDiag == nil || killedDiag.Project == nil || killedDiag.Project.Name != "di-proj" {
+		t.Fatalf("Inspector.KillPortProcess failed: %+v, %v", killedDiag, err)
+	}
+	waitedDiag, err := scopedInspector.WaitForPort(context.Background(), port, "open", time.Second, 20*time.Millisecond)
+	if err != nil || waitedDiag.Project == nil || waitedDiag.Project.Name != "di-proj" {
+		t.Fatalf("Inspector.WaitForPort failed: %+v, %v", waitedDiag, err)
+	}
+	docReport, err := scopedInspector.RunDoctor(context.Background(), "", projDir, "1.4.0")
+	if err != nil || docReport.SelfCheck == nil {
+		t.Fatalf("Inspector.RunDoctor failed: %+v, %v", docReport, err)
+	}
+	if globalCalled {
+		t.Fatal("Inspector workflow and cleanup methods must never invoke the global detector")
+	}
 }
 
 func TestInspectAndScanUDP(t *testing.T) {

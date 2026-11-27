@@ -77,7 +77,27 @@ func TestResolveProjectPathNearestManifest(t *testing.T) {
 	if got, err := ResolveProjectPath(rustSub); err != nil || !projectPathsMatch(got, rustDir) {
 		t.Fatalf("Rust subdirectory resolved to %q, %v; want %q", got, err, rustDir)
 	}
-	if len(SupportedProjectManifests()) < 8 {
+	for _, tc := range []struct {
+		name     string
+		manifest string
+	}{
+		{"deno", "deno.json"},
+		{"bun", "bunfig.toml"},
+		{"dotnet", "Service.csproj"},
+	} {
+		dir := filepath.Join(t.TempDir(), tc.name)
+		sub := filepath.Join(dir, "src", "api")
+		if err := os.MkdirAll(sub, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, tc.manifest), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := ResolveProjectPath(sub); err != nil || !projectPathsMatch(got, dir) {
+			t.Fatalf("%s subdirectory resolved to %q, %v; want %q", tc.name, got, err, dir)
+		}
+	}
+	if len(SupportedProjectManifests()) < 12 {
 		t.Fatalf("expected expanded manifest registry, got %v", SupportedProjectManifests())
 	}
 }

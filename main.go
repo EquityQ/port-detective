@@ -6,7 +6,6 @@ package main
 
 import (
 	"github.com/EquityQ/port-detective/internal/cli"
-	_ "github.com/EquityQ/port-detective/internal/fingerprint"
 )
 
 func main() {

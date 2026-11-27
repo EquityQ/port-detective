@@ -21,7 +21,7 @@ func init() {
 
 const (
 	// maxTraverseLevels is the maximum number of parent directories to inspect.
-	maxTraverseLevels = 3
+	maxTraverseLevels = 8
 	// defaultDetectionTimeout bounds fingerprint detection for one process.
 	defaultDetectionTimeout = 50 * time.Millisecond
 )
@@ -148,6 +148,35 @@ func detectFromDirAndCmdlineContext(ctx context.Context, cwd, cmdline string) *c
 
 			// PHP project detection (composer.json).
 			if info := checkPHPProject(ctx, filepath.Join(currDir, "composer.json"), currDir); info != nil {
+				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
+			}
+
+			// Deno project detection (deno.json / deno.jsonc).
+			if info := checkDenoProject(
+				ctx,
+				filepath.Join(currDir, "deno.json"),
+				filepath.Join(currDir, "deno.jsonc"),
+				currDir,
+			); info != nil {
+				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
+			}
+
+			// Bun project detection (bunfig.toml).
+			if info := checkBunProject(ctx, filepath.Join(currDir, "bunfig.toml"), currDir); info != nil {
+				return info
+			}
+			if contextErr(ctx) != nil {
+				return nil
+			}
+
+			// .NET / C# project detection (*.csproj).
+			if info := checkDotNetProject(ctx, currDir); info != nil {
 				return info
 			}
 			if contextErr(ctx) != nil {

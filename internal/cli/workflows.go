@@ -29,7 +29,7 @@ func watchPort(cmd *cobra.Command, opts *options, port int, protocol string, int
 	encoder.SetEscapeHTML(false)
 	for {
 		begin := time.Now()
-		diag, err := core.InspectPortProtocol(cmd.Context(), port, protocol)
+		diag, err := opts.inspector.InspectPortProtocol(cmd.Context(), port, protocol)
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func newWaitCommand(opts *options) *cobra.Command {
 			}
 			port, _ := parsePort(args[0])
 			begin := time.Now()
-			diag, err := core.WaitForPort(cmd.Context(), port, state, timeout, interval)
+			diag, err := opts.inspector.WaitForPort(cmd.Context(), port, state, timeout, interval)
 			if err != nil {
 				if errors.Is(err, core.ErrWaitTimeout) {
 					return commandFailure("timeout", 3, "%s", err.Error())
@@ -105,7 +105,7 @@ func newFindFreeCommand(opts *options) *cobra.Command {
 			if from < 1 || to > 65535 || from > to {
 				return usageError(fmt.Errorf("expected 1 <= --from <= --to <= 65535"))
 			}
-			result, err := core.FindFreePort(cmd.Context(), from, to)
+			result, err := opts.inspector.FindFreePort(cmd.Context(), from, to)
 			if err != nil {
 				if errors.Is(err, core.ErrNoFreePort) {
 					return commandFailure("no_free_port", 4, "%s", err.Error())

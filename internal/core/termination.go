@@ -54,21 +54,29 @@ func KillPortProcess(ctx context.Context, port int, dryRun bool) (*PortDiagnosti
 // previews the action when dryRun is true. System processes with PID <= 1 are
 // never terminated.
 func KillPortProcessProtocol(ctx context.Context, port int, protocol string, dryRun bool) (*PortDiagnostic, string, error) {
+	return killPortProcessWithDetector(ctx, port, protocol, dryRun, currentProjectDetector())
+}
+
+func killPortProcessWithDetector(ctx context.Context, port int, protocol string, dryRun bool, detector ProjectDetectorFunc) (*PortDiagnostic, string, error) {
 	proto, err := NormalizeProtocol(protocol)
 	if err != nil {
 		return nil, "", err
 	}
-	diag, err := InspectPortProtocol(ctx, port, proto)
+	diag, err := inspectPortWithDetector(ctx, port, proto, detector)
 	if err != nil {
 		return nil, "", err
 	}
-	return KillPortTarget(ctx, *diag, dryRun)
+	return killPortTargetWithDetector(ctx, *diag, dryRun, detector)
 }
 
 // KillPortTarget revalidates the exact in-memory inspection snapshot, so a
 // confirmation prompt cannot authorize terminating a replacement process.
 func KillPortTarget(ctx context.Context, target PortDiagnostic, dryRun bool) (*PortDiagnostic, string, error) {
-	return cleanProjectTarget(ctx, target, "", dryRun)
+	return killPortTargetWithDetector(ctx, target, dryRun, currentProjectDetector())
+}
+
+func killPortTargetWithDetector(ctx context.Context, target PortDiagnostic, dryRun bool, detector ProjectDetectorFunc) (*PortDiagnostic, string, error) {
+	return cleanProjectTargetWithDetector(ctx, target, "", dryRun, detector)
 }
 
 func validatePort(port int) error {
@@ -82,11 +90,15 @@ func validatePort(port int) error {
 // immediately before a destructive action. projectPath is required for project
 // cleanup and prevents a process that moved to another project from being killed.
 func verifyTerminationTarget(ctx context.Context, port int, expected *PortDiagnostic, projectPath string) (*PortDiagnostic, *process.Process, error) {
+	return verifyTerminationTargetWithDetector(ctx, port, expected, projectPath, currentProjectDetector())
+}
+
+func verifyTerminationTargetWithDetector(ctx context.Context, port int, expected *PortDiagnostic, projectPath string, detector ProjectDetectorFunc) (*PortDiagnostic, *process.Process, error) {
 	proto, err := NormalizeProtocol(expected.Protocol)
 	if err != nil {
 		return expected, nil, fmt.Errorf("pre-termination port %d recheck failed: %w", port, err)
 	}
-	latest, err := InspectPortProtocol(ctx, port, proto)
+	latest, err := inspectPortWithDetector(ctx, port, proto, detector)
 	if err != nil {
 		return expected, nil, fmt.Errorf("pre-termination port %d recheck failed: %w", port, err)
 	}
@@ -217,16 +229,24 @@ func waitForPortReleaseProtocol(ctx context.Context, port int, protocol string, 
 
 // CleanCurrentProjectPorts discovers all local project listeners before cleanup.
 func CleanCurrentProjectPorts(ctx context.Context, cwd string, dryRun bool) ([]PortDiagnostic, error) {
-	targets, err := DiscoverProjectPorts(ctx, cwd, nil)
+	return cleanCurrentProjectPortsWithDetector(ctx, cwd, dryRun, currentProjectDetector())
+}
+
+func cleanCurrentProjectPortsWithDetector(ctx context.Context, cwd string, dryRun bool, detector ProjectDetectorFunc) ([]PortDiagnostic, error) {
+	targets, err := discoverProjectPortsWithDetector(ctx, cwd, nil, detector)
 	if err != nil {
 		return nil, err
 	}
-	return CleanProjectTargets(ctx, cwd, targets, dryRun)
+	return cleanProjectTargetsWithDetector(ctx, cwd, targets, dryRun, detector)
 }
 
 // CleanProjectTargets acts only on the supplied preview snapshot. Processes that
 // acquire new listeners after the preview are never added to this operation.
 func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnostic, dryRun bool) ([]PortDiagnostic, error) {
+	return cleanProjectTargetsWithDetector(ctx, path, targets, dryRun, currentProjectDetector())
+}
+
+func cleanProjectTargetsWithDetector(ctx context.Context, path string, targets []PortDiagnostic, dryRun bool, detector ProjectDetectorFunc) ([]PortDiagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -276,13 +296,13 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 				groupErr = fmt.Errorf("preview project path for port %d does not match %q; cleanup canceled", target.Port, projectPath)
 				break
 			}
-			if _, _, err := cleanProjectTarget(ctx, target, projectPath, true); err != nil {
+			if _, _, err := cleanProjectTargetWithDetector(ctx, target, projectPath, true, detector); err != nil {
 				groupErr = err
 				break
 			}
 		}
 		if groupErr == nil && !dryRun {
-			_, _, groupErr = cleanProjectTarget(ctx, selected[indices[0]], projectPath, false)
+			_, _, groupErr = cleanProjectTargetWithDetector(ctx, selected[indices[0]], projectPath, false, detector)
 			if groupErr == nil {
 				for _, i := range indices {
 					selected[i].PostActionStatus = PostActionReleased
@@ -315,6 +335,10 @@ func CleanProjectTargets(ctx context.Context, path string, targets []PortDiagnos
 // cleanup action. The public KillPortProcess API cannot enforce project scope,
 // so cleanup uses this private path with an additional project-path check.
 func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, dryRun bool) (*PortDiagnostic, string, error) {
+	return cleanProjectTargetWithDetector(ctx, target, cwd, dryRun, currentProjectDetector())
+}
+
+func cleanProjectTargetWithDetector(ctx context.Context, target PortDiagnostic, cwd string, dryRun bool, detector ProjectDetectorFunc) (*PortDiagnostic, string, error) {
 	if err := ctx.Err(); err != nil {
 		return &target, "", err
 	}
@@ -339,7 +363,7 @@ func cleanProjectTarget(ctx context.Context, target PortDiagnostic, cwd string, 
 		return &target, "", fmt.Errorf("unable to confirm the target process for port %d; cleanup canceled", target.Port)
 	}
 
-	latest, proc, err := verifyTerminationTarget(ctx, target.Port, &target, cwd)
+	latest, proc, err := verifyTerminationTargetWithDetector(ctx, target.Port, &target, cwd, detector)
 	if err != nil {
 		return latest, "", err
 	}

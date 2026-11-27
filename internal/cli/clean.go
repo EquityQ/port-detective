@@ -91,7 +91,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 				}
 				scope = fmt.Sprintf("%d previewed TCP port(s)", len(targets))
 			} else {
-				targets, err = core.DiscoverProjectPorts(cmd.Context(), cwd, ports)
+				targets, err = opts.inspector.DiscoverProjectPorts(cmd.Context(), cwd, ports)
 				if err != nil {
 					return err
 				}
@@ -144,7 +144,7 @@ func newCleanCommand(opts *options) *cobra.Command {
 			}
 
 			// Execute exactly the previewed snapshot; the core revalidates every target.
-			cleaned, cleanErr := core.CleanProjectTargets(cmd.Context(), cwd, targets, dryRun)
+			cleaned, cleanErr := opts.inspector.CleanProjectTargets(cmd.Context(), cwd, targets, dryRun)
 			return renderCleanResult(out, p, opts.jsonOutput, envelope, cwd, scope, cleaned, dryRun, fromPreview, cleanErr)
 		},
 	}

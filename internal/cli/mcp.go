@@ -42,7 +42,7 @@ func newMCPCommand(opts *options) *cobra.Command {
 			ctx, cancel := mcpserver.WaitForSignal(cmd.Context())
 			defer cancel()
 
-			if err := mcpserver.RunStdioServer(ctx); err != nil {
+			if err := mcpserver.RunStdioServerWithInspector(ctx, opts.inspector); err != nil {
 				return fmt.Errorf("MCP server exited unexpectedly: %w", err)
 			}
 			return nil

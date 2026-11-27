@@ -610,3 +610,35 @@ func TestFindFreeWaitAndDoctorTools(t *testing.T) {
 		}
 	}
 }
+
+func TestNewServerWithInspectorIsolatesGlobalDetector(t *testing.T) {
+	ln, port := listenLoopback(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	globalCalled := false
+	core.RegisterProjectDetector(func(context.Context, int32) *core.ProjectInfo {
+		globalCalled = true
+		return &core.ProjectInfo{Name: "global"}
+	})
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
+
+	if s := NewServerWithInspector(core.NewInspector(func(context.Context, int32) *core.ProjectInfo {
+		return &core.ProjectInfo{Name: "mcp-injected"}
+	})); s == nil {
+		t.Fatal("NewServerWithInspector returned nil")
+	}
+	h := &mcpHandlers{inspector: core.NewInspector(func(context.Context, int32) *core.ProjectInfo {
+		return &core.ProjectInfo{Name: "mcp-injected", Framework: "Fresh"}
+	})}
+	res := callTool(t, h.inspectPort, map[string]any{"port": float64(port)})
+	if res.IsError || globalCalled {
+		t.Fatalf("injected MCP handler failed or called global detector (err=%v global=%v)", res.IsError, globalCalled)
+	}
+	var diag core.PortDiagnostic
+	if err := json.Unmarshal([]byte(resultText(t, res)), &diag); err != nil {
+		t.Fatal(err)
+	}
+	if diag.Project == nil || diag.Project.Name != "mcp-injected" {
+		t.Fatalf("expected injected project metadata, got %+v", diag.Project)
+	}
+}

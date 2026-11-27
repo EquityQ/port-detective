@@ -83,6 +83,9 @@ var projectManifestFiles = []string{
 	"build.gradle.kts",
 	"Gemfile",
 	"composer.json",
+	"deno.json",
+	"deno.jsonc",
+	"bunfig.toml",
 }
 
 // SupportedProjectManifests returns a copy of the manifest filenames recognized
@@ -91,6 +94,31 @@ func SupportedProjectManifests() []string {
 	out := make([]string, len(projectManifestFiles))
 	copy(out, projectManifestFiles)
 	return out
+}
+
+func dirHasProjectManifest(dir string) (bool, error) {
+	for _, manifest := range projectManifestFiles {
+		info, err := os.Stat(filepath.Join(dir, manifest))
+		if err == nil && !info.IsDir() {
+			return true, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return false, fmt.Errorf("inspect project manifest: %w", err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsPermission(err) || os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspect project manifest: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".csproj") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ResolveProjectPath validates a directory and selects its nearest manifest root.
@@ -115,14 +143,12 @@ func ResolveProjectPath(path string) (string, error) {
 		return "", fmt.Errorf("resolve project directory links: %w", err)
 	}
 	for dir := absolute; ; dir = filepath.Dir(dir) {
-		for _, manifest := range projectManifestFiles {
-			info, err := os.Stat(filepath.Join(dir, manifest))
-			if err == nil && !info.IsDir() {
-				return dir, nil
-			}
-			if err != nil && !os.IsNotExist(err) {
-				return "", fmt.Errorf("inspect project manifest: %w", err)
-			}
+		found, err := dirHasProjectManifest(dir)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			return dir, nil
 		}
 		if filepath.Dir(dir) == dir {
 			return absolute, nil
@@ -134,6 +160,10 @@ func ResolveProjectPath(path string) (string, error) {
 // listener; an explicit empty list selects none. Full discovery never silently
 // falls back to the incomplete default development-port list.
 func DiscoverProjectPorts(ctx context.Context, path string, ports []int) ([]PortDiagnostic, error) {
+	return discoverProjectPortsWithDetector(ctx, path, ports, currentProjectDetector())
+}
+
+func discoverProjectPortsWithDetector(ctx context.Context, path string, ports []int, detector ProjectDetectorFunc) ([]PortDiagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -160,7 +190,7 @@ func DiscoverProjectPorts(ctx context.Context, path string, ports []int) ([]Port
 			ports = append(ports, int(key.port))
 		}
 	}
-	occupied, err := scanPortsConcurrent(ctx, ports, index, true)
+	occupied, _, err := scanPortsConcurrentInternal(ctx, ports, ProtocolTCP, index, true, detector)
 	if err != nil {
 		return nil, err
 	}

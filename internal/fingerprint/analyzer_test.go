@@ -140,21 +140,22 @@ dependencies = [
 	})
 }
 
-// TestDirectoryUpwardTraversal verifies lookup through at most three directory levels.
+// TestDirectoryUpwardTraversal verifies lookup through deep monorepo hierarchies
+// bounded by maxTraverseLevels.
 func TestDirectoryUpwardTraversal(t *testing.T) {
 	rootDir := t.TempDir()
 	pkgJSON := `{"name": "root-app", "dependencies": {"vite": "^5.0.0"}}`
 	_ = os.WriteFile(filepath.Join(rootDir, "package.json"), []byte(pkgJSON), 0644)
 
-	// Create a nested directory: root/a/b.
-	deepDir := filepath.Join(rootDir, "sub1", "sub2")
+	// Create a 5-level nested monorepo directory: root/apps/web/packages/server/cmd.
+	deepDir := filepath.Join(rootDir, "apps", "web", "packages", "server", "cmd")
 	if err := os.MkdirAll(deepDir, 0755); err != nil {
 		t.Fatalf("failed to create nested directories: %v", err)
 	}
 
 	info := DetectFromDirAndCmdline(deepDir, "node deep.js")
 	if info == nil {
-		t.Fatal("the upward lookup should find rootDir/package.json two levels up")
+		t.Fatal("the upward lookup should find rootDir/package.json across monorepo subdirectories")
 	}
 	if info.Name != "root-app" {
 		t.Errorf("Name = %q, want %q", info.Name, "root-app")
@@ -166,12 +167,12 @@ func TestDirectoryUpwardTraversal(t *testing.T) {
 		t.Errorf("Path = %q, want %q", info.Path, filepath.Clean(rootDir))
 	}
 
-	// Manifests more than three levels above the working directory should not be found.
-	tooDeepDir := filepath.Join(rootDir, "l1", "l2", "l3", "l4")
+	// Manifests beyond maxTraverseLevels above the working directory should not be found.
+	tooDeepDir := filepath.Join(rootDir, "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9")
 	_ = os.MkdirAll(tooDeepDir, 0755)
 	infoOver := DetectFromDirAndCmdline(tooDeepDir, "node deep.js")
 	if infoOver != nil && infoOver.Path == filepath.Clean(rootDir) {
-		t.Errorf("a lookup beyond three levels should not find rootDir, got: %+v", infoOver)
+		t.Errorf("a lookup beyond maxTraverseLevels should not find rootDir, got: %+v", infoOver)
 	}
 }
 
@@ -598,6 +599,43 @@ func TestDetectMultiLanguageProjects(t *testing.T) {
 			wantName:      "acme/crm",
 			wantFramework: "Symfony",
 		},
+		{
+			name:          "node hono",
+			filename:      "package.json",
+			content:       `{"name":"edge-api","version":"0.1.0","dependencies":{"hono":"^4.0.0"}}`,
+			wantName:      "edge-api",
+			wantFramework: "Hono",
+			wantVersion:   "0.1.0",
+		},
+		{
+			name:          "node elysia",
+			filename:      "package.json",
+			content:       `{"name":"bun-api","dependencies":{"elysia":"^1.0.0"}}`,
+			wantName:      "bun-api",
+			wantFramework: "Elysia",
+		},
+		{
+			name:          "deno fresh jsonc",
+			filename:      "deno.jsonc",
+			content:       "{\n  // comment\n  \"name\": \"@demo/web\",\n  \"version\": \"0.3.0\",\n  \"imports\": { \"$fresh/\": \"https://deno.land/x/fresh@1.6.8/\" }\n}",
+			wantName:      "@demo/web",
+			wantFramework: "Fresh",
+			wantVersion:   "0.3.0",
+		},
+		{
+			name:          "bun config",
+			filename:      "bunfig.toml",
+			content:       "[install]\npeer = false\n",
+			wantFramework: "Bun",
+		},
+		{
+			name:          "aspnet core csproj",
+			filename:      "Orders.Api.csproj",
+			content:       `<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><AssemblyName>OrdersApi</AssemblyName><Version>2.4.0</Version></PropertyGroup></Project>`,
+			wantName:      "OrdersApi",
+			wantFramework: "ASP.NET Core",
+			wantVersion:   "2.4.0",
+		},
 	}
 
 	for _, tc := range cases {
@@ -630,6 +668,9 @@ func TestDetectMultiLanguageProjects(t *testing.T) {
 		{"bundle exec rails server -p 3000", "Rails"},
 		{"php artisan serve --port=8000", "Laravel"},
 		{"java -jar spring-boot-app.jar", "Spring Boot"},
+		{"deno run --allow-net main.ts", "Deno"},
+		{"bun run --hot src/index.ts", "Bun"},
+		{"dotnet run --project Api.csproj", "ASP.NET Core"},
 	} {
 		info := DetectFromDirAndCmdline("", tc.cmd)
 		if info == nil || info.Framework != tc.want {

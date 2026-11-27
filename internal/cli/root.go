@@ -16,17 +16,25 @@ import (
 	"strings"
 	"syscall"
 
-	_ "github.com/EquityQ/port-detective/internal/fingerprint"
+	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/fingerprint"
 	"github.com/EquityQ/port-detective/internal/version"
 	"github.com/spf13/cobra"
 )
 
 type options struct {
 	jsonOutput bool
+	inspector  *core.Inspector
 }
 
+// NewRootCommand creates the root CLI command using the registered global detector.
 func NewRootCommand() *cobra.Command {
-	opts := &options{}
+	return NewRootCommandWithInspector(nil)
+}
+
+// NewRootCommandWithInspector creates the root CLI command bound to inspector.
+func NewRootCommandWithInspector(inspector *core.Inspector) *cobra.Command {
+	opts := &options{inspector: inspector}
 
 	root := &cobra.Command{
 		Use:     "port-detective",
@@ -61,7 +69,12 @@ func NewRootCommand() *cobra.Command {
 }
 
 func Execute() {
-	root := NewRootCommand()
+	ExecuteWithInspector(core.NewInspector(fingerprint.DetectProject))
+}
+
+// ExecuteWithInspector runs the CLI with an explicitly injected Inspector.
+func ExecuteWithInspector(inspector *core.Inspector) {
+	root := NewRootCommandWithInspector(inspector)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	root.SetContext(ctx)

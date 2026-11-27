@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/EquityQ/port-detective/internal/core"
@@ -17,6 +19,10 @@ var (
 	pyprojectReVersion = regexp.MustCompile(`(?m)^\s*version\s*=\s*["']([^"']+)["']`)
 	mavenArtifactRe    = regexp.MustCompile(`<artifactId>\s*([^<\s]+)\s*</artifactId>`)
 	mavenVersionRe     = regexp.MustCompile(`<version>\s*([^<\s]+)\s*</version>`)
+	denoNameRe         = regexp.MustCompile(`"name"\s*:\s*"([^"]+)"`)
+	denoVersionRe      = regexp.MustCompile(`"version"\s*:\s*"([^"]+)"`)
+	dotnetAssemblyRe   = regexp.MustCompile(`<AssemblyName>\s*([^<\s]+)\s*</AssemblyName>`)
+	dotnetVersionRe    = regexp.MustCompile(`<Version(?:Prefix)?>\s*([^<\s]+)\s*</Version(?:Prefix)?>`)
 )
 
 type packageJSON struct {
@@ -66,6 +72,16 @@ func checkNodeProject(ctx context.Context, pkgPath, projectDir string) *core.Pro
 		framework = "NestJS"
 	case hasDep("express"):
 		framework = "Express"
+	case hasDep("fastify"):
+		framework = "Fastify"
+	case hasDep("hono"):
+		framework = "Hono"
+	case hasDep("elysia"):
+		framework = "Elysia"
+	case hasDep("astro"):
+		framework = "Astro"
+	case hasDep("@sveltejs/kit"):
+		framework = "SvelteKit"
 	case hasDep("react"):
 		framework = "React"
 	case hasDep("vue"):
@@ -216,6 +232,12 @@ func identifyFrameworkFromCmdline(lowerCmd string) string {
 		return "Laravel"
 	case strings.Contains(lowerCmd, "spring-boot"):
 		return "Spring Boot"
+	case strings.Contains(lowerCmd, "deno run") || strings.Contains(lowerCmd, "deno serve"):
+		return "Deno"
+	case strings.Contains(lowerCmd, "bun run") || strings.Contains(lowerCmd, "bun --hot"):
+		return "Bun"
+	case strings.Contains(lowerCmd, "dotnet run") || strings.Contains(lowerCmd, "kestrel"):
+		return "ASP.NET Core"
 	default:
 		return ""
 	}
@@ -419,4 +441,129 @@ func checkPHPProject(ctx context.Context, composerPath, projectDir string) *core
 		Path:      projectDir,
 		Version:   pkg.Version,
 	}
+}
+
+type denoManifest struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// checkDenoProject parses deno.json or deno.jsonc for project metadata and framework signatures.
+func checkDenoProject(ctx context.Context, denoJSONPath, denoJSONCPath, projectDir string) *core.ProjectInfo {
+	for _, candidate := range []string{denoJSONPath, denoJSONCPath} {
+		if contextErr(ctx) != nil {
+			return nil
+		}
+		data, err := readManifestFile(ctx, candidate, maxManifestFileSize)
+		if contextErr(ctx) != nil {
+			return nil
+		}
+		if err != nil {
+			continue
+		}
+		var cfg denoManifest
+		name := ""
+		version := ""
+		if json.Unmarshal(data, &cfg) == nil {
+			name = cfg.Name
+			version = cfg.Version
+		} else {
+			content := string(data)
+			if m := denoNameRe.FindStringSubmatch(content); len(m) > 1 {
+				name = m[1]
+			}
+			if m := denoVersionRe.FindStringSubmatch(content); len(m) > 1 {
+				version = m[1]
+			}
+		}
+		if name == "" {
+			name = filepath.Base(projectDir)
+		}
+		lower := strings.ToLower(string(data))
+		framework := "Deno"
+		switch {
+		case strings.Contains(lower, "$fresh") || strings.Contains(lower, "fresh"):
+			framework = "Fresh"
+		case strings.Contains(lower, "oak"):
+			framework = "Oak"
+		case strings.Contains(lower, "hono"):
+			framework = "Hono"
+		}
+		return &core.ProjectInfo{
+			Name:      name,
+			Framework: framework,
+			Path:      projectDir,
+			Version:   version,
+		}
+	}
+	return nil
+}
+
+// checkBunProject detects Bun configuration manifests.
+func checkBunProject(ctx context.Context, bunfigPath, projectDir string) *core.ProjectInfo {
+	if _, err := readManifestFile(ctx, bunfigPath, maxManifestFileSize); err != nil || contextErr(ctx) != nil {
+		return nil
+	}
+	return &core.ProjectInfo{
+		Name:      filepath.Base(projectDir),
+		Framework: "Bun",
+		Path:      projectDir,
+	}
+}
+
+// checkDotNetProject inspects *.csproj files for .NET and ASP.NET Core metadata.
+func checkDotNetProject(ctx context.Context, projectDir string) *core.ProjectInfo {
+	if contextErr(ctx) != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return nil
+	}
+	var candidates []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".csproj") {
+			candidates = append(candidates, entry.Name())
+		}
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Strings(candidates)
+	for _, candidate := range candidates {
+		if contextErr(ctx) != nil {
+			return nil
+		}
+		data, err := readManifestFile(ctx, filepath.Join(projectDir, candidate), maxManifestFileSize)
+		if contextErr(ctx) != nil {
+			return nil
+		}
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		name := strings.TrimSuffix(candidate, filepath.Ext(candidate))
+		if m := dotnetAssemblyRe.FindStringSubmatch(content); len(m) > 1 {
+			name = m[1]
+		}
+		version := ""
+		if m := dotnetVersionRe.FindStringSubmatch(content); len(m) > 1 {
+			version = m[1]
+		}
+		lower := strings.ToLower(content)
+		framework := ".NET"
+		if strings.Contains(lower, "microsoft.net.sdk.web") || strings.Contains(lower, "microsoft.aspnetcore") {
+			framework = "ASP.NET Core"
+		}
+		return &core.ProjectInfo{
+			Name:      name,
+			Framework: framework,
+			Path:      projectDir,
+			Version:   version,
+		}
+	}
+	return nil
 }

@@ -12,7 +12,39 @@ import (
 	"github.com/EquityQ/port-detective/internal/version"
 )
 
+type mcpHandlers struct {
+	inspector *core.Inspector
+}
+
 func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).inspectPort(ctx, request)
+}
+
+func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).scanDevPorts(ctx, request)
+}
+
+func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).freePort(ctx, request)
+}
+
+func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).cleanCurrentProject(ctx, request)
+}
+
+func handleFindFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).findFreePort(ctx, request)
+}
+
+func handleWaitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).waitForPort(ctx, request)
+}
+
+func handleDoctor(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return (&mcpHandlers{}).doctor(ctx, request)
+}
+
+func (h *mcpHandlers) inspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := requirePort(request)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -26,7 +58,7 @@ func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	diag, err := core.InspectPortProtocol(ctx, port, proto)
+	diag, err := h.inspector.InspectPortProtocol(ctx, port, proto)
 	if err != nil {
 		return mcp.NewToolResultErrorf("inspect port %d failed: %v", port, err), nil
 	}
@@ -34,7 +66,7 @@ func handleInspectPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 	return jsonResult(diag)
 }
 
-func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) scanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	rawProto, err := optionalString(request, "protocol")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -92,7 +124,7 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		}
 	}
 
-	summary, err := core.ScanPortsProtocolSummary(ctx, targetPorts, proto)
+	summary, err := h.inspector.ScanPortsProtocolSummary(ctx, targetPorts, proto)
 	if err != nil {
 		return mcp.NewToolResultErrorf("scan failed: %v", err), nil
 	}
@@ -111,7 +143,7 @@ func handleScanDevPorts(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	return response, nil
 }
 
-func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) freePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := requirePort(request)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -131,15 +163,15 @@ func handleFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.Call
 	}
 
 	if dryRun {
-		return previewFreePort(ctx, port, proto)
+		return h.previewFreePort(ctx, port, proto)
 	}
-	return executeFreePort(ctx, request, port, proto)
+	return h.executeFreePort(ctx, request, port, proto)
 }
 
 // previewFreePort inspects the port and returns a signed preview token that binds
 // the confirmed process identity to a later execution.
-func previewFreePort(ctx context.Context, port int, protocol string) (*mcp.CallToolResult, error) {
-	diag, err := core.InspectPortProtocol(ctx, port, protocol)
+func (h *mcpHandlers) previewFreePort(ctx context.Context, port int, protocol string) (*mcp.CallToolResult, error) {
+	diag, err := h.inspector.InspectPortProtocol(ctx, port, protocol)
 	if err != nil {
 		return mcp.NewToolResultErrorf("free port %d preview failed: %v", port, err), nil
 	}
@@ -168,7 +200,7 @@ func previewFreePort(ctx context.Context, port int, protocol string) (*mcp.CallT
 }
 
 // executeFreePort terminates exactly the process recorded in the preview token.
-func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int, protocol string) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int, protocol string) (*mcp.CallToolResult, error) {
 	token, err := optionalString(request, "preview_id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -185,7 +217,7 @@ func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int,
 	}
 	// The token proves what was previewed; core still revalidates the live port and
 	// fails on any drift instead of redirecting the action to a new owner.
-	diag, msg, err := core.KillPortTarget(ctx, targets[0], false)
+	diag, msg, err := h.inspector.KillPortTarget(ctx, targets[0], false)
 	if err != nil {
 		return mcp.NewToolResultErrorf("free port %d failed: %v", port, err), nil
 	}
@@ -202,7 +234,7 @@ func executeFreePort(ctx context.Context, request mcp.CallToolRequest, port int,
 	})
 }
 
-func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) cleanCurrentProject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectPath, err := optionalString(request, "project_path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -240,22 +272,22 @@ func handleCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest)
 		scope = "specified TCP ports"
 	}
 	if dryRun {
-		return previewCleanCurrentProject(ctx, cwd, ports, scope)
+		return h.previewCleanCurrentProject(ctx, cwd, ports, scope)
 	}
-	return executeCleanCurrentProject(ctx, request, cwd, ports, scope)
+	return h.executeCleanCurrentProject(ctx, request, cwd, ports, scope)
 }
 
 // previewCleanCurrentProject discovers targets, revalidates them, and binds them
 // into a preview token. The `cleaned` field keeps its historical dry-run meaning
 // so existing clients are unaffected; `targets` and `preview_id` are additive.
-func previewCleanCurrentProject(ctx context.Context, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
-	targets, err := core.DiscoverProjectPorts(ctx, cwd, ports)
+func (h *mcpHandlers) previewCleanCurrentProject(ctx context.Context, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
+	targets, err := h.inspector.DiscoverProjectPorts(ctx, cwd, ports)
 	if err != nil {
 		return mcp.NewToolResultErrorf("project discovery failed: %v", err), nil
 	}
 	// Dry-run through the normal path so the preview validates exactly what an
 	// execution would act on, and reports the same partial failures it always has.
-	cleaned, previewErr := core.CleanProjectTargets(ctx, cwd, targets, true)
+	cleaned, previewErr := h.inspector.CleanProjectTargets(ctx, cwd, targets, true)
 	result := map[string]any{
 		"cwd":     cwd,
 		"scope":   scope,
@@ -287,7 +319,7 @@ func previewCleanCurrentProject(ctx context.Context, cwd string, ports []int, sc
 }
 
 // executeCleanCurrentProject acts only on the targets pinned by the preview token.
-func executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest, cwd string, ports []int, scope string) (*mcp.CallToolResult, error) {
 	token, err := optionalString(request, "preview_id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -305,7 +337,7 @@ func executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest
 	if err != nil {
 		return mcp.NewToolResultErrorf("preview_id rejected for project cleanup: %v", err), nil
 	}
-	cleaned, cleanErr := core.CleanProjectTargets(ctx, cwd, targets, false)
+	cleaned, cleanErr := h.inspector.CleanProjectTargets(ctx, cwd, targets, false)
 	result := map[string]any{
 		"cwd":                     cwd,
 		"scope":                   scope,
@@ -325,7 +357,7 @@ func executeCleanCurrentProject(ctx context.Context, request mcp.CallToolRequest
 	return response, nil
 }
 
-func handleFindFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) findFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	from, err := optionalInt(request, "from", 3000, 1, 65535)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -337,14 +369,14 @@ func handleFindFreePort(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	if from > to {
 		return mcp.NewToolResultError("expected 1 <= from <= to <= 65535"), nil
 	}
-	result, err := core.FindFreePort(ctx, from, to)
+	result, err := h.inspector.FindFreePort(ctx, from, to)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return jsonResult(result)
 }
 
-func handleWaitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) waitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	port, err := requirePort(request)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -368,7 +400,7 @@ func handleWaitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	diag, err := core.WaitForPortProtocol(
+	diag, err := h.inspector.WaitForPortProtocol(
 		ctx,
 		port,
 		rawProto,
@@ -382,7 +414,7 @@ func handleWaitForPort(ctx context.Context, request mcp.CallToolRequest) (*mcp.C
 	return jsonResult(diag)
 }
 
-func handleDoctor(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *mcpHandlers) doctor(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectProvided, projectPath, err := optionalStringPresent(request, "project_path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -397,7 +429,7 @@ func handleDoctor(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallTo
 			return mcp.NewToolResultErrorf("invalid project_path: %v", err), nil
 		}
 	}
-	report, err := core.RunDoctor(ctx, "", cwd, version.Value)
+	report, err := h.inspector.RunDoctor(ctx, "", cwd, version.Value)
 	if err != nil {
 		return mcp.NewToolResultErrorf("doctor failed: %v", err), nil
 	}

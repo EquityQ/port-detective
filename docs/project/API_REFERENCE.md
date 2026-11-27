@@ -61,7 +61,8 @@ The confirmed target snapshot is retained; a new owner is never substituted afte
 confirmation. Project cleanup groups listeners by process so a multi-port process
 is terminated once. Project selection resolves an existing directory to its nearest
 `package.json`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`,
-`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, or `composer.json` ancestor,
+`pom.xml`, `build.gradle`, `build.gradle.kts`, `Gemfile`, `composer.json`,
+`deno.json`, `deno.jsonc`, `bunfig.toml`, or `*.csproj` ancestor,
 or keeps the selected directory if no manifest is found. It does not include unrelated
 nested projects. Listener discovery is limited to the current host/network namespace.
 PID 0 and 1 are never eligible targets. Permission-limited metadata is reported as a
@@ -154,10 +155,13 @@ JSON-RPC; diagnostics belong on stderr.
 
 The frozen core API exposes `PortDiagnostic`, `DefaultDevPorts`,
 `InspectPort`, `ScanPortsConcurrent`, and `KillPortProcess`. Additive helpers
-(`InspectPortProtocol`, `ScanPortsProtocolSummary`, `core.Inspector`,
-`IssueCLIPreviewToken`, `RestoreCLIPreviewToken`, and `SupportedProjectManifests`)
-extend the core without altering any frozen signature or JSON field name. The CLI
-and MCP layers consume these contracts without changing field names or safety rules.
+(`InspectPortProtocol`, `ScanPortsProtocolSummary`, `KillPortProcessProtocol`,
+`ResolvePresetPorts`, `FindFreePort`, `WaitForPort`, `WaitForPortProtocol`,
+`RunDoctor`, `core.Inspector`, `IssueCLIPreviewToken`, `RestoreCLIPreviewToken`,
+`RestoreCLIPreviewTokenProtocol`, `RestorePreviewTokenProtocol`, and
+`SupportedProjectManifests`) extend the core without altering any frozen signature
+or JSON field name. The CLI and MCP layers consume these contracts without changing
+field names or safety rules.
 
 Tool descriptions, annotations, and cross-language `PortDiagnostic` schema parity
 across Go, Python (`models.py`), and TypeScript (`index.d.ts`) are verified by

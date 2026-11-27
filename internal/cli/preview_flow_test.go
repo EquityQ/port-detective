@@ -450,6 +450,39 @@ func TestKillPreviewTokenWorksAcrossCLIProcesses(t *testing.T) {
 	}
 }
 
+func TestNewRootCommandWithInspectorIsolatesGlobalDetector(t *testing.T) {
+	ln, port := listenLoopbackCLI(t)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	globalCalled := false
+	core.RegisterProjectDetector(func(context.Context, int32) *core.ProjectInfo {
+		globalCalled = true
+		return &core.ProjectInfo{Name: "global", Framework: "Global"}
+	})
+	t.Cleanup(func() { core.RegisterProjectDetector(fingerprint.DetectProject) })
+
+	root := NewRootCommandWithInspector(core.NewInspector(func(context.Context, int32) *core.ProjectInfo {
+		return &core.ProjectInfo{Name: "cli-injected", Framework: "Hono"}
+	}))
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"check", strconv.Itoa(port), "--json"})
+	if code := executeCommand(root); code != 0 {
+		t.Fatalf("check failed (%d): %s", code, errOut.String())
+	}
+	if globalCalled {
+		t.Fatal("injected CLI inspector must not call global detector")
+	}
+	var diag core.PortDiagnostic
+	if err := json.Unmarshal(out.Bytes(), &diag); err != nil {
+		t.Fatal(err)
+	}
+	if diag.Project == nil || diag.Project.Name != "cli-injected" {
+		t.Fatalf("expected injected project metadata, got %+v", diag.Project)
+	}
+}
+
 func listenLoopbackCLI(t *testing.T) (net.Listener, int) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

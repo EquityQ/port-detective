@@ -14,28 +14,35 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 
-	_ "github.com/EquityQ/port-detective/internal/fingerprint"
+	"github.com/EquityQ/port-detective/internal/core"
+	"github.com/EquityQ/port-detective/internal/fingerprint"
 	"github.com/EquityQ/port-detective/internal/version"
 )
 
 const serverName = "port-detective"
 
-// NewServer creates an MCP server with all tools registered.
+// NewServer creates an MCP server with all tools registered using the global detector hook.
 func NewServer() *server.MCPServer {
+	return NewServerWithInspector(nil)
+}
+
+// NewServerWithInspector creates an MCP server whose tools use the supplied Inspector.
+func NewServerWithInspector(inspector *core.Inspector) *server.MCPServer {
 	s := server.NewMCPServer(
 		serverName,
 		version.Value,
 		server.WithRecovery(),
 	)
 
+	h := &mcpHandlers{inspector: inspector}
 	handlers := map[string]server.ToolHandlerFunc{
-		"inspect_port":          handleInspectPort,
-		"scan_dev_ports":        handleScanDevPorts,
-		"free_port":             handleFreePort,
-		"clean_current_project": handleCleanCurrentProject,
-		"find_free_port":        handleFindFreePort,
-		"wait_for_port":         handleWaitForPort,
-		"doctor":                handleDoctor,
+		"inspect_port":          h.inspectPort,
+		"scan_dev_ports":        h.scanDevPorts,
+		"free_port":             h.freePort,
+		"clean_current_project": h.cleanCurrentProject,
+		"find_free_port":        h.findFreePort,
+		"wait_for_port":         h.waitForPort,
+		"doctor":                h.doctor,
 	}
 	for _, tool := range serverTools() {
 		handler, ok := handlers[tool.Name]
@@ -50,7 +57,12 @@ func NewServer() *server.MCPServer {
 
 // RunStdioServer starts the MCP server over Stdio and blocks until canceled or input closes.
 func RunStdioServer(ctx context.Context) error {
-	stdio := server.NewStdioServer(NewServer())
+	return RunStdioServerWithInspector(ctx, core.NewInspector(fingerprint.DetectProject))
+}
+
+// RunStdioServerWithInspector starts the MCP server over Stdio with an explicit Inspector.
+func RunStdioServerWithInspector(ctx context.Context, inspector *core.Inspector) error {
+	stdio := server.NewStdioServer(NewServerWithInspector(inspector))
 	return stdio.Listen(ctx, os.Stdin, os.Stdout)
 }
 
