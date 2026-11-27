@@ -12,7 +12,7 @@
 
 ## Review checklist
 
-- [ ] The change follows the architecture boundaries in `docs/community/CONTRIBUTING.md`.
+- [ ] The change follows the architecture boundaries in `CONTRIBUTING.md`.
 - [ ] MCP mode keeps stdout reserved for JSON-RPC and sends diagnostics to stderr.
 - [ ] User-facing documentation and release notes were updated when needed.
 - [ ] Tests and logs contain no secrets or private host data.

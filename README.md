@@ -81,7 +81,7 @@ Cleanup discovers all visible TCP listeners, matches the resolved project direct
 and shows the target list before confirmation. Running from a subdirectory resolves
 to the nearest supported project manifest (Node.js, Go, Python, Rust, Java/Kotlin,
 Ruby, PHP, Deno, Bun, or .NET). Wait observes port state rather than application readiness; a suggested
-free port is a snapshot, not a reservation. See the [API reference](docs/project/API_REFERENCE.md)
+free port is a snapshot, not a reservation. See the [API reference](docs/API_REFERENCE.md)
 for JSON and error contracts.
 
 ## Set Up with an AI Agent
@@ -198,24 +198,16 @@ set `dryRun: false` only after reviewing the target. See the [Node.js client gui
 - Review `--dry-run` output before using `--yes` or `dry_run=false`.
 - Process metadata and termination can be limited by permissions, services,
   containers, WSL, and sandboxing.
-- The CLI release matrix targets Windows, macOS, and Ubuntu on amd64 and arm64.
-  Python SDK CI covers Ubuntu, macOS, and Windows; see the [platform policy](docs/operations/PLATFORM_SUPPORT.md).
+- The CLI release matrix targets Windows, macOS, and Ubuntu on amd64 and arm64
+  (Go 1.25.5+, Python 3.9+, Node.js 22+).
+- Generate shell completions with `port-detective completion <bash|zsh|fish|powershell>`.
 
 ## Documentation
 
-- [Documentation index](docs/README.md)
-- [Node.js client guide](npm/port-detective/README.md)
-- [Contributing](docs/community/CONTRIBUTING.md)
-- [Community submissions](docs/community/COMMUNITY_SUBMISSIONS.md)
-- [Security policy](docs/community/SECURITY.md)
-- [Project status](docs/operations/STATUS.md)
-- [Quality review](docs/project/QUALITY_REVIEW.md)
-- [Roadmap](docs/project/ROADMAP.md)
-- [CLI and MCP API reference](docs/project/API_REFERENCE.md)
-- [Troubleshooting](docs/operations/TROUBLESHOOTING.md) · [Shell completion](docs/operations/SHELL_COMPLETION.md)
-- [Safe CLI demo](scripts/demo/README.md)
-- [Changelog](docs/releases/CHANGELOG.md)
-- [Release checklist](docs/releases/RELEASE_CHECKLIST.md)
+- [CLI and MCP API reference](docs/API_REFERENCE.md)
+- [Python SDK](python/README.md) · [Node.js client](npm/port-detective/README.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## License
 

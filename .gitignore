@@ -57,8 +57,6 @@ node_modules/
 
 # ===== Generated or local-only repository files =====
 README_zh.md
-docs/project/API_REFERENCE.generated.json
-docs/project/API_REFERENCE.generated.md
-docs/community/MAINTAINERS.md
-docs/operations/COMPATIBILITY_REPORT.md
+docs/API_REFERENCE.generated.json
+docs/API_REFERENCE.generated.md
 

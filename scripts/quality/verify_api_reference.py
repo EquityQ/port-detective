@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-REFERENCE = ROOT / "docs" / "project" / "API_REFERENCE.md"
+REFERENCE = ROOT / "docs" / "API_REFERENCE.md"
 GENERATOR = ROOT / "scripts" / "quality" / "generate_api_reference.py"
 PYTHON_MODELS = ROOT / "python" / "port_detective" / "models.py"
 NODE_TYPES = ROOT / "npm" / "port-detective" / "index.d.ts"

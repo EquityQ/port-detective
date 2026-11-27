@@ -3,6 +3,6 @@ contact_links:
   - name: Report a security vulnerability privately
     url: https://github.com/EquityQ/port-detective/security/advisories/new
     about: Do not disclose security vulnerabilities in a public issue.
-  - name: Read the platform support policy
-    url: https://github.com/EquityQ/port-detective/blob/main/docs/operations/PLATFORM_SUPPORT.md
-    about: Check supported operating systems, architectures, and permission limits first.
+  - name: Read the CLI and MCP API reference
+    url: https://github.com/EquityQ/port-detective/blob/main/docs/API_REFERENCE.md
+    about: Check flags, JSON schemas, exit codes, and safety defaults first.

@@ -163,8 +163,7 @@ finish populating the cache after cancellation; it never terminates a target pro
 `preview_id`, `preview_expires_at_unix`, `message`, and `error`.
 `FreePortResult` and `DoctorReport` model `find_free_port` and `doctor` outputs.
 
-See the [API reference](../docs/project/API_REFERENCE.md), [platform support policy](../docs/operations/PLATFORM_SUPPORT.md),
-and [quality review](../docs/project/QUALITY_REVIEW.md) for release constraints.
+See the [API reference](../docs/API_REFERENCE.md) for CLI, JSON, and MCP contracts.
 
 ## License
 
