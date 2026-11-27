@@ -17,6 +17,9 @@ This roadmap tracks post-release improvements for the next development cycle.
 - Harden `scripts/quality/run_checks.py` (`--skip-go` fix, MCP acceptance, `mypy`/`tsc`/`--strict`)
   and migrate release signing and `verify_artifacts.py` to Sigstore `.sigstore.json` bundles.
 
+Version 1.5.0 was published through GitHub, PyPI, and npm on 2026-11-27. Its release tag
+passed the hosted Go, Python, MCP, and Sigstore bundle checks, and the npm workflow verified a clean install.
+
 ## Included in v1.4.0
 
 - Persist a user-scoped, 24h-rotated CLI preview signing key so `--preview-id` works across
@@ -65,7 +68,7 @@ the hosted Go, Python, and MCP checks, and the npm workflow verified a clean ins
 
 ## Release readiness
 
-- v1.4.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
+- v1.5.0 release completed through GitHub, PyPI, and npm Trusted Publishing.
 - Retain checksums, SBOM, provenance, signatures, and MCP acceptance evidence.
 - Keep CLI and SDK versions synchronized.
 - Keep supported platforms and known permission limits current in release notes.

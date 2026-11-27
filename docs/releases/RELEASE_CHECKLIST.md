@@ -60,8 +60,8 @@ Both `--require-platform-manifest` and `--require-bundles` are opt-in gates; wit
 them the earlier checksum and archive checks still run, and historical releases before the
 bundle migration retain their original `.sig`/`.pem` verification assets.
 
-The [`v1.4.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.4.0)
-and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/45324780732)
-completed successfully. The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/45325148398)
-passed its strict six-platform manifest gate and clean-install integration. PyPI 1.4.0
-and npm 1.4.0, including all six platform packages, were independently confirmed available.
+The [`v1.5.0` release](https://github.com/EquityQ/port-detective/releases/tag/v1.5.0)
+and [release workflow](https://github.com/EquityQ/port-detective/actions/runs/45951344497)
+completed successfully. The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/45951693084)
+passed its strict six-platform manifest gate and clean-install integration. PyPI 1.5.0
+and npm 1.5.0, including all six platform packages, were independently confirmed available.

@@ -1,47 +1,50 @@
 # Open Source Quality Review
 
-Review date: 2026-11-24. Scope: Go core, CLI, MCP server, Python and Node.js SDKs,
+Review date: 2026-11-27. Scope: Go core, CLI, MCP server, Python and Node.js SDKs,
 CI/release automation, documentation, and community files.
 
 ## Current assessment
 
-`port-detective` v1.4.0 passed hosted CI and the release workflow. GitHub assets (30
-signed files), PyPI distributions, the npm client, and six platform packages were
-published; the PyPI and npm clean-install integrations passed.
+`port-detective` v1.5.0 passed hosted CI and the release workflow. GitHub assets (20
+signed release files: 10 artifacts paired with 10 `.sigstore.json` Sigstore bundles),
+PyPI distributions, the npm client, and six platform packages were published; the PyPI
+and npm clean-install integrations passed.
 
-**Established public-release baseline: 96/100**. Version 1.4.0 closes the cross-process
-CLI preview-token gap, adds `bind_addresses`, optional UDP inspection/scanning,
-Rust/Java/Kotlin/Ruby/PHP fingerprinting, `core.Inspector` dependency injection, full
-Python/Node SDK workflow parity, modular package splits across Go/Python/Node/release
-scripts, cross-language schema parity checks, `mypy` and `tsc --noEmit --strict` CI
-gates, and raised coverage thresholds.
+**Established public-release baseline: 97/100**. Version 1.5.0 closes the structured
+`clean --json --envelope` / `CleanResult` contract across CLI and both SDKs, extends
+termination and preview tokens to optional UDP, moves shared workflows into `internal/core`
+and exposes all seven tools on MCP, expands monorepo traversal (8 levels) and runtime
+detectors (Deno, Bun, .NET, Fastify/Hono/Elysia/Astro/SvelteKit), completes
+`core.Inspector` dependency injection across CLI and MCP, hardens `run_checks.py` with
+built-in MCP acceptance, and migrates release signing to Cosign v3 Sigstore bundles.
 
 | Area | Score | Evidence | Remaining gap |
 | --- | ---: | --- | --- |
-| Product usefulness | 19/20 | TCP/UDP CLI, `bind_addresses`, MCP, project cleanup, 7-ecosystem fingerprinting, full-parity Python & Node SDKs | More real-world compatibility evidence |
-| Architecture | 19/20 | Core/CLI/MCP separation, `core.Inspector` DI, modular Go/Python/Node/release layers, `testdata/sdk-cli` isolation, protocol-safe stdout | More long-lived user feedback on DI |
-| Correctness and safety | 19/20 | Race tests, mutex-guarded test hooks, cross-process CLI preview keystore + process-isolated MCP tokens, listener revalidation, degraded `wait`/`doctor` honesty, dry-run and JSON confirmation guards | Hosted restricted-environment evidence |
-| Developer experience | 15/15 | Concise quick start, unified `run_checks.py`, issue forms, three-OS CI, PEP 561 `py.typed` + `mypy`, strict `tsc` + typed Node client, published platform packages, schema drift gate, shell completion | More user feedback |
-| Release and supply chain | 15/15 | v1.4.0 GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, signatures, SBOM, provenance, strict six-platform manifest gating in both release and npm workflows, and clean-install checks | None for this release |
+| Product usefulness | 19/20 | TCP/UDP inspect, scan, and release; `clean --envelope`; 7 MCP tools; 10-ecosystem / 8-level monorepo fingerprinting; full-parity Python & Node SDKs | More real-world compatibility evidence |
+| Architecture | 20/20 | Pure `internal/core` workflows, complete `core.Inspector` DI across core/CLI/MCP without blank init imports, modular Go/Python/Node/release layers, protocol-safe stdout | None for this baseline |
+| Correctness and safety | 19/20 | Race tests, mutex-guarded test hooks, protocol-bound cross-process CLI / process-isolated MCP preview tokens, listener revalidation, fail-closed selections | Hosted restricted-environment evidence |
+| Developer experience | 15/15 | Concise quick start, unified `run_checks.py` with MCP acceptance, issue forms, three-OS CI, PEP 561 `py.typed`, strict `tsc`, published platform packages, schema drift gate | More user feedback |
+| Release and supply chain | 15/15 | v1.5.0 GitHub, PyPI, and npm artifacts with immutable Action SHAs, checksums, `.sigstore.json` Sigstore bundles + completeness gate, SBOM, provenance, and clean-install checks | None for this release |
 | Community operations | 9/10 | Security, conduct, contribution, submission, status, troubleshooting, and PR guidance | Named ownership and long-term support history |
 
 ## Release evidence
 
-The [v1.4.0 release workflow](https://github.com/EquityQ/port-detective/actions/runs/45324780732)
-passed Go, Python, MCP, strict six-platform archive manifest, signature, provenance, and
-PyPI installation checks.
-The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/45325148398)
+The [v1.5.0 release workflow](https://github.com/EquityQ/port-detective/actions/runs/45951344497)
+passed Go, Python, MCP, strict six-platform archive manifest, Cosign Sigstore bundle
+signing/verification/completeness, provenance, and PyPI installation checks.
+The [npm publication workflow](https://github.com/EquityQ/port-detective/actions/runs/45951693084)
 published the client and all six platform packages and passed clean-install CLI integration.
 
 ## Quality gates
 
-Local source validation on 2026-11-24 passed Go build, verbose tests, race tests,
-vet, formatting, Linux/macOS/Windows-arm64 cross-builds, Python `mypy` (0 issues),
-TypeScript `tsc --noEmit --strict`, Python/Node SDK tests and real CLI integrations,
-MCP acceptance, cross-language API/schema parity checks, and package builds. Windows
-coverage was Go core 83.5%, CLI 77.6%, MCP 82.7%, and fingerprint 80.1%; Python
-core/models/overall was 84/97/82%, and Node lines/branches/functions was
-90.96/79.69/96.61%.
+Local validation on `v1.5.0` source passed Go build, race tests, vet, formatting, Python
+49 SDK tests, 27 release verifier tests, Node.js 19 client tests (91.69% lines, 81.20%
+branches, 98.36% functions), real-CLI Python/Node integration, all three MCP acceptance
+checks (7 tools), cross-language API/schema parity checks, and `npm pack --dry-run`.
+Local Step 38 verification before the version bump also passed Linux/macOS/Windows-arm64
+cross-builds and Windows Go coverage thresholds (`core` 81.1%, `cli` 81.1%, `mcpserver`
+82.8%, `fingerprint` 79.9%); hosted three-OS CI verified Python `mypy` (and 70/90/70%
+coverage), TypeScript `tsc --noEmit --strict`, Go `govulncheck`, and `pip-audit`.
 
 Cross-compilation passed for Linux amd64, macOS amd64, and Windows arm64; hosted CI and
 release workflows supplied three-OS runtime verification for Go, Python, and Node.js.
@@ -56,9 +59,9 @@ Every change should pass:
 python scripts/quality/run_checks.py
 ```
 
-On `main` after `v1.4.0` (unreleased), `run_checks.py` also runs MCP acceptance checks
-against a freshly built temporary binary and invokes `mypy` / `tsc` when installed (use
-`--strict` to require them). Or run checks individually:
+`run_checks.py` runs Go checks, builds a temporary CLI to run MCP acceptance checks, checks
+API/schema parity, invokes `mypy` / `tsc` when installed (`--strict` requires them), and
+runs Python, release-verifier, and Node.js test suites. Or run checks individually:
 
 ```text
 go build ./...
